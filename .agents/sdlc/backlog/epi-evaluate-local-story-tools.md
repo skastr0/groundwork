@@ -18,3 +18,4 @@ The old review plugin includes `local_story_collect` and `local_story_codestory`
 ## Notes
 
 [2026-04-24]: Do not migrate by default. Compare behavior first.
+[2026-04-24]: Deferred redesign, not migrated in the review-plugin cleanup. `local_story_collect` and `local_story_codestory` braid local branch diff collection, trace/message/work-item linking, and artifact writing. EPI already owns the canonical primitives separately through `prov_worktree_overview`, `prov_pr_expand`, local evidence, and trace/message/work-item sources. Any future local-story capability should be designed as a provenance report over those primitives rather than copied from the old plugin.

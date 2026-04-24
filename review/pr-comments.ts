@@ -1,7 +1,9 @@
 import { Effect } from "effect";
+import { type PluginInput } from "@opencode-ai/plugin";
 import { runProcessText } from "../shared/effect-runtime.ts";
 import { logger } from "./utils/logger.ts";
-import { type Shell } from "./review.ts";
+
+export type Shell = PluginInput["$"];
 
 export type Result<T> = { success: true; data: T } | { success: false; error: string };
 

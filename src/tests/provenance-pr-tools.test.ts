@@ -31,16 +31,22 @@ type MockResponse = {
 
 function createShellStub(responses: MockResponse[]) {
   const executeCommand = (command: string): Promise<string> => {
-    for (const response of responses) {
-      const matches =
+    const matches = responses
+      .map((response, index) => ({ response, index }))
+      .filter(({ response }) =>
         typeof response.pattern === "string"
           ? command.includes(response.pattern)
-          : response.pattern.test(command);
+          : response.pattern.test(command),
+      )
+      .sort((left, right) => {
+        const leftSpecificity =
+          typeof left.response.pattern === "string" ? left.response.pattern.length : 0;
+        const rightSpecificity =
+          typeof right.response.pattern === "string" ? right.response.pattern.length : 0;
+        return rightSpecificity - leftSpecificity || left.index - right.index;
+      });
 
-      if (!matches) {
-        continue;
-      }
-
+    for (const { response } of matches) {
       return response.shouldError
         ? Promise.reject(new Error(response.output))
         : Promise.resolve(response.output);
@@ -303,6 +309,173 @@ describe("PR provenance tools", () => {
       expect.arrayContaining([
         expect.objectContaining({ kind: "review", id: "pr:42" }),
         expect.objectContaining({ kind: "git", id: "local-branch-diff" }),
+      ]),
+    );
+  });
+
+  it("materializes PR review context when a PR has no submitted reviews", async () => {
+    await seedEvidenceRoot(tempRoot);
+    const shell = createShellStub([
+      ...createLocalRepoResponses(""),
+      {
+        pattern:
+          "gh pr view 42 --json number,title,body,url,state,isDraft,author,baseRefName,headRefName,createdAt,updatedAt",
+        output: JSON.stringify({
+          number: 42,
+          title: "No review PR",
+          body: "",
+          url: "https://github.com/example/opencode/pull/42",
+          state: "OPEN",
+          isDraft: false,
+          author: { login: "octocat" },
+          baseRefName: "main",
+          headRefName: "feature/pr-context",
+          createdAt: "2026-05-30T12:00:00Z",
+          updatedAt: "2026-05-30T12:30:00Z",
+        }),
+      },
+      {
+        pattern: "gh api --paginate repos/:owner/:repo/pulls/42/files",
+        output: "[]",
+      },
+      {
+        pattern: "gh api --paginate repos/:owner/:repo/pulls/42/reviews",
+        output: "[]",
+      },
+      {
+        pattern: "gh api --paginate repos/:owner/:repo/issues/42/comments",
+        output: JSON.stringify([
+          {
+            id: 201,
+            user: { login: "maintainer" },
+            body: "Needs release notes.",
+            created_at: "2026-05-30T12:25:00Z",
+          },
+        ]),
+      },
+    ]);
+
+    const { createPrMaterializeTool } = await import("../provenance/tooling/expand/pr-tools.ts");
+    const toolDef = createPrMaterializeTool({ shell, rootDir: tempRoot });
+    const raw = await toolDef.execute(
+      {
+        pr: 42,
+        base: "origin/main",
+        mode: "hybrid",
+        limit: 10,
+        max_bytes: 4000,
+      },
+      {} as never,
+    );
+    const result = JSON.parse(raw);
+
+    expect(result.ok).toBe(true);
+    expect(result.data.remote.reviewContext).toMatchObject({
+      status: "available",
+      counts: {
+        reviews: 0,
+        reviewComments: 0,
+        issueComments: 1,
+      },
+    });
+    expect(result.data.remote.reviewContext.items).toEqual([
+      expect.objectContaining({
+        type: "issue_comment",
+        githubId: 201,
+        body: "Needs release notes.",
+      }),
+    ]);
+  });
+
+  it("bounds large PR review context while preserving counts", async () => {
+    await seedEvidenceRoot(tempRoot);
+    const longComment = "review body ".repeat(80);
+    const shell = createShellStub([
+      ...createLocalRepoResponses(""),
+      {
+        pattern:
+          "gh pr view 42 --json number,title,body,url,state,isDraft,author,baseRefName,headRefName,createdAt,updatedAt",
+        output: JSON.stringify({
+          number: 42,
+          title: "Large review PR",
+          body: "",
+          url: "https://github.com/example/opencode/pull/42",
+          state: "OPEN",
+          isDraft: false,
+          author: { login: "octocat" },
+          baseRefName: "main",
+          headRefName: "feature/pr-context",
+          createdAt: "2026-05-30T12:00:00Z",
+          updatedAt: "2026-05-30T12:30:00Z",
+        }),
+      },
+      {
+        pattern: "gh api --paginate repos/:owner/:repo/pulls/42/files",
+        output: "[]",
+      },
+      {
+        pattern: "gh api --paginate repos/:owner/:repo/pulls/42/reviews",
+        output: JSON.stringify([
+          {
+            id: 10,
+            user: { login: "reviewer" },
+            body: "Please inspect details.",
+            state: "COMMENTED",
+            submitted_at: "2026-05-30T12:20:00Z",
+          },
+        ]),
+      },
+      {
+        pattern: "gh api --paginate repos/:owner/:repo/pulls/42/reviews/10/comments",
+        output: JSON.stringify([
+          {
+            id: 101,
+            pull_request_review_id: 10,
+            in_reply_to_id: null,
+            user: { login: "reviewer" },
+            body: longComment,
+            created_at: "2026-05-30T12:21:00Z",
+            path: "src/auth/login.ts",
+            line: 12,
+            start_line: null,
+            side: "RIGHT",
+            diff_hunk: "@@ -1,2 +1,3 @@",
+          },
+        ]),
+      },
+      {
+        pattern: "gh api --paginate repos/:owner/:repo/issues/42/comments",
+        output: "[]",
+      },
+    ]);
+
+    const { createPrMaterializeTool } = await import("../provenance/tooling/expand/pr-tools.ts");
+    const toolDef = createPrMaterializeTool({ shell, rootDir: tempRoot });
+    const raw = await toolDef.execute(
+      {
+        pr: 42,
+        base: "origin/main",
+        mode: "hybrid",
+        limit: 10,
+        max_bytes: 4000,
+      },
+      {} as never,
+    );
+    const result = JSON.parse(raw);
+
+    expect(result.ok).toBe(true);
+    expect(result.data.remote.reviewContext.counts).toMatchObject({
+      reviews: 1,
+      reviewComments: 1,
+      issueComments: 0,
+    });
+    expect(result.data.remote.reviewContext.items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: "review_comment",
+          githubId: 101,
+          bodyTruncated: true,
+        }),
       ]),
     );
   });

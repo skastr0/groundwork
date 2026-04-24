@@ -18,3 +18,4 @@ The old `pr_to_work_items` implementation generates simplistic SDLC files direct
 ## Notes
 
 [2026-04-24]: Bias toward retirement. Direct file-writing work-item generation is the wrong shape unless redesigned.
+[2026-04-24]: Rejected as-is during review-plugin cleanup. `pr_to_work_items` directly writes `.agents/sdlc/committed/` files from PR comments, which bypasses lifecycle work-item contracts and overlaps with SDLC tooling ownership. If needed later, EPI should emit structured PR review findings/provenance only; lifecycle-core should own any conversion into work items.
