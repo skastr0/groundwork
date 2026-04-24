@@ -1,0 +1,160 @@
+{
+  "from": "security-reviewer",
+  "to": "review-coordinator",
+  "phase": "review",
+  "type": "reviewer-findings",
+  "content": {
+    "work_item": "epi-14-mutation-risk-bash-adapter.md",
+    "verdict": "pass",
+    "human_signoff_required": false,
+    "findings": [
+      {
+        "id": "SEC-EPI14-001",
+        "severity": "INFO",
+        "category": "architecture",
+        "title": "Migration Architecture Properly Delegates to Framework Layer",
+        "description": "The legacy destructive-command-guard plugin correctly delegates to the framework mutation-risk layer without duplicating logic or creating bypass paths.",
+        "evidence": {
+          "files": [
+            "plugin/destructive-command-guard/index.ts",
+            "plugin/epistemology-framework/mutation-risk/runtime.ts"
+          ],
+          "analysis": "Legacy plugin imports createFrameworkMutationRiskLayer from framework and returns its hook directly. No standalone logic remains that could diverge from framework behavior."
+        },
+        "blocking": false,
+        "recommendation": "Current implementation is correct. No changes needed."
+      },
+      {
+        "id": "SEC-EPI14-002",
+        "severity": "INFO",
+        "category": "data-integrity",
+        "title": "Rule IDs and User-Facing Messages Preserved",
+        "description": "All destructive command rule IDs, severities, and error messages remain stable and unchanged in the reused rules.ts module.",
+        "evidence": {
+          "files": [
+            "plugin/destructive-command-guard/rules.ts",
+            "plugin/destructive-command-guard/tests/rules.test.ts"
+          ],
+          "analysis": "Rules module is imported and re-exported from framework adapter. Tests confirm identical rule IDs: rm.recursive-force, git.checkout-discard, git.reset-hard, docker.system-prune, kubectl.delete-namespace, etc. Error message format unchanged."
+        },
+        "blocking": false,
+        "recommendation": "Current implementation is correct. No changes needed."
+      },
+      {
+        "id": "SEC-EPI14-003",
+        "severity": "INFO",
+        "category": "configuration",
+        "title": "Environment Configuration Behavior Preserved",
+        "description": "Configuration parsing from environment variables uses identical logic and defaults via configFromEnv function.",
+        "evidence": {
+          "files": [
+            "plugin/destructive-command-guard/rules.ts",
+            "plugin/epistemology-framework/mutation-risk/runtime.ts"
+          ],
+          "analysis": "Framework layer calls configFromEnv(options.env) with same environment variable names: OPENCODE_DESTRUCTIVE_GUARD_MODE, OPENCODE_DESTRUCTIVE_GUARD_EXTENDED, OPENCODE_DESTRUCTIVE_GUARD_ALLOW_TMP_RM_RF. Default values unchanged."
+        },
+        "blocking": false,
+        "recommendation": "Current implementation is correct. No changes needed."
+      },
+      {
+        "id": "SEC-EPI14-004",
+        "severity": "INFO",
+        "category": "observability",
+        "title": "Logging and Monitoring Preserved",
+        "description": "Security-relevant logging uses same service identifier and includes all critical context fields.",
+        "evidence": {
+          "files": [
+            "plugin/epistemology-framework/mutation-risk/runtime.ts"
+          ],
+          "analysis": "Logging uses service='destructive-command-guard' consistently. Logs include mode, callID, sessionID, ruleId, severity, and truncated command for audit trails."
+        },
+        "blocking": false,
+        "recommendation": "Current implementation is correct. No changes needed."
+      },
+      {
+        "id": "SEC-EPI14-005",
+        "severity": "INFO",
+        "category": "compatibility",
+        "title": "Cutover Contract Invariants Defined and Respected",
+        "description": "Legacy surface manifest defines clear invariants preventing dual activation and ensuring atomic cutover.",
+        "evidence": {
+          "files": [
+            "plugin/legacy-surface-manifest/cutover-contract.ts",
+            "plugin/epistemology-framework/layer/index.ts"
+          ],
+          "analysis": "EPISTEMOLOGY_FRAMEWORK_LAYER_META.migrationStatus = 'mutation-risk-bash-adapter' tracks migration state. Cutover contract defines noDualActivation and atomicCutover invariants. Framework barrel (plugin/epistemology-framework.ts) does not exist yet, ensuring no dual activation risk."
+        },
+        "blocking": false,
+        "recommendation": "Ensure future cutover PR follows contract invariants exactly - framework barrel activation must retire all legacy barrels atomically."
+      },
+      {
+        "id": "SEC-EPI14-006",
+        "severity": "LOW",
+        "category": "defense-in-depth",
+        "title": "Layer Ordering Places Mutation-Risk Last for Final Enforcement",
+        "description": "Mutation-risk layer is positioned at the end of layer order, ensuring it runs after policy and provenance layers.",
+        "evidence": {
+          "files": [
+            "plugin/epistemology-framework/layer/dispatcher.ts"
+          ],
+          "analysis": "EPISTEMOLOGY_FRAMEWORK_LAYER_ORDER = ['policy', 'worldview', 'provenance', 'mutation-risk']. Mutation-risk runs last in tool.execute.before sequence, providing final enforcement opportunity."
+        },
+        "blocking": false,
+        "recommendation": "Current ordering is appropriate. Mutation-risk should remain last to catch any commands that pass through other layers."
+      }
+    ],
+    "summary": {
+      "total_findings": 6,
+      "critical": 0,
+      "high": 0,
+      "medium": 0,
+      "low": 1,
+      "info": 5,
+      "blocking": false,
+      "key_assurances": [
+        "Rule evaluation logic unchanged - rules.ts reused verbatim",
+        "Configuration parsing identical - same env vars and defaults",
+        "User-facing error messages preserved with stable rule IDs",
+        "Logging maintained with same service identifier",
+        "No dual activation risk - framework barrel not yet discoverable",
+        "Layer ordering appropriate - mutation-risk runs last for final enforcement"
+      ],
+      "residual_risks": [
+        "Future cutover must follow atomic activation contract",
+        "Ensure no environment variable drift during cutover testing"
+      ]
+    },
+    "scan_scope": {
+      "method": "manual security review with taint analysis",
+      "files_reviewed": [
+        "plugin/destructive-command-guard/index.ts",
+        "plugin/destructive-command-guard/rules.ts",
+        "plugin/destructive-command-guard/tests/rules.test.ts",
+        "plugin/epistemology-framework/mutation-risk/index.ts",
+        "plugin/epistemology-framework/mutation-risk/runtime.ts",
+        "plugin/epistemology-framework/index.ts",
+        "plugin/epistemology-framework/layer/index.ts",
+        "plugin/epistemology-framework/layer/dispatcher.ts",
+        "plugin/epistemology-framework/tests/mutation-risk.test.ts",
+        "plugin/epistemology-framework/tests/index.test.ts",
+        "plugin/legacy-surface-manifest/cutover-contract.ts",
+        "plugin/legacy-surface-manifest/manifest.ts"
+      ],
+      "security_properties_verified": [
+        "Command evaluation logic integrity",
+        "Rule ID stability",
+        "Configuration parsing consistency",
+        "Logging observability",
+        "Hook delegation correctness",
+        "Layer activation safety",
+        "Cutover contract compliance"
+      ]
+    }
+  },
+  "metadata": {
+    "timestamp": "2026-03-18T05:16:00Z",
+    "work_item": "epi-14-mutation-risk-bash-adapter.md",
+    "parent_packet": "2026-03-18T05-15-28Z-build-implementation.json",
+    "blocking": false
+  }
+}

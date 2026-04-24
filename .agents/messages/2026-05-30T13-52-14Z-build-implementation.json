@@ -1,0 +1,50 @@
+{
+  "from": "builder",
+  "to": "caller",
+  "phase": "build",
+  "type": "implementation",
+  "content": {
+    "summary": "Implemented prv-13-fix-staged-path-trim-crash",
+    "data": {
+      "work_item": "prv-13-fix-staged-path-trim-crash.md",
+      "files_changed": [
+        "plugin/provenance-tools/evidence/index.ts",
+        "plugin/provenance-tools/tests/evidence.test.ts",
+        "plugin/provenance-tools/tests/tree-tools.test.ts"
+      ],
+      "files_added": [
+        "plugin/provenance-tools/tests/query-tools.test.ts"
+      ],
+      "tests_added": [
+        "plugin/provenance-tools/tests/query-tools.test.ts"
+      ],
+      "validation_results": {
+        "tests": "pass - bun run test -- plugin/provenance-tools/tests/evidence.test.ts plugin/provenance-tools/tests/tree-tools.test.ts plugin/provenance-tools/tests/query-tools.test.ts",
+        "types": "known unrelated failure - bun run typecheck reports plugin/policy-guardrail/policy.ts:6 and :175",
+        "lint": "pass with unrelated warning - bun run lint reports existing warning in plugin/iap-sdlc/index.ts:246",
+        "format": "pass - bun run format:check"
+      },
+      "acceptance_criteria_status": [
+        {
+          "criterion": "AC-1: Fix the shared runtime bug so prov_read, prov_block_read, prov_diff_expand, prov_tree_expand, and prov_worktree_overview no longer crash on staged-only or newly added provenance plugin paths.",
+          "status": "met"
+        },
+        {
+          "criterion": "AC-2: Add or update targeted tests that cover the failing staged-only/new-path scenario and protect against regression in shared normalization/parsing code.",
+          "status": "met"
+        },
+        {
+          "criterion": "AC-3: Preserve existing behavior on normal tracked-file inputs and keep plugin validation/tests green aside from documented unrelated pre-existing failures.",
+          "status": "met"
+        }
+      ],
+      "notes": "The crash came from message evidence parsing, not diff/path normalization. Historical provenance review packets store content.summary as structured objects; staged/new provenance paths matched those packets, and evidence/index.ts called trim() on the object while building linked evidence. The fix hardens message field parsing and extracts a string summary fallback from structured summaries.",
+      "blockers": []
+    }
+  },
+  "metadata": {
+    "timestamp": "2026-05-30T13:52:14Z",
+    "work_item": "prv-13-fix-staged-path-trim-crash.md",
+    "parent_packet": null
+  }
+}

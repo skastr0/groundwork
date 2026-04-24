@@ -1,0 +1,1538 @@
+import path from "node:path";
+import { readFileString, runProcessText } from "../../../../shared/effect-runtime.ts";
+import { computePostImageRanges } from "../../trace/diff.ts";
+import { tool, type ToolDefinition } from "@opencode-ai/plugin";
+import { z } from "zod";
+import {
+  DEFAULT_PROVENANCE_ITEM_LIMIT,
+  DEFAULT_PROVENANCE_BYTE_LIMIT,
+  applyBoundedLimit,
+  provenanceBaseArg,
+  provenanceEndLineArg,
+  provenanceLayerArg,
+  provenanceLimitArg,
+  provenanceMaxBytesArg,
+  provenanceMaxItemsArg,
+  provenanceModeArg,
+  provenancePathArg,
+  provenanceRadiusArg,
+  provenanceStartLineArg,
+  provenanceWindowEndArg,
+  provenanceWindowStartArg,
+  resolveBoundedNumber,
+  type ProvenanceContentLayer,
+} from "../args.ts";
+import {
+  createProvenanceFailure,
+  createProvenanceResultSchema,
+  createProvenanceSuccess,
+  ProvenanceBoundsSchema,
+  ProvenanceConfidenceSchema,
+  ProvenanceWarningSchema,
+  type ProvenanceAmbiguity,
+  type ProvenanceBounds,
+  type ProvenanceConfidence,
+  type ProvenanceEvidenceSource,
+  type ProvenanceWarning,
+} from "../contracts.ts";
+import {
+  loadLocalPathEvidence,
+  toProvenanceEvidenceSource,
+  toProvenanceEvidenceSources,
+  type LocalEvidenceMatch,
+  type LocalEvidenceSourceResult,
+} from "../evidence/index.ts";
+import { ProvSpanHistoryDataSchema, resolveLocalSpanLineage } from "../lineage/index.ts";
+import {
+  LOCAL_FILE_COMPARISON_STATUS_VALUES,
+  normalizeCreateStateToolsOptions,
+  normalizeRequestedPath,
+  ProvFileStateDataSchema,
+  ProvRepoStateDataSchema,
+  resolveLocalFileState,
+  resolveLocalRepoState,
+  toProvFileStateData,
+  toProvRepoStateData,
+  type CreateStateToolsOptions,
+  type LocalFileLayerState,
+  type LocalFileState,
+  type LocalRepoAmbiguityState,
+} from "../state/index.ts";
+import { logger } from "../utils/logger.ts";
+
+const PROV_READ_TOOL = "prov_read" as const;
+const PROV_BLOCK_READ_TOOL = "prov_block_read" as const;
+
+const EVIDENCE_ITEM_KIND_VALUES = ["message", "work_item", "trace"] as const;
+const BLOCK_WINDOW_SOURCE_VALUES = ["focus", "radius", "explicit"] as const;
+const DIFF_CONTEXT_RELATION_VALUES = ["overlap", "before", "after"] as const;
+const LOCAL_DIFF_CONTEXT_KEY_VALUES = ["head_to_index", "index_to_worktree"] as const;
+const LOCAL_DIFF_PERSPECTIVE_VALUES = ["from", "to"] as const;
+
+const CONFIDENCE_PRIORITY: Record<ProvenanceConfidence, number> = {
+  unknown: 0,
+  low: 1,
+  medium: 2,
+  high: 3,
+};
+
+const AMBIGUITY_PRIORITY: Record<ProvenanceAmbiguity, number> = {
+  none: 0,
+  low: 1,
+  medium: 2,
+  high: 3,
+};
+
+const ProvReadContentSchema = z.object({
+  layer: z.enum(["base", "head", "index", "worktree"]),
+  ref: z.string().nullable(),
+  path: z.string().min(1),
+  exists: z.boolean(),
+  text: z.string(),
+  bounds: ProvenanceBoundsSchema,
+  byteCount: z.number().int().nonnegative(),
+  hints: z.array(z.string().min(1)),
+  confidence: ProvenanceConfidenceSchema,
+  detectionMethod: z.string().min(1),
+});
+
+const EvidenceSourceSummarySchema = z.discriminatedUnion("status", [
+  z.object({
+    status: z.literal("available"),
+    totalMatches: z.number().int().nonnegative(),
+    bounds: ProvenanceBoundsSchema,
+    warnings: z.array(ProvenanceWarningSchema),
+  }),
+  z.object({
+    status: z.literal("unavailable"),
+    code: z.string().min(1),
+    message: z.string().min(1),
+  }),
+  z.object({
+    status: z.literal("unsupported"),
+    code: z.string().min(1),
+    message: z.string().min(1),
+  }),
+]);
+
+const EvidenceItemSummarySchema = z.object({
+  kind: z.enum(EVIDENCE_ITEM_KIND_VALUES),
+  id: z.string().min(1),
+  path: z.string().min(1),
+  label: z.string().min(1),
+  detail: z.string().min(1).optional(),
+  timestamp: z.string().min(1).optional(),
+  score: z.number(),
+});
+
+const ProvReadEvidenceSchema = z.object({
+  sources: z.object({
+    messages: EvidenceSourceSummarySchema,
+    workItems: EvidenceSourceSummarySchema,
+    traces: EvidenceSourceSummarySchema,
+  }),
+  items: z.array(EvidenceItemSummarySchema),
+  bounds: ProvenanceBoundsSchema,
+  bytes: ProvenanceBoundsSchema,
+  hints: z.array(z.string().min(1)),
+});
+
+export const ProvReadDataSchema = z.object({
+  requestedPath: z.string().min(1),
+  resolvedPath: z.string().min(1),
+  repo: ProvRepoStateDataSchema,
+  file: ProvFileStateDataSchema,
+  content: ProvReadContentSchema,
+  evidence: ProvReadEvidenceSchema,
+});
+
+export const ProvReadResultSchema = createProvenanceResultSchema(ProvReadDataSchema);
+
+const RequestedBlockSpanSchema = z.object({
+  startLine: z.number().int().positive(),
+  endLine: z.number().int().positive(),
+});
+
+const ResolvedBlockWindowSchema = RequestedBlockSpanSchema.extend({
+  source: z.enum(BLOCK_WINDOW_SOURCE_VALUES),
+  clamped: z.boolean(),
+});
+
+const BlockLineSchema = z.object({
+  number: z.number().int().positive(),
+  text: z.string(),
+  inFocus: z.boolean(),
+});
+
+const ProvBlockContentSchema = z.object({
+  layer: z.enum(["base", "head", "index", "worktree"]),
+  ref: z.string().nullable(),
+  path: z.string().min(1),
+  exists: z.boolean(),
+  focus: RequestedBlockSpanSchema,
+  window: ResolvedBlockWindowSchema,
+  totalLines: z.number().int().nonnegative(),
+  lines: z.array(BlockLineSchema),
+  text: z.string(),
+  bounds: ProvenanceBoundsSchema,
+  byteCount: z.number().int().nonnegative(),
+  hints: z.array(z.string().min(1)),
+  confidence: ProvenanceConfidenceSchema,
+  detectionMethod: z.string().min(1),
+});
+
+const DiffRangeSummarySchema = z.object({
+  startLine: z.number().int().positive(),
+  endLine: z.number().int().positive(),
+  relation: z.enum(DIFF_CONTEXT_RELATION_VALUES),
+  distance: z.number().int().nonnegative(),
+});
+
+const DiffComparisonContextSchema = z.object({
+  key: z.enum(LOCAL_DIFF_CONTEXT_KEY_VALUES),
+  perspective: z.enum(LOCAL_DIFF_PERSPECTIVE_VALUES),
+  fromRef: z.string().min(1),
+  toRef: z.string().min(1),
+  fromPath: z.string().min(1),
+  toPath: z.string().min(1),
+  status: z.enum(LOCAL_FILE_COMPARISON_STATUS_VALUES),
+  detected: z.boolean(),
+  detectionMethod: z.string().min(1),
+  nearbyRanges: z.array(DiffRangeSummarySchema),
+  bounds: ProvenanceBoundsSchema,
+  hints: z.array(z.string().min(1)),
+});
+
+const ProvBlockDiffSchema = z.object({
+  focus: RequestedBlockSpanSchema,
+  comparisons: z.array(DiffComparisonContextSchema),
+  hints: z.array(z.string().min(1)),
+});
+
+const ProvBlockLineageSchema = z.object({
+  data: ProvSpanHistoryDataSchema,
+  bounds: ProvenanceBoundsSchema,
+  hints: z.array(z.string().min(1)),
+  confidence: ProvenanceConfidenceSchema,
+});
+
+export const ProvBlockReadDataSchema = z.object({
+  requestedPath: z.string().min(1),
+  resolvedPath: z.string().min(1),
+  repo: ProvRepoStateDataSchema,
+  file: ProvFileStateDataSchema,
+  content: ProvBlockContentSchema,
+  lineage: ProvBlockLineageSchema,
+  diff: ProvBlockDiffSchema,
+  evidence: ProvReadEvidenceSchema,
+});
+
+export const ProvBlockReadResultSchema = createProvenanceResultSchema(ProvBlockReadDataSchema);
+
+export type ProvReadData = z.infer<typeof ProvReadDataSchema>;
+export type ProvReadResult = z.infer<typeof ProvReadResultSchema>;
+export type ProvBlockReadData = z.infer<typeof ProvBlockReadDataSchema>;
+export type ProvBlockReadResult = z.infer<typeof ProvBlockReadResultSchema>;
+
+function toErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function getLowestConfidence(confidences: readonly ProvenanceConfidence[]): ProvenanceConfidence {
+  let lowest: ProvenanceConfidence = "high";
+
+  for (const confidence of confidences) {
+    if (CONFIDENCE_PRIORITY[confidence] < CONFIDENCE_PRIORITY[lowest]) {
+      lowest = confidence;
+    }
+  }
+
+  return lowest;
+}
+
+function getHighestAmbiguity(levels: readonly ProvenanceAmbiguity[]): ProvenanceAmbiguity {
+  let highest: ProvenanceAmbiguity = "none";
+
+  for (const level of levels) {
+    if (AMBIGUITY_PRIORITY[level] > AMBIGUITY_PRIORITY[highest]) {
+      highest = level;
+    }
+  }
+
+  return highest;
+}
+
+function getHighestAmbiguityFromWarnings(
+  warnings: readonly ProvenanceWarning[],
+): ProvenanceAmbiguity {
+  return getHighestAmbiguity(warnings.map((warning) => warning.ambiguity ?? "low"));
+}
+
+function toAmbiguityWarnings(ambiguity: LocalRepoAmbiguityState): ProvenanceWarning[] {
+  return ambiguity.issues.map((issue) => ({
+    code: issue.code,
+    message: issue.message,
+    ambiguity: issue.level,
+  }));
+}
+
+function createUnsupportedModeFailure(
+  toolName: typeof PROV_READ_TOOL | typeof PROV_BLOCK_READ_TOOL,
+  mode: string,
+): string {
+  return JSON.stringify(
+    createProvenanceFailure({
+      tool: toolName,
+      mode: mode as "remote" | "hybrid",
+      confidence: "unknown",
+      ambiguity: "high",
+      summary: `Unsupported provenance mode '${mode}' for ${toolName}.`,
+      error: {
+        code: "MODE_NOT_SUPPORTED",
+        message: `${toolName} currently supports only local mode.`,
+      },
+    }),
+    null,
+    2,
+  );
+}
+
+function getSelectedLayerState(
+  state: LocalFileState,
+  layer: ProvenanceContentLayer,
+): LocalFileLayerState {
+  switch (layer) {
+    case "base":
+      return state.base;
+    case "head":
+      return state.head;
+    case "index":
+      return state.index;
+    case "worktree":
+      return state.worktree;
+  }
+}
+
+function resolveWorktreePath(rootDir: string, filePath: string): string {
+  const absolutePath = path.resolve(rootDir, filePath);
+  const relativeToRoot = path.relative(rootDir, absolutePath);
+
+  if (relativeToRoot.startsWith("..") || path.isAbsolute(relativeToRoot)) {
+    throw new Error(`Path '${filePath}' resolved outside worktree '${rootDir}'.`);
+  }
+
+  return absolutePath;
+}
+
+function applyTextBudget(
+  value: string,
+  requestedBytes: number | undefined,
+): {
+  text: string;
+  bounds: ProvenanceBounds;
+  byteCount: number;
+} {
+  const limit = resolveBoundedNumber(requestedBytes, DEFAULT_PROVENANCE_BYTE_LIMIT);
+  const byteCount = Buffer.byteLength(value, "utf8");
+
+  if (byteCount <= limit) {
+    return {
+      text: value,
+      bounds: {
+        requested: requestedBytes,
+        limit,
+        returned: byteCount,
+        truncated: false,
+      },
+      byteCount,
+    };
+  }
+
+  let end = value.length;
+  while (end > 0 && Buffer.byteLength(value.slice(0, end), "utf8") > limit) {
+    end -= 1;
+  }
+
+  const text = value.slice(0, end);
+  return {
+    text,
+    bounds: {
+      requested: requestedBytes,
+      limit,
+      returned: Buffer.byteLength(text, "utf8"),
+      truncated: true,
+    },
+    byteCount,
+  };
+}
+
+async function readSelectedLayerText(options: {
+  shell: CreateStateToolsOptions["shell"];
+  rootDir: string;
+  layer: ProvenanceContentLayer;
+  selectedLayer: LocalFileLayerState;
+}): Promise<string> {
+  const { layer, selectedLayer } = options;
+
+  if (!selectedLayer.exists) {
+    return "";
+  }
+
+  switch (layer) {
+    case "base":
+    case "head":
+      return runProcessText({
+        shell: options.shell,
+        cmd: ["git", "show", `${selectedLayer.ref}:${selectedLayer.path}`],
+        trim: false,
+      });
+    case "index":
+      return runProcessText({
+        shell: options.shell,
+        cmd: ["git", "show", `:${selectedLayer.path}`],
+        trim: false,
+      });
+    case "worktree": {
+      const filePath = resolveWorktreePath(options.rootDir, selectedLayer.path);
+      return readFileString(filePath);
+    }
+  }
+}
+
+function buildContentHints(options: {
+  layer: ProvenanceContentLayer;
+  selectedLayer: LocalFileLayerState;
+  bounds: ProvenanceBounds;
+  byteCount: number;
+}): string[] {
+  const hints: string[] = [];
+
+  if (!options.selectedLayer.exists) {
+    hints.push(`Selected ${options.layer} layer is absent for '${options.selectedLayer.path}'.`);
+  }
+
+  if (options.bounds.truncated) {
+    hints.push(
+      `Content truncated to ${options.bounds.returned}/${options.byteCount} byte(s); rerun with a larger max_bytes to inspect more.`,
+    );
+  }
+
+  return hints;
+}
+
+function normalizeTextLines(value: string): string[] {
+  if (!value) {
+    return [];
+  }
+
+  const normalized = value.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  if (normalized.endsWith("\n")) {
+    const trimmed = normalized.slice(0, -1);
+    return trimmed ? trimmed.split("\n") : [];
+  }
+
+  return normalized.split("\n");
+}
+
+function createBlockValidationFailure(options: {
+  tool: typeof PROV_BLOCK_READ_TOOL;
+  requestedPath: string;
+  summary: string;
+  code: string;
+  message: string;
+}): string {
+  return JSON.stringify(
+    createProvenanceFailure({
+      tool: options.tool,
+      mode: "local",
+      confidence: "unknown",
+      ambiguity: "high",
+      summary: options.summary,
+      error: {
+        code: options.code,
+        message: options.message,
+      },
+    }),
+    null,
+    2,
+  );
+}
+
+function resolveRequestedWindow(options: {
+  startLine: number;
+  endLine: number;
+  radius: number | undefined;
+  windowStart: number | undefined;
+  windowEnd: number | undefined;
+  totalLines: number;
+}): z.infer<typeof ResolvedBlockWindowSchema> {
+  if (options.endLine < options.startLine) {
+    throw new Error("end_line must be greater than or equal to start_line.");
+  }
+
+  const hasExplicitWindow = options.windowStart !== undefined || options.windowEnd !== undefined;
+  if (hasExplicitWindow && options.radius !== undefined) {
+    throw new Error("radius cannot be combined with window_start or window_end.");
+  }
+
+  if (hasExplicitWindow && (options.windowStart === undefined || options.windowEnd === undefined)) {
+    throw new Error("window_start and window_end must be provided together.");
+  }
+
+  if (
+    options.windowStart !== undefined &&
+    options.windowEnd !== undefined &&
+    options.windowEnd < options.windowStart
+  ) {
+    throw new Error("window_end must be greater than or equal to window_start.");
+  }
+
+  if (
+    options.windowStart !== undefined &&
+    options.windowEnd !== undefined &&
+    (options.windowStart > options.startLine || options.windowEnd < options.endLine)
+  ) {
+    throw new Error("Explicit window must fully include the requested start_line and end_line.");
+  }
+
+  const source =
+    options.windowStart !== undefined ? "explicit" : options.radius ? "radius" : "focus";
+  const requestedStart =
+    options.windowStart ?? Math.max(1, options.startLine - (options.radius ?? 0));
+  const requestedEnd = options.windowEnd ?? options.endLine + (options.radius ?? 0);
+
+  if (options.totalLines <= 0) {
+    return {
+      startLine: requestedStart,
+      endLine: requestedEnd,
+      source,
+      clamped: false,
+    };
+  }
+
+  return {
+    startLine: Math.min(requestedStart, options.totalLines),
+    endLine: Math.min(requestedEnd, options.totalLines),
+    source,
+    clamped:
+      requestedStart !== Math.min(requestedStart, options.totalLines) ||
+      requestedEnd !== Math.min(requestedEnd, options.totalLines),
+  };
+}
+
+function buildBlockLines(options: {
+  lines: readonly string[];
+  focus: z.infer<typeof RequestedBlockSpanSchema>;
+  window: z.infer<typeof ResolvedBlockWindowSchema>;
+}): z.infer<typeof BlockLineSchema>[] {
+  if (options.lines.length === 0 || options.window.endLine < options.window.startLine) {
+    return [];
+  }
+
+  return options.lines
+    .slice(options.window.startLine - 1, options.window.endLine)
+    .map((text, index) => {
+      const number = options.window.startLine + index;
+      return {
+        number,
+        text,
+        inFocus: number >= options.focus.startLine && number <= options.focus.endLine,
+      };
+    });
+}
+
+function applyBlockLineBudget(
+  lines: readonly z.infer<typeof BlockLineSchema>[],
+  requestedBytes: number | undefined,
+): {
+  lines: z.infer<typeof BlockLineSchema>[];
+  text: string;
+  bounds: ProvenanceBounds;
+  byteCount: number;
+} {
+  const limit = resolveBoundedNumber(requestedBytes, DEFAULT_PROVENANCE_BYTE_LIMIT);
+  const byteCount = Buffer.byteLength(lines.map((line) => line.text).join("\n"), "utf8");
+
+  if (lines.length === 0 || byteCount <= limit) {
+    const text = lines.map((line) => line.text).join("\n");
+    return {
+      lines: [...lines],
+      text,
+      bounds: {
+        requested: requestedBytes,
+        limit,
+        returned: Buffer.byteLength(text, "utf8"),
+        truncated: false,
+      },
+      byteCount,
+    };
+  }
+
+  const boundedLines: z.infer<typeof BlockLineSchema>[] = [];
+  let used = 0;
+
+  for (const line of lines) {
+    const prefix = boundedLines.length > 0 ? "\n" : "";
+    const size = Buffer.byteLength(`${prefix}${line.text}`, "utf8");
+    if (used + size > limit) {
+      break;
+    }
+    boundedLines.push(line);
+    used += size;
+  }
+
+  const text = boundedLines.map((line) => line.text).join("\n");
+  return {
+    lines: boundedLines,
+    text,
+    bounds: {
+      requested: requestedBytes,
+      limit,
+      returned: Buffer.byteLength(text, "utf8"),
+      truncated: boundedLines.length !== lines.length,
+    },
+    byteCount,
+  };
+}
+
+function buildBlockContentHints(options: {
+  layer: ProvenanceContentLayer;
+  selectedLayer: LocalFileLayerState;
+  window: z.infer<typeof ResolvedBlockWindowSchema>;
+  bounds: ProvenanceBounds;
+  byteCount: number;
+}): string[] {
+  const hints = buildContentHints({
+    layer: options.layer,
+    selectedLayer: options.selectedLayer,
+    bounds: options.bounds,
+    byteCount: options.byteCount,
+  });
+
+  if (options.window.clamped) {
+    hints.push(
+      `Requested context window was clamped to available lines ${options.window.startLine}-${options.window.endLine}.`,
+    );
+  }
+
+  return hints;
+}
+
+function createBlockContentWarnings(content: ProvBlockReadData["content"]): ProvenanceWarning[] {
+  const warnings = createContentWarning({
+    layer: content.layer,
+    ref: content.ref,
+    path: content.path,
+    exists: content.exists,
+    text: content.text,
+    bounds: content.bounds,
+    byteCount: content.byteCount,
+    hints: content.hints,
+    confidence: content.confidence,
+    detectionMethod: content.detectionMethod,
+  });
+
+  if (content.window.clamped) {
+    warnings.push({
+      code: "BLOCK_WINDOW_CLAMPED",
+      message: `Requested block context was clamped to available lines ${content.window.startLine}-${content.window.endLine}.`,
+      ambiguity: "low",
+    });
+  }
+
+  return warnings;
+}
+
+function toLineageHints(options: {
+  warnings: readonly ProvenanceWarning[];
+  bounds: ProvenanceBounds;
+}): string[] {
+  const hints = options.warnings.map((warning) => warning.message);
+
+  if (options.bounds.truncated) {
+    hints.push(
+      `Nearby lineage truncated to ${options.bounds.returned} item(s); rerun with a larger limit to inspect more.`,
+    );
+  }
+
+  return [...new Set(hints)];
+}
+
+function classifyDiffRange(
+  range: { start_line: number; end_line: number },
+  focus: z.infer<typeof RequestedBlockSpanSchema>,
+): z.infer<typeof DiffRangeSummarySchema> {
+  if (range.end_line < focus.startLine) {
+    return {
+      startLine: range.start_line,
+      endLine: range.end_line,
+      relation: "before",
+      distance: focus.startLine - range.end_line,
+    };
+  }
+
+  if (range.start_line > focus.endLine) {
+    return {
+      startLine: range.start_line,
+      endLine: range.end_line,
+      relation: "after",
+      distance: range.start_line - focus.endLine,
+    };
+  }
+
+  return {
+    startLine: range.start_line,
+    endLine: range.end_line,
+    relation: "overlap",
+    distance: 0,
+  };
+}
+
+async function buildLocalDiffContext(options: {
+  shell: CreateStateToolsOptions["shell"];
+  rootDir: string;
+  fileState: LocalFileState;
+  selectedLayerName: ProvenanceContentLayer;
+  focus: z.infer<typeof RequestedBlockSpanSchema>;
+  limit: number | undefined;
+}): Promise<ProvBlockReadData["diff"]> {
+  const comparisonsToInspect = [
+    {
+      key: "head_to_index" as const,
+      comparison: options.fileState.comparisons.headToIndex,
+      fromLayer: "head" as const,
+      toLayer: "index" as const,
+    },
+    {
+      key: "index_to_worktree" as const,
+      comparison: options.fileState.comparisons.indexToWorktree,
+      fromLayer: "index" as const,
+      toLayer: "worktree" as const,
+    },
+  ].filter(
+    (entry) =>
+      options.selectedLayerName === entry.fromLayer || options.selectedLayerName === entry.toLayer,
+  );
+
+  if (comparisonsToInspect.length === 0) {
+    return {
+      focus: options.focus,
+      comparisons: [],
+      hints: ["Local diff context is only available for head, index, and worktree layers."],
+    };
+  }
+
+  const resolvedComparisons = await Promise.all(
+    comparisonsToInspect.map(async (entry) => {
+      const perspective = options.selectedLayerName === entry.fromLayer ? "from" : "to";
+      const fromState = getSelectedLayerState(options.fileState, entry.fromLayer);
+      const toState = getSelectedLayerState(options.fileState, entry.toLayer);
+      const fromText = await readSelectedLayerText({
+        shell: options.shell,
+        rootDir: options.rootDir,
+        layer: entry.fromLayer,
+        selectedLayer: fromState,
+      });
+      const toText = await readSelectedLayerText({
+        shell: options.shell,
+        rootDir: options.rootDir,
+        layer: entry.toLayer,
+        selectedLayer: toState,
+      });
+      const rawRanges =
+        perspective === "to"
+          ? computePostImageRanges(fromText, toText)
+          : computePostImageRanges(toText, fromText);
+      const nearbyRanges = rawRanges
+        .map((range) => classifyDiffRange(range, options.focus))
+        .sort((left, right) => {
+          if (left.distance !== right.distance) {
+            return left.distance - right.distance;
+          }
+
+          return left.startLine - right.startLine;
+        });
+      const boundedNearbyRanges = applyBoundedLimit(
+        nearbyRanges,
+        options.limit,
+        DEFAULT_PROVENANCE_ITEM_LIMIT,
+      );
+      const hints: string[] = [];
+
+      if (!entry.comparison.detected) {
+        hints.push("No local diff entries were detected for this comparison.");
+      }
+
+      if (boundedNearbyRanges.bounds.truncated) {
+        hints.push(
+          `Nearby diff ranges truncated to ${boundedNearbyRanges.bounds.returned} item(s); rerun with a larger limit to inspect more.`,
+        );
+      }
+
+      return {
+        key: entry.key,
+        perspective,
+        fromRef: entry.comparison.fromRef,
+        toRef: entry.comparison.toRef,
+        fromPath: entry.comparison.fromPath,
+        toPath: entry.comparison.toPath,
+        status: entry.comparison.status,
+        detected: entry.comparison.detected,
+        detectionMethod: entry.comparison.detectionMethod,
+        nearbyRanges: boundedNearbyRanges.items,
+        bounds: boundedNearbyRanges.bounds,
+        hints,
+      } satisfies ProvBlockReadData["diff"]["comparisons"][number];
+    }),
+  );
+
+  return {
+    focus: options.focus,
+    comparisons: resolvedComparisons,
+    hints: resolvedComparisons.flatMap((comparison) => comparison.hints),
+  };
+}
+
+function createDiffWarnings(diff: ProvBlockReadData["diff"]): ProvenanceWarning[] {
+  const warnings: ProvenanceWarning[] = [];
+
+  for (const comparison of diff.comparisons) {
+    if (comparison.bounds.truncated) {
+      warnings.push({
+        code: "LOCAL_DIFF_TRUNCATED",
+        message: `Nearby local diff context was truncated for ${comparison.fromRef}->${comparison.toRef}.`,
+        ambiguity: "low",
+      });
+    }
+  }
+
+  return warnings;
+}
+
+function summarizeEvidenceSource<TItem extends LocalEvidenceMatch>(
+  source: LocalEvidenceSourceResult<TItem>,
+): z.infer<typeof EvidenceSourceSummarySchema> {
+  switch (source.status) {
+    case "available":
+      return {
+        status: "available",
+        totalMatches: source.totalMatches,
+        bounds: source.bounds,
+        warnings: source.warnings,
+      };
+    case "unavailable":
+      return {
+        status: "unavailable",
+        code: source.code,
+        message: source.message,
+      };
+    case "unsupported":
+      return {
+        status: "unsupported",
+        code: source.code,
+        message: source.message,
+      };
+  }
+}
+
+function summarizeEvidenceItem(
+  item: LocalEvidenceMatch,
+): z.infer<typeof EvidenceItemSummarySchema> {
+  const source = toProvenanceEvidenceSource(item);
+
+  return {
+    kind: item.kind,
+    id: source.id,
+    path: source.path ?? source.id,
+    label: source.label ?? source.id,
+    detail: source.detail,
+    timestamp: "timestamp" in item ? item.timestamp : undefined,
+    score: item.score,
+  };
+}
+
+function buildReadEvidence(
+  evidenceResult: Awaited<ReturnType<typeof loadLocalPathEvidence>>,
+): ProvReadData["evidence"] {
+  const evidence: ProvReadData["evidence"] = {
+    sources: {
+      messages: summarizeEvidenceSource(evidenceResult.sources.messages),
+      workItems: summarizeEvidenceSource(evidenceResult.sources.workItems),
+      traces: summarizeEvidenceSource(evidenceResult.sources.traces),
+    },
+    items: evidenceResult.ranked.items.map((item) => summarizeEvidenceItem(item)),
+    bounds: evidenceResult.ranked.bounds,
+    bytes: evidenceResult.ranked.bytes,
+    hints: [],
+  };
+  evidence.hints = buildEvidenceHints({
+    sources: evidence.sources,
+    bounds: evidence.bounds,
+    bytes: evidence.bytes,
+  });
+
+  return evidence;
+}
+
+function buildEvidenceHints(data: {
+  sources: ProvReadData["evidence"]["sources"];
+  bounds: ProvenanceBounds;
+  bytes: ProvenanceBounds;
+}): string[] {
+  const hints: string[] = [];
+  const sourceEntries = [
+    ["messages", data.sources.messages],
+    ["work items", data.sources.workItems],
+    ["traces", data.sources.traces],
+  ] as const;
+
+  for (const [label, source] of sourceEntries) {
+    if (source.status === "available" && source.bounds.truncated) {
+      hints.push(
+        `${label} evidence truncated to ${source.bounds.returned}/${source.totalMatches} match(es) by the per-source limit; rerun with a larger limit to inspect more.`,
+      );
+    }
+  }
+
+  if (data.bounds.truncated) {
+    hints.push(
+      `Linked evidence truncated to ${data.bounds.returned} ranked item(s); rerun with a larger max_items to inspect more.`,
+    );
+  }
+
+  if (data.bytes.truncated) {
+    hints.push(
+      `Linked evidence summaries hit the ${data.bytes.limit}-byte budget for this response and were trimmed to stay bounded.`,
+    );
+  }
+
+  return hints;
+}
+
+function createContentWarning(content: ProvReadData["content"]): ProvenanceWarning[] {
+  const warnings: ProvenanceWarning[] = [];
+
+  if (!content.exists) {
+    warnings.push({
+      code: "CONTENT_LAYER_ABSENT",
+      message: `Selected ${content.layer} layer is absent for '${content.path}'.`,
+      ambiguity: "low",
+    });
+  }
+
+  if (content.bounds.truncated) {
+    warnings.push({
+      code: "CONTENT_TRUNCATED",
+      message: `Selected layer content was truncated to ${content.bounds.returned} byte(s).`,
+      ambiguity: "low",
+    });
+  }
+
+  return warnings;
+}
+
+function createEvidenceWarnings(evidence: ProvReadData["evidence"]): ProvenanceWarning[] {
+  const warnings: ProvenanceWarning[] = [];
+
+  for (const source of [
+    evidence.sources.messages,
+    evidence.sources.workItems,
+    evidence.sources.traces,
+  ]) {
+    if (source.status === "available") {
+      warnings.push(...source.warnings);
+      if (source.bounds.truncated) {
+        warnings.push({
+          code: "EVIDENCE_SOURCE_TRUNCATED",
+          message: `A linked evidence source was truncated by the per-source limit.`,
+          ambiguity: "low",
+        });
+      }
+    }
+  }
+
+  if (evidence.bounds.truncated) {
+    warnings.push({
+      code: "EVIDENCE_ITEMS_TRUNCATED",
+      message: `Linked evidence was truncated to ${evidence.bounds.returned} ranked item(s).`,
+      ambiguity: "low",
+    });
+  }
+
+  if (evidence.bytes.truncated) {
+    warnings.push({
+      code: "EVIDENCE_BYTES_TRUNCATED",
+      message: `Linked evidence summaries hit the ${evidence.bytes.limit}-byte budget.`,
+      ambiguity: "low",
+    });
+  }
+
+  return warnings;
+}
+
+function dedupeWarnings(warnings: readonly ProvenanceWarning[]): ProvenanceWarning[] {
+  const seen = new Set<string>();
+  const deduped: ProvenanceWarning[] = [];
+
+  for (const warning of warnings) {
+    const key = `${warning.code}:${warning.message}`;
+    if (seen.has(key)) {
+      continue;
+    }
+
+    seen.add(key);
+    deduped.push(warning);
+  }
+
+  return deduped;
+}
+
+function buildReadSummary(data: ProvReadData): string {
+  const branchLabel = data.repo.branch.name ?? "detached HEAD";
+  const baseLabel = data.repo.base.ref ?? "base unresolved";
+  const contentLabel = data.content.exists
+    ? `${data.content.bounds.returned} byte(s)${data.content.bounds.truncated ? ", truncated" : ""}`
+    : "layer absent";
+
+  return `Read ${data.content.layer} layer for ${data.resolvedPath}: ${contentLabel}, ${data.evidence.items.length} linked evidence item(s), repo ${branchLabel} against ${baseLabel}.`;
+}
+
+function buildBlockReadSummary(data: ProvBlockReadData): string {
+  const branchLabel = data.repo.branch.name ?? "detached HEAD";
+  const baseLabel = data.repo.base.ref ?? "base unresolved";
+  const contentLabel = data.content.exists
+    ? `${data.content.lines.length} line(s) from ${data.content.window.startLine}-${data.content.window.endLine}${data.content.bounds.truncated ? ", truncated" : ""}`
+    : "layer absent";
+  const nearbyDiffRanges = data.diff.comparisons.reduce(
+    (total, comparison) => total + comparison.nearbyRanges.length,
+    0,
+  );
+
+  return `Read ${data.content.layer} block for ${data.resolvedPath}:${data.content.focus.startLine}-${data.content.focus.endLine}: ${contentLabel}, ${data.lineage.data.lineage.length} nearby lineage item(s), ${nearbyDiffRanges} local diff range(s), ${data.evidence.items.length} linked evidence item(s), repo ${branchLabel} against ${baseLabel}.`;
+}
+
+function buildContentSource(content: ProvReadData["content"]): ProvenanceEvidenceSource {
+  return {
+    kind: "git",
+    id: `content:${content.layer}`,
+    ref: content.ref ?? content.layer,
+    path: content.path,
+    label: `${content.layer} content`,
+    detail: content.exists
+      ? `${content.bounds.returned} byte(s)${content.bounds.truncated ? " (truncated)" : ""}`
+      : "absent",
+  };
+}
+
+function buildBlockContentSource(content: ProvBlockReadData["content"]): ProvenanceEvidenceSource {
+  return {
+    kind: "git",
+    id: `content:${content.layer}`,
+    ref: content.ref ?? content.layer,
+    path: content.path,
+    label: `${content.layer} block`,
+    detail: content.exists
+      ? `${content.window.startLine}-${content.window.endLine} (${content.lines.length} line(s))${content.bounds.truncated ? " (truncated)" : ""}`
+      : "absent",
+  };
+}
+
+export function createQueryTools(options: CreateStateToolsOptions): Record<string, ToolDefinition> {
+  const runtimeOptions = normalizeCreateStateToolsOptions(options);
+
+  return {
+    [PROV_READ_TOOL]: tool({
+      description:
+        "Read one file layer with bounded content plus compact repo, file, and linked evidence provenance summaries.",
+      args: {
+        path: provenancePathArg,
+        layer: provenanceLayerArg,
+        base: provenanceBaseArg,
+        mode: provenanceModeArg,
+        limit: provenanceLimitArg,
+        max_items: provenanceMaxItemsArg,
+        max_bytes: provenanceMaxBytesArg,
+      },
+      async execute({ path: requestedPath, layer, base, mode, limit, max_items, max_bytes }) {
+        const resolvedMode = mode ?? "local";
+
+        if (resolvedMode !== "local") {
+          logger.warn("prov_read unsupported mode", {
+            tool: PROV_READ_TOOL,
+            mode: resolvedMode,
+          });
+          return createUnsupportedModeFailure(PROV_READ_TOOL, resolvedMode);
+        }
+
+        const selectedLayerName = layer ?? "worktree";
+        let normalizedPath: string;
+        try {
+          normalizedPath = normalizeRequestedPath(requestedPath, runtimeOptions.rootDir);
+        } catch (error) {
+          return JSON.stringify(
+            createProvenanceFailure({
+              tool: PROV_READ_TOOL,
+              mode: "local",
+              confidence: "unknown",
+              ambiguity: "high",
+              summary: `Failed to normalize path '${requestedPath}'.`,
+              error: {
+                code: "PROV_READ_PATH_INVALID",
+                message: toErrorMessage(error),
+              },
+            }),
+            null,
+            2,
+          );
+        }
+
+        logger.info("prov_read start", {
+          tool: PROV_READ_TOOL,
+          mode: resolvedMode,
+          path: normalizedPath,
+          layer: selectedLayerName,
+          base,
+          limit,
+          maxItems: max_items,
+          maxBytes: max_bytes,
+        });
+
+        try {
+          const [repoState, fileState] = await Promise.all([
+            resolveLocalRepoState({
+              shell: runtimeOptions.shell,
+              explicitBase: base,
+            }),
+            resolveLocalFileState({
+              shell: runtimeOptions.shell,
+              requestedPath: normalizedPath,
+              explicitBase: base,
+            }),
+          ]);
+
+          const selectedLayer = getSelectedLayerState(fileState, selectedLayerName);
+          const rawText = await readSelectedLayerText({
+            shell: runtimeOptions.shell,
+            rootDir: runtimeOptions.rootDir ?? process.cwd(),
+            layer: selectedLayerName,
+            selectedLayer,
+          });
+          const boundedContent = applyTextBudget(rawText, max_bytes);
+          const content: ProvReadData["content"] = {
+            layer: selectedLayerName,
+            ref: selectedLayer.ref,
+            path: selectedLayer.path,
+            exists: selectedLayer.exists,
+            text: boundedContent.text,
+            bounds: boundedContent.bounds,
+            byteCount: boundedContent.byteCount,
+            hints: buildContentHints({
+              layer: selectedLayerName,
+              selectedLayer,
+              bounds: boundedContent.bounds,
+              byteCount: boundedContent.byteCount,
+            }),
+            confidence: selectedLayer.confidence,
+            detectionMethod: selectedLayer.detectionMethod,
+          };
+
+          const evidenceAliases = [
+            normalizedPath,
+            fileState.resolvedPath,
+            fileState.base.path,
+            fileState.head.path,
+            fileState.index.path,
+            fileState.worktree.path,
+          ].filter(Boolean);
+          const evidenceResult = await loadLocalPathEvidence({
+            rootDir: runtimeOptions.rootDir ?? process.cwd(),
+            path: normalizedPath,
+            aliases: [...new Set(evidenceAliases)],
+            perSourceLimit: limit,
+            maxItems: max_items,
+          });
+
+          const evidence = buildReadEvidence(evidenceResult);
+
+          const data: ProvReadData = {
+            requestedPath: requestedPath.trim(),
+            resolvedPath: fileState.resolvedPath,
+            repo: toProvRepoStateData(repoState, limit),
+            file: toProvFileStateData(fileState),
+            content,
+            evidence,
+          };
+          const warnings = dedupeWarnings([
+            ...toAmbiguityWarnings(repoState.ambiguity),
+            ...toAmbiguityWarnings(fileState.ambiguity),
+            ...createContentWarning(content),
+            ...createEvidenceWarnings(evidence),
+          ]);
+          const response = createProvenanceSuccess({
+            tool: PROV_READ_TOOL,
+            mode: "local",
+            confidence: getLowestConfidence([
+              repoState.confidence,
+              fileState.confidence,
+              content.confidence,
+            ]),
+            ambiguity: getHighestAmbiguity([
+              repoState.ambiguity.level,
+              fileState.ambiguity.level,
+              getHighestAmbiguityFromWarnings(warnings),
+            ]),
+            bounds: content.bounds,
+            summary: buildReadSummary(data),
+            warnings,
+            sources: [
+              buildContentSource(content),
+              ...toProvenanceEvidenceSources(evidenceResult.ranked.items),
+            ],
+            data,
+          });
+
+          logger.info("prov_read end", {
+            tool: PROV_READ_TOOL,
+            confidence: response.meta.confidence,
+            ambiguity: response.meta.ambiguity,
+            path: normalizedPath,
+            resolvedPath: data.resolvedPath,
+            layer: content.layer,
+            exists: content.exists,
+            contentBytes: content.bounds.returned,
+            evidenceItems: evidence.items.length,
+          });
+
+          return JSON.stringify(response, null, 2);
+        } catch (error) {
+          const errorMessage = toErrorMessage(error);
+          logger.error("prov_read failed", {
+            tool: PROV_READ_TOOL,
+            mode: resolvedMode,
+            path: normalizedPath,
+            layer: selectedLayerName,
+            error: errorMessage,
+          });
+
+          return JSON.stringify(
+            createProvenanceFailure({
+              tool: PROV_READ_TOOL,
+              mode: "local",
+              confidence: "unknown",
+              ambiguity: "high",
+              summary: `Failed to read provenance for '${normalizedPath}'.`,
+              error: {
+                code: "PROV_READ_UNAVAILABLE",
+                message: errorMessage,
+              },
+            }),
+            null,
+            2,
+          );
+        }
+      },
+    }),
+    [PROV_BLOCK_READ_TOOL]: tool({
+      description:
+        "Read one bounded line window from a file layer with nearby lineage, local diff context, and linked evidence summaries.",
+      args: {
+        path: provenancePathArg,
+        start_line: provenanceStartLineArg,
+        end_line: provenanceEndLineArg,
+        radius: provenanceRadiusArg,
+        window_start: provenanceWindowStartArg,
+        window_end: provenanceWindowEndArg,
+        layer: provenanceLayerArg,
+        base: provenanceBaseArg,
+        mode: provenanceModeArg,
+        limit: provenanceLimitArg,
+        max_items: provenanceMaxItemsArg,
+        max_bytes: provenanceMaxBytesArg,
+      },
+      async execute({
+        path: requestedPath,
+        start_line: startLine,
+        end_line: endLine,
+        radius,
+        window_start: windowStart,
+        window_end: windowEnd,
+        layer,
+        base,
+        mode,
+        limit,
+        max_items,
+        max_bytes,
+      }) {
+        const resolvedMode = mode ?? "local";
+
+        if (resolvedMode !== "local") {
+          logger.warn("prov_block_read unsupported mode", {
+            tool: PROV_BLOCK_READ_TOOL,
+            mode: resolvedMode,
+          });
+          return createUnsupportedModeFailure(PROV_BLOCK_READ_TOOL, resolvedMode);
+        }
+
+        const selectedLayerName = layer ?? "worktree";
+        let normalizedPath: string;
+        try {
+          normalizedPath = normalizeRequestedPath(requestedPath, runtimeOptions.rootDir);
+        } catch (error) {
+          return JSON.stringify(
+            createProvenanceFailure({
+              tool: PROV_BLOCK_READ_TOOL,
+              mode: "local",
+              confidence: "unknown",
+              ambiguity: "high",
+              summary: `Failed to normalize path '${requestedPath}'.`,
+              error: {
+                code: "PROV_BLOCK_READ_PATH_INVALID",
+                message: toErrorMessage(error),
+              },
+            }),
+            null,
+            2,
+          );
+        }
+
+        logger.info("prov_block_read start", {
+          tool: PROV_BLOCK_READ_TOOL,
+          mode: resolvedMode,
+          path: normalizedPath,
+          layer: selectedLayerName,
+          startLine,
+          endLine,
+          radius,
+          windowStart,
+          windowEnd,
+          base,
+          limit,
+          maxItems: max_items,
+          maxBytes: max_bytes,
+        });
+
+        try {
+          const [repoState, fileState] = await Promise.all([
+            resolveLocalRepoState({
+              shell: runtimeOptions.shell,
+              explicitBase: base,
+            }),
+            resolveLocalFileState({
+              shell: runtimeOptions.shell,
+              requestedPath: normalizedPath,
+              explicitBase: base,
+            }),
+          ]);
+
+          const rootDir = runtimeOptions.rootDir ?? process.cwd();
+          const selectedLayer = getSelectedLayerState(fileState, selectedLayerName);
+          const rawText = await readSelectedLayerText({
+            shell: runtimeOptions.shell,
+            rootDir,
+            layer: selectedLayerName,
+            selectedLayer,
+          });
+          const textLines = normalizeTextLines(rawText);
+          const totalLines = textLines.length;
+
+          if (
+            selectedLayer.exists &&
+            (totalLines === 0 || startLine > totalLines || endLine > totalLines)
+          ) {
+            return createBlockValidationFailure({
+              tool: PROV_BLOCK_READ_TOOL,
+              requestedPath,
+              summary: `Requested block '${requestedPath}:${startLine}-${endLine}' is outside the selected layer.`,
+              code: "BLOCK_RANGE_OUT_OF_BOUNDS",
+              message: `Requested block exceeds the selected ${selectedLayerName} layer length of ${totalLines} line(s).`,
+            });
+          }
+
+          let window: z.infer<typeof ResolvedBlockWindowSchema>;
+          try {
+            window = resolveRequestedWindow({
+              startLine,
+              endLine,
+              radius,
+              windowStart,
+              windowEnd,
+              totalLines,
+            });
+          } catch (error) {
+            return createBlockValidationFailure({
+              tool: PROV_BLOCK_READ_TOOL,
+              requestedPath,
+              summary: `Invalid block window for '${requestedPath}:${startLine}-${endLine}'.`,
+              code: "BLOCK_WINDOW_INVALID",
+              message: toErrorMessage(error),
+            });
+          }
+
+          const focus = {
+            startLine,
+            endLine,
+          } satisfies z.infer<typeof RequestedBlockSpanSchema>;
+          const boundedBlock = applyBlockLineBudget(
+            buildBlockLines({
+              lines: textLines,
+              focus,
+              window,
+            }),
+            max_bytes,
+          );
+          const content: ProvBlockReadData["content"] = {
+            layer: selectedLayerName,
+            ref: selectedLayer.ref,
+            path: selectedLayer.path,
+            exists: selectedLayer.exists,
+            focus,
+            window,
+            totalLines,
+            lines: boundedBlock.lines,
+            text: boundedBlock.text,
+            bounds: boundedBlock.bounds,
+            byteCount: boundedBlock.byteCount,
+            hints: buildBlockContentHints({
+              layer: selectedLayerName,
+              selectedLayer,
+              window,
+              bounds: boundedBlock.bounds,
+              byteCount: boundedBlock.byteCount,
+            }),
+            confidence: selectedLayer.confidence,
+            detectionMethod: selectedLayer.detectionMethod,
+          };
+
+          const lineageResolution = await resolveLocalSpanLineage({
+            shell: runtimeOptions.shell,
+            rootDir,
+            requestedPath,
+            normalizedPath: selectedLayer.path,
+            startLine: window.startLine,
+            endLine: window.endLine,
+            limit,
+          });
+          const diff = await buildLocalDiffContext({
+            shell: runtimeOptions.shell,
+            rootDir,
+            fileState,
+            selectedLayerName,
+            focus,
+            limit,
+          });
+          const evidenceAliases = [
+            normalizedPath,
+            fileState.resolvedPath,
+            fileState.base.path,
+            fileState.head.path,
+            fileState.index.path,
+            fileState.worktree.path,
+          ].filter(Boolean);
+          const evidenceResult = await loadLocalPathEvidence({
+            rootDir,
+            path: normalizedPath,
+            aliases: [...new Set(evidenceAliases)],
+            perSourceLimit: limit,
+            maxItems: max_items,
+          });
+          const evidence = buildReadEvidence(evidenceResult);
+
+          const data: ProvBlockReadData = {
+            requestedPath: requestedPath.trim(),
+            resolvedPath: fileState.resolvedPath,
+            repo: toProvRepoStateData(repoState, limit),
+            file: toProvFileStateData(fileState),
+            content,
+            lineage: {
+              data: lineageResolution.data,
+              bounds: lineageResolution.bounds,
+              hints: toLineageHints({
+                warnings: lineageResolution.warnings,
+                bounds: lineageResolution.bounds,
+              }),
+              confidence: lineageResolution.confidence,
+            },
+            diff,
+            evidence,
+          };
+          const warnings = dedupeWarnings([
+            ...toAmbiguityWarnings(repoState.ambiguity),
+            ...toAmbiguityWarnings(fileState.ambiguity),
+            ...createBlockContentWarnings(content),
+            ...lineageResolution.warnings,
+            ...createDiffWarnings(diff),
+            ...createEvidenceWarnings(evidence),
+          ]);
+          const response = createProvenanceSuccess({
+            tool: PROV_BLOCK_READ_TOOL,
+            mode: "local",
+            confidence: getLowestConfidence([
+              repoState.confidence,
+              fileState.confidence,
+              content.confidence,
+              data.lineage.confidence,
+            ]),
+            ambiguity: getHighestAmbiguity([
+              repoState.ambiguity.level,
+              fileState.ambiguity.level,
+              getHighestAmbiguityFromWarnings(warnings),
+            ]),
+            bounds: content.bounds,
+            summary: buildBlockReadSummary(data),
+            warnings,
+            sources: [
+              buildBlockContentSource(content),
+              ...lineageResolution.sources,
+              ...toProvenanceEvidenceSources(evidenceResult.ranked.items),
+            ],
+            data,
+          });
+
+          logger.info("prov_block_read end", {
+            tool: PROV_BLOCK_READ_TOOL,
+            confidence: response.meta.confidence,
+            ambiguity: response.meta.ambiguity,
+            path: normalizedPath,
+            resolvedPath: data.resolvedPath,
+            layer: content.layer,
+            focusStartLine: content.focus.startLine,
+            focusEndLine: content.focus.endLine,
+            returnedLines: content.lines.length,
+            lineageItems: data.lineage.data.lineage.length,
+            diffComparisons: diff.comparisons.length,
+            evidenceItems: evidence.items.length,
+          });
+
+          return JSON.stringify(response, null, 2);
+        } catch (error) {
+          const errorMessage = toErrorMessage(error);
+          logger.error("prov_block_read failed", {
+            tool: PROV_BLOCK_READ_TOOL,
+            mode: resolvedMode,
+            path: normalizedPath,
+            layer: selectedLayerName,
+            startLine,
+            endLine,
+            error: errorMessage,
+          });
+
+          return JSON.stringify(
+            createProvenanceFailure({
+              tool: PROV_BLOCK_READ_TOOL,
+              mode: "local",
+              confidence: "unknown",
+              ambiguity: "high",
+              summary: `Failed to read block provenance for '${normalizedPath}:${startLine}-${endLine}'.`,
+              error: {
+                code: "PROV_BLOCK_READ_UNAVAILABLE",
+                message: errorMessage,
+              },
+            }),
+            null,
+            2,
+          );
+        }
+      },
+    }),
+  };
+}
