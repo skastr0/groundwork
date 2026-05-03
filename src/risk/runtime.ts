@@ -1,5 +1,6 @@
 import type { PluginInput } from "@opencode-ai/plugin";
-import { configFromEnv, evaluateBashCommand, type GuardConfig } from "./rules.ts";
+import { configFromEnv, type GuardConfig } from "./rules.ts";
+import { evaluateRiskCommand, riskViolationMessage } from "./service.ts";
 import {
   FrameworkEnforcementError,
   type GroundworkLayerHooks,
@@ -56,7 +57,7 @@ export function createRiskToolBeforeHook(params: {
     const command = extractCommand(args);
     if (!command) return;
 
-    const decision = evaluateBashCommand(command, config);
+    const decision = evaluateRiskCommand({ command, config });
     if (!decision.violation) return;
 
     await log(client, "warn", "Blocked potentially destructive command", {
@@ -68,10 +69,10 @@ export function createRiskToolBeforeHook(params: {
       command: truncateCommand(command),
     });
 
-    if (config.mode === "warn") return;
+    if (decision.decision === "warn") return;
 
     throw new FrameworkEnforcementError({
-      message: `[groundwork:risk] ${decision.violation.reason} (rule: ${decision.violation.ruleId})`,
+      message: riskViolationMessage(decision.violation),
       source: SERVICE,
       code: decision.violation.ruleId,
     });

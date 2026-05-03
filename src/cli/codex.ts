@@ -2,11 +2,8 @@ import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { z } from "zod";
-import {
-  DEFAULT_GUARD_CONFIG,
-  evaluateBashCommand,
-  type GuardConfig,
-} from "../risk/rules.ts";
+import { configFromEnv } from "../risk/rules.ts";
+import { evaluateRiskCommand } from "../risk/service.ts";
 
 export const CodexInstallProjectInputSchema = z
   .object({
@@ -115,9 +112,18 @@ export async function runCodexHook() {
     if (!command) {
       return;
     }
-    const config: GuardConfig = DEFAULT_GUARD_CONFIG;
-    const decision = evaluateBashCommand(command, config);
+    const config = configFromEnv(process.env);
+    const decision = evaluateRiskCommand({ command, config });
     if (decision.violation) {
+      if (decision.decision === "warn") {
+        process.stdout.write(
+          `${JSON.stringify({
+            systemMessage: `[groundwork:risk] Warn mode matched ${decision.violation.ruleId}: ${decision.violation.reason}`,
+          })}\n`,
+        );
+        return;
+      }
+
       process.stdout.write(
         `${JSON.stringify({
           hookSpecificOutput: {

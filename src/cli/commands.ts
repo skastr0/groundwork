@@ -3,11 +3,7 @@ import { Args, Command } from "@effect/cli";
 import { Effect } from "effect";
 import { attachProcessRunner } from "../../shared/effect-runtime.ts";
 import { discoverFrameworkContextFiles } from "../context/discovery.ts";
-import {
-  evaluateBashCommand,
-  DEFAULT_GUARD_CONFIG,
-  type GuardConfig,
-} from "../risk/rules.ts";
+import { evaluateRiskCommand } from "../risk/service.ts";
 import {
   resolveLocalFileState,
   resolveLocalRepoState,
@@ -100,16 +96,10 @@ const riskEvaluateCommandCommand = Command.make(
     toEffect(() =>
       executeJsonCommand("risk evaluate-command", async () => {
         const payload = await decodeJsonInput(input, RiskEvaluateCommandInputSchema);
-        const config: GuardConfig = {
-          ...DEFAULT_GUARD_CONFIG,
-          ...payload.config,
-        };
-        const decision = evaluateBashCommand(payload.command, config);
-        return {
-          decision: decision.violation ? "block" : "allow",
-          violation: decision.violation,
-          config,
-        };
+        return evaluateRiskCommand({
+          command: payload.command,
+          config: payload.config,
+        });
       }),
     ),
 );

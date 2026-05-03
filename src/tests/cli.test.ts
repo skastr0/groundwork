@@ -40,6 +40,37 @@ async function runGroundwork(args: string[], stdin?: string): Promise<CommandRes
   return { exitCode, stdout, stderr };
 }
 
+async function runGroundworkWithEnv(
+  args: string[],
+  stdin: string,
+  env: NodeJS.ProcessEnv,
+): Promise<CommandResult> {
+  const proc = spawn("bun", ["./src/cli.ts", ...args], {
+    cwd: process.cwd(),
+    env: { ...process.env, ...env },
+    stdio: ["pipe", "pipe", "pipe"],
+  });
+
+  let stdout = "";
+  let stderr = "";
+  proc.stdout.setEncoding("utf8");
+  proc.stderr.setEncoding("utf8");
+  proc.stdout.on("data", (chunk: string) => {
+    stdout += chunk;
+  });
+  proc.stderr.on("data", (chunk: string) => {
+    stderr += chunk;
+  });
+  proc.stdin.end(stdin);
+
+  const exitCode = await new Promise<number>((resolve, reject) => {
+    proc.on("error", reject);
+    proc.on("close", (code) => resolve(code ?? 1));
+  });
+
+  return { exitCode, stdout, stderr };
+}
+
 function parseJson(text: string): unknown {
   return JSON.parse(text);
 }
@@ -280,6 +311,58 @@ describe("groundwork CLI", () => {
     });
   });
 
+  it("reports but does not deny risky Bash commands from Codex hooks in warn mode", async () => {
+    const result = await runGroundworkWithEnv(
+      ["codex", "hook"],
+      JSON.stringify({
+        hook_event_name: "PreToolUse",
+        tool_name: "Bash",
+        tool_input: {
+          command: "git reset --hard",
+        },
+      }),
+      { OPENCODE_DESTRUCTIVE_GUARD_MODE: "warn" },
+    );
+    expect(result.exitCode).toBe(0);
+    expect(result.stderr).toBe("");
+    expect(parseJson(result.stdout)).toMatchObject({
+      systemMessage: expect.stringContaining("Warn mode matched git.reset-hard"),
+    });
+  });
+
+  it("does not deny risky Bash commands from Codex hooks in off mode", async () => {
+    const result = await runGroundworkWithEnv(
+      ["codex", "hook"],
+      JSON.stringify({
+        hook_event_name: "PreToolUse",
+        tool_name: "Bash",
+        tool_input: {
+          command: "git reset --hard",
+        },
+      }),
+      { OPENCODE_DESTRUCTIVE_GUARD_MODE: "off" },
+    );
+    expect(result.exitCode).toBe(0);
+    expect(result.stderr).toBe("");
+    expect(result.stdout).toBe("");
+  });
+
+  it("ignores non-Bash Codex PreToolUse hooks", async () => {
+    const result = await runGroundwork(
+      ["codex", "hook"],
+      JSON.stringify({
+        hook_event_name: "PreToolUse",
+        tool_name: "apply_patch",
+        tool_input: {
+          command: "git reset --hard",
+        },
+      }),
+    );
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toBe("");
+  });
+
   it("lists and shows schemas", async () => {
     const listResult = await runGroundwork(["schema", "list"]);
     expect(listResult.exitCode).toBe(0);
@@ -356,6 +439,43 @@ describe("groundwork CLI", () => {
         decision: "block",
         violation: {
           ruleId: "git.checkout-discard",
+        },
+      },
+    });
+  });
+
+  it("honors risk foundation warn and off modes", async () => {
+    const warnResult = await runGroundwork([
+      "risk",
+      "evaluate-command",
+      '{"command":"git reset --hard","config":{"mode":"warn"}}',
+    ]);
+    expect(warnResult.exitCode).toBe(0);
+    expect(parseJson(warnResult.stdout)).toMatchObject({
+      ok: true,
+      command: "risk evaluate-command",
+      data: {
+        decision: "warn",
+        violation: {
+          ruleId: "git.reset-hard",
+        },
+      },
+    });
+
+    const offResult = await runGroundwork([
+      "risk",
+      "evaluate-command",
+      '{"command":"git reset --hard","config":{"mode":"off"}}',
+    ]);
+    expect(offResult.exitCode).toBe(0);
+    expect(parseJson(offResult.stdout)).toMatchObject({
+      ok: true,
+      command: "risk evaluate-command",
+      data: {
+        decision: "allow",
+        violation: null,
+        config: {
+          mode: "off",
         },
       },
     });
