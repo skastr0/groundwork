@@ -19,6 +19,11 @@ import {
   type LocalRepoState,
 } from "../provenance/tooling/state/local-state.ts";
 import {
+  isProvenanceToolID,
+  PROVENANCE_CLI_COMMANDS,
+  runProvenanceTool,
+} from "../provenance/cli-service.ts";
+import {
   listExamples,
   listSchemas,
   renderCapabilities,
@@ -43,6 +48,8 @@ import {
   PolicySkillLoadedInputSchema,
   ProvenanceFileStateInputSchema,
   ProvenanceRepoStateInputSchema,
+  ProvenanceToolArgsInputSchema,
+  ProvenanceToolInputSchema,
   RiskEvaluateCommandInputSchema,
 } from "./schemas.ts";
 import {
@@ -292,9 +299,40 @@ const provenanceFileStateCommand = Command.make("file-state", { input: inputArg 
   ),
 );
 
+const provenanceRunCommand = Command.make("run", { input: inputArg }, ({ input }) =>
+  toEffect(() =>
+    executeJsonCommand("provenance run", async () => {
+      const payload = await decodeJsonInput(input, ProvenanceToolInputSchema);
+      return runProvenanceTool(payload);
+    }),
+  ),
+);
+
+const provenanceRegistryCommands = Object.entries(PROVENANCE_CLI_COMMANDS)
+  .filter(([command]) => command !== "repo-state" && command !== "file-state")
+  .map(([command, toolID]) =>
+    Command.make(command, { input: inputArg }, ({ input }) =>
+      toEffect(() =>
+        executeJsonCommand(`provenance ${command}`, async () => {
+          const payload = await decodeJsonInput(input, ProvenanceToolArgsInputSchema);
+          const { root_dir: rootDir, ...args } = payload;
+          if (!isProvenanceToolID(toolID)) {
+            throw new Error(`Unknown provenance tool '${toolID}'.`);
+          }
+          return runProvenanceTool({ tool: toolID, root_dir: rootDir, args });
+        }),
+      ),
+    ),
+  );
+
 const provenanceCommand = Command.make("provenance").pipe(
   Command.withDescription("Provenance foundation commands"),
-  Command.withSubcommands([provenanceRepoStateCommand, provenanceFileStateCommand]),
+  Command.withSubcommands([
+    provenanceRepoStateCommand,
+    provenanceFileStateCommand,
+    provenanceRunCommand,
+    ...provenanceRegistryCommands,
+  ]),
 );
 
 const sessionGetCommand = Command.make("get", { input: inputArg }, ({ input }) =>

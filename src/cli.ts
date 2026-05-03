@@ -72,8 +72,22 @@ function validateCommandShape(args: string[]): CommandShapeFailure | undefined {
       ]);
     case "provenance":
       return validateInputCommand("provenance", subcommand, input, args, [
-        "repo-state",
+        "authority",
+        "block-read",
+        "commit-expand",
+        "commit-materialize",
+        "diff-expand",
         "file-state",
+        "hotspots",
+        "pr-expand",
+        "pr-materialize",
+        "read",
+        "repo-state",
+        "run",
+        "span-history",
+        "stability-report",
+        "tree-expand",
+        "worktree-overview",
       ]);
     case "session":
       return validateInputCommand("session", subcommand, input, args, [

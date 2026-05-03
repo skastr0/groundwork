@@ -3,6 +3,11 @@ import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { attachProcessRunner } from "../../shared/effect-runtime.ts";
+import {
+  createFrameworkProvenanceTools,
+  type FrameworkProvenanceToolID,
+} from "../provenance/registry.ts";
 
 interface CommandResult {
   exitCode: number;
@@ -80,6 +85,28 @@ function expectJsonOnlyFailure(result: CommandResult) {
   expect(result.stdout).toBe("");
   expect(result.stderr.trim()).toMatch(/^\{/);
   expect(() => parseJson(result.stderr)).not.toThrow();
+}
+
+async function runRegistryProvenanceTool(
+  tool: FrameworkProvenanceToolID,
+  args: Record<string, unknown>,
+  rootDir = process.cwd(),
+): Promise<unknown> {
+  const tools = createFrameworkProvenanceTools({
+    shell: attachProcessRunner({}, { cwd: rootDir }) as never,
+    rootDir,
+  });
+  const result = await tools[tool].execute(args, {
+    sessionID: "groundwork-cli-test",
+    messageID: "groundwork-cli-test",
+    agent: "groundwork-cli-test",
+    directory: rootDir,
+    worktree: rootDir,
+    abort: new AbortController().signal,
+    metadata() {},
+    async ask() {},
+  } as never);
+  return parseJson(result);
 }
 
 describe("groundwork CLI", () => {
@@ -1164,6 +1191,142 @@ message = "console logging should be reviewed"
       command: "provenance file-state",
       data: {
         requestedPath: "src/index.ts",
+      },
+    });
+  });
+
+  it("runs full provenance registry tools through direct CLI commands", async () => {
+    const result = await runGroundwork([
+      "provenance",
+      "worktree-overview",
+      JSON.stringify({ limit: 1 }),
+    ]);
+    expect(result.exitCode).toBe(0);
+    expect(result.stderr).toBe("");
+    expect(parseJson(result.stdout)).toMatchObject({
+      ok: true,
+      command: "provenance worktree-overview",
+      data: {
+        ok: true,
+        meta: {
+          tool: "gw_worktree_overview",
+        },
+      },
+    });
+  });
+
+  it("runs arbitrary gw_* provenance tools through provenance run", async () => {
+    const result = await runGroundwork([
+      "provenance",
+      "run",
+      JSON.stringify({
+        tool: "gw_read",
+        args: { path: "src/cli.ts", max_bytes: 200 },
+      }),
+    ]);
+    expect(result.exitCode).toBe(0);
+    expect(parseJson(result.stdout)).toMatchObject({
+      ok: true,
+      command: "provenance run",
+      data: {
+        ok: true,
+        meta: {
+          tool: "gw_read",
+        },
+        data: {
+          requestedPath: "src/cli.ts",
+        },
+      },
+    });
+  });
+
+  it("keeps gw_block_read available as an explicit blocking provenance command", async () => {
+    const result = await runGroundwork([
+      "provenance",
+      "block-read",
+      JSON.stringify({ path: "src/cli.ts", start_line: 1, end_line: 5, max_bytes: 200 }),
+    ]);
+    expect(result.exitCode).toBe(0);
+    expect(parseJson(result.stdout)).toMatchObject({
+      ok: true,
+      command: "provenance block-read",
+      data: {
+        meta: {
+          tool: "gw_block_read",
+        },
+      },
+    });
+  });
+
+  it("matches representative OpenCode provenance registry outputs", async () => {
+    const cases: Array<{
+      command: string;
+      tool: FrameworkProvenanceToolID;
+      args: Record<string, unknown>;
+    }> = [
+      {
+        command: "worktree-overview",
+        tool: "gw_worktree_overview",
+        args: { limit: 1 },
+      },
+      {
+        command: "hotspots",
+        tool: "gw_hotspots",
+        args: { path: "src", limit: 1, max_commits: 5 },
+      },
+      {
+        command: "read",
+        tool: "gw_read",
+        args: { path: "src/cli.ts", max_bytes: 200 },
+      },
+    ];
+
+    for (const testCase of cases) {
+      const cliResult = await runGroundwork([
+        "provenance",
+        testCase.command,
+        JSON.stringify(testCase.args),
+      ]);
+      expect(cliResult.exitCode).toBe(0);
+      expect(cliResult.stderr).toBe("");
+      const cliOutput = parseJson(cliResult.stdout) as { data: unknown };
+      await expect(runRegistryProvenanceTool(testCase.tool, testCase.args)).resolves.toEqual(
+        cliOutput.data,
+      );
+    }
+  }, 30_000);
+
+  it("publishes exact direct provenance command schemas", async () => {
+    const readSchemaResult = await runGroundwork([
+      "schema",
+      "show",
+      "groundwork.provenance.read.input/v1",
+    ]);
+    expect(readSchemaResult.exitCode).toBe(0);
+    expect(parseJson(readSchemaResult.stdout)).toMatchObject({
+      data: {
+        schema: {
+          required: ["path"],
+          additionalProperties: false,
+          properties: {
+            path: { type: "string", minLength: 1 },
+          },
+        },
+      },
+    });
+
+    const blockReadSchemaResult = await runGroundwork([
+      "schema",
+      "show",
+      "groundwork.provenance.block-read.input/v1",
+    ]);
+    expect(blockReadSchemaResult.exitCode).toBe(0);
+    expect(parseJson(blockReadSchemaResult.stdout)).toMatchObject({
+      data: {
+        schema: {
+          required: ["path", "start_line", "end_line"],
+          additionalProperties: false,
+        },
       },
     });
   });

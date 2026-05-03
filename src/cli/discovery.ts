@@ -1,4 +1,4 @@
-import { SCHEMA_CONTRACTS } from "./schemas.ts";
+import { DIRECT_PROVENANCE_CLI_COMMAND_NAMES, SCHEMA_CONTRACTS } from "./schemas.ts";
 
 export const CLI_NAME = "groundwork";
 export const CLI_VERSION = "0.1.0";
@@ -105,6 +105,20 @@ export const COMMAND_CAPABILITIES = [
     description: "Inspect one file across local git layers.",
     schemas: ["groundwork.provenance.file-state.input/v1"],
   },
+  {
+    command_id: "provenance.run",
+    command: "provenance run",
+    category: "workflow",
+    description: "Run any registered gw_* provenance tool through the shared local registry.",
+    schemas: ["groundwork.provenance.run.input/v1"],
+  },
+  ...DIRECT_PROVENANCE_CLI_COMMAND_NAMES.map((name) => ({
+    command_id: `provenance.${name}`,
+    command: `provenance ${name}`,
+    category: "workflow",
+    description: `Run gw_${name.replace(/-/g, "_")} through the shared local provenance registry.`,
+    schemas: [`groundwork.provenance.${name}.input/v1`],
+  })),
   {
     command_id: "session.get",
     command: "session get",
@@ -221,6 +235,18 @@ export const EXAMPLES = [
     command: "provenance file-state",
     name: "Inspect one file",
     args: [`{"path":"src/index.ts"}`],
+  },
+  {
+    command_id: "provenance.run",
+    command: "provenance run",
+    name: "Run any gw_* provenance tool",
+    args: [`{"tool":"gw_worktree_overview","args":{"limit":10}}`],
+  },
+  {
+    command_id: "provenance.read",
+    command: "provenance read",
+    name: "Read a file with provenance evidence",
+    args: [`{"path":"src/index.ts","max_bytes":4000}`],
   },
   {
     command_id: "session.skill-loaded",

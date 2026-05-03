@@ -1,8 +1,194 @@
 import { z } from "zod";
+import { FRAMEWORK_PROVENANCE_TOOL_IDS } from "../provenance/registry.ts";
 
 const RootDirSchema = z.string().min(1).optional();
 const DirectorySchema = z.string().min(1).optional();
 const BaseSchema = z.string().min(1).optional();
+
+export const DIRECT_PROVENANCE_CLI_COMMAND_NAMES = [
+  "span-history",
+  "diff-expand",
+  "commit-materialize",
+  "commit-expand",
+  "pr-materialize",
+  "pr-expand",
+  "tree-expand",
+  "worktree-overview",
+  "hotspots",
+  "authority",
+  "stability-report",
+  "read",
+  "block-read",
+] as const;
+
+const OptionalLocalModeProperty = { enum: ["local"] } as const;
+const OptionalHybridModeProperty = { enum: ["local", "remote", "hybrid"] } as const;
+const PathProperty = { type: "string", minLength: 1 } as const;
+const BaseProperty = { type: "string", minLength: 1 } as const;
+const PositiveIntegerProperty = { type: "integer", minimum: 1 } as const;
+const PositiveNumberProperty = { type: "number", exclusiveMinimum: 0 } as const;
+const BooleanProperty = { type: "boolean" } as const;
+
+const DirectProvenanceCommandSchemaSpecs = {
+  "span-history": {
+    required: ["path", "start_line", "end_line"],
+    properties: {
+      path: PathProperty,
+      start_line: PositiveIntegerProperty,
+      end_line: PositiveIntegerProperty,
+      mode: OptionalLocalModeProperty,
+      limit: PositiveIntegerProperty,
+    },
+  },
+  "diff-expand": {
+    required: ["path"],
+    properties: {
+      path: PathProperty,
+      base: BaseProperty,
+      mode: OptionalLocalModeProperty,
+      limit: PositiveIntegerProperty,
+      max_items: PositiveIntegerProperty,
+      max_bytes: PositiveIntegerProperty,
+      include_patch: BooleanProperty,
+    },
+  },
+  "commit-materialize": {
+    required: ["commit"],
+    properties: {
+      commit: { type: "string", minLength: 1 },
+      mode: OptionalLocalModeProperty,
+      limit: PositiveIntegerProperty,
+      max_bytes: PositiveIntegerProperty,
+      include_patch: BooleanProperty,
+    },
+  },
+  "commit-expand": {
+    required: ["commit"],
+    properties: {
+      commit: { type: "string", minLength: 1 },
+      base: BaseProperty,
+      mode: OptionalLocalModeProperty,
+      limit: PositiveIntegerProperty,
+      max_items: PositiveIntegerProperty,
+      max_bytes: PositiveIntegerProperty,
+      include_patch: BooleanProperty,
+    },
+  },
+  "pr-materialize": {
+    required: [],
+    properties: {
+      pr: PositiveIntegerProperty,
+      base: BaseProperty,
+      mode: OptionalHybridModeProperty,
+      limit: PositiveIntegerProperty,
+      max_bytes: PositiveIntegerProperty,
+    },
+  },
+  "pr-expand": {
+    required: [],
+    properties: {
+      pr: PositiveIntegerProperty,
+      base: BaseProperty,
+      mode: OptionalHybridModeProperty,
+      limit: PositiveIntegerProperty,
+      max_items: PositiveIntegerProperty,
+      max_bytes: PositiveIntegerProperty,
+    },
+  },
+  "tree-expand": {
+    required: ["path"],
+    properties: {
+      path: PathProperty,
+      base: BaseProperty,
+      scope: { enum: ["branch", "worktree"] },
+      mode: OptionalLocalModeProperty,
+      limit: PositiveIntegerProperty,
+      max_items: PositiveIntegerProperty,
+      max_bytes: PositiveIntegerProperty,
+      max_depth: PositiveIntegerProperty,
+    },
+  },
+  "worktree-overview": {
+    required: [],
+    properties: {
+      base: BaseProperty,
+      scope: { enum: ["branch", "worktree"] },
+      mode: OptionalLocalModeProperty,
+      limit: PositiveIntegerProperty,
+      max_items: PositiveIntegerProperty,
+      max_bytes: PositiveIntegerProperty,
+      max_depth: PositiveIntegerProperty,
+    },
+  },
+  hotspots: {
+    required: [],
+    properties: {
+      path: PathProperty,
+      windows: { type: "array", items: PositiveIntegerProperty },
+      group_by: { enum: ["file", "directory"] },
+      directory_depth: PositiveIntegerProperty,
+      limit: PositiveIntegerProperty,
+      max_commits: PositiveIntegerProperty,
+      mode: OptionalLocalModeProperty,
+    },
+  },
+  authority: {
+    required: [],
+    properties: {
+      path: PathProperty,
+      window_days: PositiveIntegerProperty,
+      limit: PositiveIntegerProperty,
+      max_commits: PositiveIntegerProperty,
+      mode: OptionalLocalModeProperty,
+    },
+  },
+  "stability-report": {
+    required: [],
+    properties: {
+      path: PathProperty,
+      recent_window_days: PositiveIntegerProperty,
+      baseline_window_days: PositiveIntegerProperty,
+      limit: PositiveIntegerProperty,
+      max_commits: PositiveIntegerProperty,
+      mode: OptionalLocalModeProperty,
+    },
+  },
+  read: {
+    required: ["path"],
+    properties: {
+      path: PathProperty,
+      layer: { enum: ["base", "head", "index", "worktree"] },
+      base: BaseProperty,
+      mode: OptionalLocalModeProperty,
+      limit: PositiveIntegerProperty,
+      max_items: PositiveIntegerProperty,
+      max_bytes: PositiveIntegerProperty,
+    },
+  },
+  "block-read": {
+    required: ["path", "start_line", "end_line"],
+    properties: {
+      path: PathProperty,
+      start_line: PositiveIntegerProperty,
+      end_line: PositiveIntegerProperty,
+      radius: PositiveNumberProperty,
+      window_start: PositiveIntegerProperty,
+      window_end: PositiveIntegerProperty,
+      layer: { enum: ["base", "head", "index", "worktree"] },
+      base: BaseProperty,
+      mode: OptionalLocalModeProperty,
+      limit: PositiveIntegerProperty,
+      max_items: PositiveIntegerProperty,
+      max_bytes: PositiveIntegerProperty,
+    },
+  },
+} satisfies Record<
+  (typeof DIRECT_PROVENANCE_CLI_COMMAND_NAMES)[number],
+  {
+    required: readonly string[];
+    properties: Record<string, unknown>;
+  }
+>;
 
 export const RiskEvaluateCommandInputSchema = z.object({
   command: z.string().min(1),
@@ -42,6 +228,16 @@ export const ProvenanceFileStateInputSchema = z.object({
   root_dir: RootDirSchema,
   base: BaseSchema,
 }).strict();
+
+export const ProvenanceToolInputSchema = z.object({
+  root_dir: RootDirSchema,
+  tool: z.enum(FRAMEWORK_PROVENANCE_TOOL_IDS),
+  args: z.record(z.string(), z.unknown()).optional(),
+}).strict();
+
+export const ProvenanceToolArgsInputSchema = z.object({
+  root_dir: RootDirSchema,
+}).catchall(z.unknown());
 
 const PolicyBaseInputSchema = z.object({
   root_dir: RootDirSchema,
@@ -249,6 +445,7 @@ export type ContextDiscoverInput = z.infer<typeof ContextDiscoverInputSchema>;
 export type ContextTouchedPathsInput = z.infer<typeof ContextTouchedPathsInputSchema>;
 export type ProvenanceRepoStateInput = z.infer<typeof ProvenanceRepoStateInputSchema>;
 export type ProvenanceFileStateInput = z.infer<typeof ProvenanceFileStateInputSchema>;
+export type ProvenanceToolInput = z.infer<typeof ProvenanceToolInputSchema>;
 export type PolicyEvaluateToolCallInput = z.infer<typeof PolicyEvaluateToolCallInputSchema>;
 export type PolicyEvaluateToolResultInput = z.infer<typeof PolicyEvaluateToolResultInputSchema>;
 export type PolicyOverrideInput = z.infer<typeof PolicyOverrideInputSchema>;
@@ -405,4 +602,35 @@ export const SCHEMA_CONTRACTS = [
       },
     },
   },
+  {
+    schema_id: "groundwork.provenance.run.input/v1",
+    command_id: "provenance.run",
+    command: "provenance run",
+    description: "Run any registered gw_* provenance tool through the shared local tool registry.",
+    schema: {
+      type: "object",
+      required: ["tool"],
+      additionalProperties: false,
+      properties: {
+        root_dir: { type: "string", minLength: 1 },
+        tool: { enum: FRAMEWORK_PROVENANCE_TOOL_IDS },
+        args: { type: "object" },
+      },
+    },
+  },
+  ...DIRECT_PROVENANCE_CLI_COMMAND_NAMES.map((name) => ({
+    schema_id: `groundwork.provenance.${name}.input/v1`,
+    command_id: `provenance.${name}`,
+    command: `provenance ${name}`,
+    description: `Run gw_${name.replace(/-/g, "_")} through the shared local provenance registry.`,
+    schema: {
+      type: "object",
+      required: DirectProvenanceCommandSchemaSpecs[name].required,
+      additionalProperties: false,
+      properties: {
+        root_dir: { type: "string", minLength: 1 },
+        ...DirectProvenanceCommandSchemaSpecs[name].properties,
+      },
+    },
+  })),
 ] as const;
