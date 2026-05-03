@@ -83,13 +83,13 @@ export const EXAMPLES = [
     command_id: "codex.install-project",
     command: "codex install-project",
     name: "Install project-local Codex integration",
-    args: [`{"target_dir":".","force":false}`],
+    args: [`{"target_dir":".","hook_command":"groundwork codex hook","force":false}`],
   },
   {
     command_id: "codex.install-user",
     command: "codex install-user",
     name: "Install user-level Codex integration",
-    args: [`{"force":false}`],
+    args: [`{"hook_command":"groundwork codex hook","force":false}`],
   },
   {
     command_id: "context.discover",

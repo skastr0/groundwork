@@ -8,6 +8,7 @@ Groundwork exposes Codex support through the same JSON-first CLI used by other i
 - Local marketplace: `.agents/plugins/marketplace.json` exposes this repo as a local `groundwork` plugin.
 - Project install: `groundwork codex install-project '{"target_dir":"."}'`.
 - User install: `groundwork codex install-user '{"codex_home":"/path/to/.codex"}'`.
+- Explicit hook command install: `groundwork codex install-project '{"target_dir":".","hook_command":"/absolute/path/to/groundwork codex hook"}'`.
 - Readiness check: `groundwork codex doctor`.
 
 Project installs create:
@@ -24,7 +25,7 @@ User installs create:
 
 By default, existing hook and skill files are skipped. Passing `force: true` overwrites Groundwork-managed hook and skill files, but config files are still patched instead of replaced.
 
-The generated hooks call `groundwork codex hook`, so the hook process must have `groundwork` on `PATH`. For local development, adding this repo's `node_modules/.bin` to `PATH` is sufficient after `bun link groundwork`; packaged/global installs should provide the same binary name.
+The generated hooks call `groundwork codex hook` by default, so the hook process must have `groundwork` on `PATH`. For local development, adding this repo's `node_modules/.bin` to `PATH` is sufficient after `bun link groundwork`; packaged/global installs should provide the same binary name. When PATH cannot be guaranteed, pass `hook_command` during project or user install to write an explicit command path.
 
 ## Hook Behavior
 
@@ -33,7 +34,7 @@ The initial hook entrypoint supports:
 - `SessionStart`: adds Groundwork CLI guidance as developer context.
 - `PreToolUse` for `Bash`: evaluates the command with `groundwork:risk` rules and denies supported destructive commands.
 
-Hooks call `groundwork codex hook`, so plugin-bundled hooks, project hooks, and user hooks share one executable path.
+Hooks call `groundwork codex hook` by default, or the configured `hook_command` for project/user installs, so plugin-bundled hooks, project hooks, and user hooks share the same CLI hook entrypoint.
 
 ## Trust Boundaries
 

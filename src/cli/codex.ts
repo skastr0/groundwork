@@ -8,6 +8,7 @@ import { evaluateRiskCommand } from "../risk/service.ts";
 export const CodexInstallProjectInputSchema = z
   .object({
     target_dir: z.string().min(1).optional(),
+    hook_command: z.string().min(1).optional(),
     force: z.boolean().optional(),
   })
   .strict();
@@ -15,6 +16,7 @@ export const CodexInstallProjectInputSchema = z
 export const CodexInstallUserInputSchema = z
   .object({
     codex_home: z.string().min(1).optional(),
+    hook_command: z.string().min(1).optional(),
     force: z.boolean().optional(),
   })
   .strict();
@@ -57,13 +59,18 @@ export async function installCodexProject(input: CodexInstallProjectInput) {
 
   const writes = [
     await ensureCodexHooksFeature(configPath),
-    await writeFileIfAllowed(hooksPath, `${JSON.stringify(codexHooksConfig(), null, 2)}\n`, input.force ?? false),
+    await writeFileIfAllowed(
+      hooksPath,
+      `${JSON.stringify(codexHooksConfig(input.hook_command), null, 2)}\n`,
+      input.force ?? false,
+    ),
     await writeFileIfAllowed(skillPath, groundworkSkillMarkdown(), input.force ?? false),
   ];
 
   return {
     target_dir: targetDir,
     codex_dir: codexDir,
+    hook_command: resolveHookCommand(input.hook_command),
     files: writes,
     limitations: codexLimitations(),
   };
@@ -80,12 +87,17 @@ export async function installCodexUser(input: CodexInstallUserInput) {
 
   const writes = [
     await ensureCodexHooksFeature(configPath),
-    await writeFileIfAllowed(hooksPath, `${JSON.stringify(codexHooksConfig(), null, 2)}\n`, input.force ?? false),
+    await writeFileIfAllowed(
+      hooksPath,
+      `${JSON.stringify(codexHooksConfig(input.hook_command), null, 2)}\n`,
+      input.force ?? false,
+    ),
     await writeFileIfAllowed(skillPath, groundworkSkillMarkdown(), input.force ?? false),
   ];
 
   return {
     codex_home: codexHome,
+    hook_command: resolveHookCommand(input.hook_command),
     files: writes,
     limitations: codexLimitations(),
   };
@@ -137,7 +149,8 @@ export async function runCodexHook() {
   }
 }
 
-function codexHooksConfig() {
+function codexHooksConfig(hookCommand?: string) {
+  const command = resolveHookCommand(hookCommand);
   return {
     hooks: {
       SessionStart: [
@@ -146,7 +159,7 @@ function codexHooksConfig() {
           hooks: [
             {
               type: "command",
-              command: "groundwork codex hook",
+              command,
               timeout: 30,
               statusMessage: "Loading Groundwork guidance",
             },
@@ -159,7 +172,7 @@ function codexHooksConfig() {
           hooks: [
             {
               type: "command",
-              command: "groundwork codex hook",
+              command,
               timeout: 30,
               statusMessage: "Checking Groundwork risk policy",
             },
@@ -168,6 +181,10 @@ function codexHooksConfig() {
       ],
     },
   };
+}
+
+function resolveHookCommand(hookCommand: string | undefined): string {
+  return hookCommand?.trim() || "groundwork codex hook";
 }
 
 function groundworkSkillMarkdown(): string {

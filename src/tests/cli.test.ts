@@ -161,6 +161,27 @@ describe("groundwork CLI", () => {
     ).resolves.toContain("name: groundwork");
   });
 
+  it("installs project-local Codex hooks with an explicit hook command", async () => {
+    const targetDir = await fs.mkdtemp(path.join(os.tmpdir(), "groundwork-codex-command-"));
+    const hookCommand = "/opt/groundwork/bin/groundwork codex hook";
+    const result = await runGroundwork([
+      "codex",
+      "install-project",
+      JSON.stringify({ target_dir: targetDir, hook_command: hookCommand }),
+    ]);
+    expect(result.exitCode).toBe(0);
+    expect(parseJson(result.stdout)).toMatchObject({
+      ok: true,
+      command: "codex install-project",
+      data: {
+        hook_command: hookCommand,
+      },
+    });
+    await expect(fs.readFile(path.join(targetDir, ".codex", "hooks.json"), "utf8")).resolves.toContain(
+      hookCommand,
+    );
+  });
+
   it("patches existing project Codex config without replacing unrelated settings", async () => {
     const targetDir = await fs.mkdtemp(path.join(os.tmpdir(), "groundwork-codex-existing-"));
     const codexDir = path.join(targetDir, ".codex");
@@ -268,6 +289,27 @@ describe("groundwork CLI", () => {
     await expect(
       fs.readFile(path.join(codexHome, "skills", "groundwork", "SKILL.md"), "utf8"),
     ).resolves.toContain("name: groundwork");
+  });
+
+  it("installs user-level Codex hooks with an explicit hook command", async () => {
+    const codexHome = await fs.mkdtemp(path.join(os.tmpdir(), "groundwork-codex-home-command-"));
+    const hookCommand = "/opt/groundwork/bin/groundwork codex hook";
+    const result = await runGroundwork([
+      "codex",
+      "install-user",
+      JSON.stringify({ codex_home: codexHome, hook_command: hookCommand }),
+    ]);
+    expect(result.exitCode).toBe(0);
+    expect(parseJson(result.stdout)).toMatchObject({
+      ok: true,
+      command: "codex install-user",
+      data: {
+        hook_command: hookCommand,
+      },
+    });
+    await expect(fs.readFile(path.join(codexHome, "hooks.json"), "utf8")).resolves.toContain(
+      hookCommand,
+    );
   });
 
   it("emits Codex SessionStart hook context", async () => {

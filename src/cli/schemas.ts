@@ -44,6 +44,7 @@ export const CodexInstallProjectInputSchemaContract = {
     additionalProperties: false,
     properties: {
       target_dir: { type: "string", minLength: 1 },
+      hook_command: { type: "string", minLength: 1 },
       force: { type: "boolean" },
     },
   },
@@ -59,6 +60,7 @@ export const CodexInstallUserInputSchemaContract = {
     additionalProperties: false,
     properties: {
       codex_home: { type: "string", minLength: 1 },
+      hook_command: { type: "string", minLength: 1 },
       force: { type: "boolean" },
     },
   },
