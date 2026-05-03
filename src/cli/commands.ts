@@ -33,6 +33,22 @@ import {
   ProvenanceRepoStateInputSchema,
   RiskEvaluateCommandInputSchema,
 } from "./schemas.ts";
+import {
+  SessionAppendTraceInputSchema,
+  SessionCleanupInputSchema,
+  SessionGetInputSchema,
+  SessionOverrideInputSchema,
+  SessionPutPendingToolInputSchema,
+  SessionRememberActionInputSchema,
+  SessionSkillLoadedInputSchema,
+  appendSessionTrace,
+  cleanupSessionArtifacts,
+  getSessionArtifact,
+  markSessionSkillsLoaded,
+  putPendingSessionTool,
+  recordSessionOverride,
+  rememberSessionAction,
+} from "../session/index.ts";
 import { decodeJsonInput, executeJsonCommand } from "./protocol.ts";
 
 const inputArg = Args.text({ name: "input" }).pipe(
@@ -206,6 +222,88 @@ const provenanceCommand = Command.make("provenance").pipe(
   Command.withSubcommands([provenanceRepoStateCommand, provenanceFileStateCommand]),
 );
 
+const sessionGetCommand = Command.make("get", { input: inputArg }, ({ input }) =>
+  toEffect(() =>
+    executeJsonCommand("session get", async () => {
+      const payload = await decodeJsonInput(input, SessionGetInputSchema);
+      return getSessionArtifact(payload);
+    }),
+  ),
+);
+
+const sessionSkillLoadedCommand = Command.make("skill-loaded", { input: inputArg }, ({ input }) =>
+  toEffect(() =>
+    executeJsonCommand("session skill-loaded", async () => {
+      const payload = await decodeJsonInput(input, SessionSkillLoadedInputSchema);
+      return markSessionSkillsLoaded(payload);
+    }),
+  ),
+);
+
+const sessionOverrideCommand = Command.make("override", { input: inputArg }, ({ input }) =>
+  toEffect(() =>
+    executeJsonCommand("session override", async () => {
+      const payload = await decodeJsonInput(input, SessionOverrideInputSchema);
+      return recordSessionOverride(payload);
+    }),
+  ),
+);
+
+const sessionRememberActionCommand = Command.make(
+  "remember-action",
+  { input: inputArg },
+  ({ input }) =>
+    toEffect(() =>
+      executeJsonCommand("session remember-action", async () => {
+        const payload = await decodeJsonInput(input, SessionRememberActionInputSchema);
+        return rememberSessionAction(payload);
+      }),
+    ),
+);
+
+const sessionPutPendingToolCommand = Command.make(
+  "put-pending-tool",
+  { input: inputArg },
+  ({ input }) =>
+    toEffect(() =>
+      executeJsonCommand("session put-pending-tool", async () => {
+        const payload = await decodeJsonInput(input, SessionPutPendingToolInputSchema);
+        return putPendingSessionTool(payload);
+      }),
+    ),
+);
+
+const sessionAppendTraceCommand = Command.make("append-trace", { input: inputArg }, ({ input }) =>
+  toEffect(() =>
+    executeJsonCommand("session append-trace", async () => {
+      const payload = await decodeJsonInput(input, SessionAppendTraceInputSchema);
+      return appendSessionTrace(payload);
+    }),
+  ),
+);
+
+const sessionCleanupCommand = Command.make("cleanup", { input: inputArg }, ({ input }) =>
+  toEffect(() =>
+    executeJsonCommand("session cleanup", async () => {
+      const payload = await decodeJsonInput(input, SessionCleanupInputSchema);
+      return cleanupSessionArtifacts(payload);
+    }),
+  ),
+);
+
+const sessionCommand = Command.make("session").pipe(
+  Command.withDescription("Session artifact commands"),
+  Command.withSubcommands([
+    sessionAppendTraceCommand,
+    sessionCleanupCommand,
+    sessionGetCommand,
+    sessionOverrideCommand,
+    sessionPutPendingToolCommand,
+    sessionRememberActionCommand,
+    sessionSkillLoadedCommand,
+  ]),
+);
+
 export const rootCommand = Command.make("groundwork").pipe(
   Command.withDescription("JSON-first Groundwork CLI for agent guardrails and evidence"),
   Command.withSubcommands([
@@ -217,6 +315,7 @@ export const rootCommand = Command.make("groundwork").pipe(
     provenanceCommand,
     riskCommand,
     schemaCommand,
+    sessionCommand,
   ]),
 );
 

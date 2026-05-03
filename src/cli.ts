@@ -65,6 +65,16 @@ function validateCommandShape(args: string[]): CommandShapeFailure | undefined {
         "repo-state",
         "file-state",
       ]);
+    case "session":
+      return validateInputCommand("session", subcommand, input, args, [
+        "append-trace",
+        "cleanup",
+        "get",
+        "override",
+        "put-pending-tool",
+        "remember-action",
+        "skill-loaded",
+      ]);
     default:
       return shapeFailure(undefined, `Unknown command '${group ?? ""}'`, {
         expected: knownTopLevelCommands(),
@@ -181,5 +191,6 @@ function knownTopLevelCommands(): string[] {
     "provenance",
     "risk",
     "schema",
+    "session",
   ];
 }

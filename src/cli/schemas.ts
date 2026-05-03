@@ -66,6 +66,130 @@ export const CodexInstallUserInputSchemaContract = {
   },
 } as const;
 
+const SessionBaseProperties = {
+  session_id: { type: "string", minLength: 1 },
+  root_dir: { type: "string", minLength: 1 },
+} as const;
+
+const SessionGetInputSchemaContract = {
+  schema_id: "groundwork.session.get.input/v1",
+  command_id: "session.get",
+  command: "session get",
+  description: "Read one Groundwork durable session artifact state.",
+  schema: {
+    type: "object",
+    required: ["session_id"],
+    additionalProperties: false,
+    properties: SessionBaseProperties,
+  },
+} as const;
+
+const SessionSkillLoadedInputSchemaContract = {
+  schema_id: "groundwork.session.skill-loaded.input/v1",
+  command_id: "session.skill-loaded",
+  command: "session skill-loaded",
+  description: "Persist required-skill confirmation state for one session.",
+  schema: {
+    type: "object",
+    required: ["session_id", "skills"],
+    additionalProperties: false,
+    properties: {
+      ...SessionBaseProperties,
+      skills: { type: "array", minItems: 1, items: { type: "string", minLength: 1 } },
+    },
+  },
+} as const;
+
+const SessionOverrideInputSchemaContract = {
+  schema_id: "groundwork.session.override.input/v1",
+  command_id: "session.override",
+  command: "session override",
+  description: "Persist a human override record for one session.",
+  schema: {
+    type: "object",
+    required: ["session_id", "reason"],
+    additionalProperties: false,
+    properties: {
+      ...SessionBaseProperties,
+      reason: { type: "string", minLength: 1 },
+      rule_id: { type: "string", minLength: 1 },
+      metadata: { type: "object" },
+    },
+  },
+} as const;
+
+const SessionRememberActionInputSchemaContract = {
+  schema_id: "groundwork.session.remember-action.input/v1",
+  command_id: "session.remember-action",
+  command: "session remember-action",
+  description: "Persist an action dedupe key for one session.",
+  schema: {
+    type: "object",
+    required: ["session_id", "key", "source", "action"],
+    additionalProperties: false,
+    properties: {
+      ...SessionBaseProperties,
+      key: { type: "string", minLength: 1 },
+      source: { type: "string", minLength: 1 },
+      action: { type: "string", minLength: 1 },
+      metadata: { type: "object" },
+    },
+  },
+} as const;
+
+const SessionPutPendingToolInputSchemaContract = {
+  schema_id: "groundwork.session.put-pending-tool.input/v1",
+  command_id: "session.put-pending-tool",
+  command: "session put-pending-tool",
+  description: "Persist a pending tool snapshot for one session.",
+  schema: {
+    type: "object",
+    required: ["session_id", "call_id", "tool_name"],
+    additionalProperties: false,
+    properties: {
+      ...SessionBaseProperties,
+      call_id: { type: "string", minLength: 1 },
+      tool_name: { type: "string", minLength: 1 },
+      phase: { enum: ["before", "after"] },
+      args: { type: "object" },
+      targets: { type: "array", items: { type: "object" } },
+      data: { type: "object" },
+    },
+  },
+} as const;
+
+const SessionAppendTraceInputSchemaContract = {
+  schema_id: "groundwork.session.append-trace.input/v1",
+  command_id: "session.append-trace",
+  command: "session append-trace",
+  description: "Append a trace record to one Groundwork session artifact.",
+  schema: {
+    type: "object",
+    required: ["session_id", "trace"],
+    additionalProperties: false,
+    properties: {
+      ...SessionBaseProperties,
+      trace: { type: "object" },
+    },
+  },
+} as const;
+
+const SessionCleanupInputSchemaContract = {
+  schema_id: "groundwork.session.cleanup.input/v1",
+  command_id: "session.cleanup",
+  command: "session cleanup",
+  description: "Remove one session artifact or stale session artifacts.",
+  schema: {
+    type: "object",
+    additionalProperties: false,
+    properties: {
+      root_dir: { type: "string", minLength: 1 },
+      session_id: { type: "string", minLength: 1 },
+      older_than_days: { type: "integer", minimum: 1 },
+    },
+  },
+} as const;
+
 export type RiskEvaluateCommandInput = z.infer<typeof RiskEvaluateCommandInputSchema>;
 export type ContextDiscoverInput = z.infer<typeof ContextDiscoverInputSchema>;
 export type ProvenanceRepoStateInput = z.infer<typeof ProvenanceRepoStateInputSchema>;
@@ -74,6 +198,13 @@ export type ProvenanceFileStateInput = z.infer<typeof ProvenanceFileStateInputSc
 export const SCHEMA_CONTRACTS = [
   CodexInstallProjectInputSchemaContract,
   CodexInstallUserInputSchemaContract,
+  SessionGetInputSchemaContract,
+  SessionSkillLoadedInputSchemaContract,
+  SessionOverrideInputSchemaContract,
+  SessionRememberActionInputSchemaContract,
+  SessionPutPendingToolInputSchemaContract,
+  SessionAppendTraceInputSchemaContract,
+  SessionCleanupInputSchemaContract,
   {
     schema_id: "groundwork.risk.evaluate-command.input/v1",
     command_id: "risk.evaluate-command",

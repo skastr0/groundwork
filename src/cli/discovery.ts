@@ -70,6 +70,55 @@ export const COMMAND_CAPABILITIES = [
     description: "Inspect one file across local git layers.",
     schemas: ["groundwork.provenance.file-state.input/v1"],
   },
+  {
+    command_id: "session.get",
+    command: "session get",
+    category: "workflow",
+    description: "Read one Groundwork durable session artifact state.",
+    schemas: ["groundwork.session.get.input/v1"],
+  },
+  {
+    command_id: "session.skill-loaded",
+    command: "session skill-loaded",
+    category: "workflow",
+    description: "Persist required-skill confirmation state for one session.",
+    schemas: ["groundwork.session.skill-loaded.input/v1"],
+  },
+  {
+    command_id: "session.override",
+    command: "session override",
+    category: "workflow",
+    description: "Persist a human override record for one session.",
+    schemas: ["groundwork.session.override.input/v1"],
+  },
+  {
+    command_id: "session.remember-action",
+    command: "session remember-action",
+    category: "workflow",
+    description: "Persist an action dedupe key for one session.",
+    schemas: ["groundwork.session.remember-action.input/v1"],
+  },
+  {
+    command_id: "session.put-pending-tool",
+    command: "session put-pending-tool",
+    category: "workflow",
+    description: "Persist a pending tool snapshot for one session.",
+    schemas: ["groundwork.session.put-pending-tool.input/v1"],
+  },
+  {
+    command_id: "session.append-trace",
+    command: "session append-trace",
+    category: "workflow",
+    description: "Append a trace record to one Groundwork session artifact.",
+    schemas: ["groundwork.session.append-trace.input/v1"],
+  },
+  {
+    command_id: "session.cleanup",
+    command: "session cleanup",
+    category: "maintenance",
+    description: "Remove one session artifact or stale session artifacts.",
+    schemas: ["groundwork.session.cleanup.input/v1"],
+  },
 ] as const;
 
 export const EXAMPLES = [
@@ -108,6 +157,18 @@ export const EXAMPLES = [
     command: "provenance file-state",
     name: "Inspect one file",
     args: [`{"path":"src/index.ts"}`],
+  },
+  {
+    command_id: "session.skill-loaded",
+    command: "session skill-loaded",
+    name: "Confirm skills for a hook session",
+    args: [`{"session_id":"example","skills":["groundwork"]}`],
+  },
+  {
+    command_id: "session.cleanup",
+    command: "session cleanup",
+    name: "Remove stale session artifacts",
+    args: [`{"older_than_days":30}`],
   },
 ] as const;
 

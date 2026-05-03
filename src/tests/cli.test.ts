@@ -438,6 +438,22 @@ describe("groundwork CLI", () => {
         },
       },
     });
+
+    const sessionShowResult = await runGroundwork([
+      "schema",
+      "show",
+      "groundwork.session.skill-loaded.input/v1",
+    ]);
+    expect(sessionShowResult.exitCode).toBe(0);
+    expect(sessionShowResult.stderr).toBe("");
+    expect(parseJson(sessionShowResult.stdout)).toMatchObject({
+      ok: true,
+      command: "schema show",
+      data: {
+        schema_id: "groundwork.session.skill-loaded.input/v1",
+        command_id: "session.skill-loaded",
+      },
+    });
   });
 
   it("lists and shows examples", async () => {
@@ -676,6 +692,332 @@ describe("groundwork CLI", () => {
       command: "provenance file-state",
       data: {
         requestedPath: "src/index.ts",
+      },
+    });
+  });
+
+  it("persists and cleans up durable session artifacts", async () => {
+    const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "groundwork-session-"));
+    const sessionId = "codex-session-1";
+
+    const skillResult = await runGroundwork([
+      "session",
+      "skill-loaded",
+      JSON.stringify({
+        root_dir: rootDir,
+        session_id: sessionId,
+        skills: ["Groundwork", "Policy"],
+      }),
+    ]);
+    expect(skillResult.exitCode).toBe(0);
+    expect(skillResult.stderr).toBe("");
+    expect(parseJson(skillResult.stdout)).toMatchObject({
+      ok: true,
+      command: "session skill-loaded",
+      data: {
+        state: {
+          policy: {
+            confirmedSkills: ["groundwork", "policy"],
+          },
+        },
+      },
+    });
+
+    const overrideResult = await runGroundwork([
+      "session",
+      "override",
+      JSON.stringify({
+        root_dir: rootDir,
+        session_id: sessionId,
+        reason: "human approved",
+        rule_id: "rule-1",
+      }),
+    ]);
+    expect(overrideResult.exitCode).toBe(0);
+
+    const firstActionResult = await runGroundwork([
+      "session",
+      "remember-action",
+      JSON.stringify({
+        root_dir: rootDir,
+        session_id: sessionId,
+        key: "policy:rule-1:inject",
+        source: "policy",
+        action: "inject_prompt",
+      }),
+    ]);
+    expect(firstActionResult.exitCode).toBe(0);
+    expect(parseJson(firstActionResult.stdout)).toMatchObject({
+      data: {
+        duplicate: false,
+      },
+    });
+
+    const secondActionResult = await runGroundwork([
+      "session",
+      "remember-action",
+      JSON.stringify({
+        root_dir: rootDir,
+        session_id: sessionId,
+        key: "policy:rule-1:inject",
+        source: "policy",
+        action: "inject_prompt",
+      }),
+    ]);
+    expect(secondActionResult.exitCode).toBe(0);
+    expect(parseJson(secondActionResult.stdout)).toMatchObject({
+      data: {
+        duplicate: true,
+        state: {
+          actions: {
+            "policy:rule-1:inject": {
+              count: 2,
+            },
+          },
+        },
+      },
+    });
+
+    const pendingResult = await runGroundwork([
+      "session",
+      "put-pending-tool",
+      JSON.stringify({
+        root_dir: rootDir,
+        session_id: sessionId,
+        call_id: "call-1",
+        tool_name: "bash",
+        args: { command: "echo ok" },
+        targets: [{ path: "src/index.ts" }],
+      }),
+    ]);
+    expect(pendingResult.exitCode).toBe(0);
+
+    const traceResult = await runGroundwork([
+      "session",
+      "append-trace",
+      JSON.stringify({
+        root_dir: rootDir,
+        session_id: sessionId,
+        trace: { id: "trace-1", kind: "test" },
+      }),
+    ]);
+    expect(traceResult.exitCode).toBe(0);
+    expect(parseJson(traceResult.stdout)).toMatchObject({
+      ok: true,
+      command: "session append-trace",
+      data: {
+        session_id: sessionId,
+        trace_file: expect.stringContaining("traces.jsonl"),
+      },
+    });
+
+    const getResult = await runGroundwork([
+      "session",
+      "get",
+      JSON.stringify({
+        root_dir: rootDir,
+        session_id: sessionId,
+      }),
+    ]);
+    expect(getResult.exitCode).toBe(0);
+    expect(parseJson(getResult.stdout)).toMatchObject({
+      ok: true,
+      command: "session get",
+      data: {
+        state: {
+          schemaVersion: "groundwork-session-artifacts/v1",
+          policy: {
+            overrides: [expect.objectContaining({ ruleId: "rule-1" })],
+          },
+          session: {
+            pendingTools: {
+              calls: {
+                "call-1": expect.objectContaining({
+                  toolName: "bash",
+                }),
+              },
+            },
+          },
+        },
+      },
+    });
+
+    const sessionDirs = await fs.readdir(path.join(rootDir, ".groundwork", "sessions"));
+    expect(sessionDirs).toHaveLength(1);
+    const sessionDir = path.join(rootDir, ".groundwork", "sessions", sessionDirs[0] ?? "");
+    await expect(fs.readFile(path.join(sessionDir, "events.jsonl"), "utf8")).resolves.toContain(
+      "skill-loaded",
+    );
+    await expect(fs.readFile(path.join(sessionDir, "traces.jsonl"), "utf8")).resolves.toContain(
+      "trace-1",
+    );
+
+    const cleanupResult = await runGroundwork([
+      "session",
+      "cleanup",
+      JSON.stringify({
+        root_dir: rootDir,
+        session_id: sessionId,
+      }),
+    ]);
+    expect(cleanupResult.exitCode).toBe(0);
+    expect(parseJson(cleanupResult.stdout)).toMatchObject({
+      ok: true,
+      command: "session cleanup",
+      data: {
+        removed: [sessionId],
+      },
+    });
+
+    const missingCleanupResult = await runGroundwork([
+      "session",
+      "cleanup",
+      JSON.stringify({
+        root_dir: rootDir,
+        session_id: sessionId,
+      }),
+    ]);
+    expect(missingCleanupResult.exitCode).toBe(0);
+    expect(parseJson(missingCleanupResult.stdout)).toMatchObject({
+      ok: true,
+      command: "session cleanup",
+      data: {
+        removed: [],
+      },
+    });
+  });
+
+  it("keeps distinct unsafe-looking session ids isolated on disk", async () => {
+    const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "groundwork-session-collision-"));
+
+    await runGroundwork([
+      "session",
+      "skill-loaded",
+      JSON.stringify({
+        root_dir: rootDir,
+        session_id: "a/b",
+        skills: ["one"],
+      }),
+    ]);
+    await runGroundwork([
+      "session",
+      "skill-loaded",
+      JSON.stringify({
+        root_dir: rootDir,
+        session_id: "a:b",
+        skills: ["two"],
+      }),
+    ]);
+    await runGroundwork([
+      "session",
+      "skill-loaded",
+      JSON.stringify({
+        root_dir: rootDir,
+        session_id: "a_b",
+        skills: ["three"],
+      }),
+    ]);
+
+    const sessionDirs = await fs.readdir(path.join(rootDir, ".groundwork", "sessions"));
+    expect(sessionDirs).toHaveLength(3);
+
+    const cleanupResult = await runGroundwork([
+      "session",
+      "cleanup",
+      JSON.stringify({
+        root_dir: rootDir,
+        session_id: "a/b",
+      }),
+    ]);
+    expect(cleanupResult.exitCode).toBe(0);
+
+    const remainingDirs = await fs.readdir(path.join(rootDir, ".groundwork", "sessions"));
+    expect(remainingDirs).toHaveLength(2);
+    const colonResult = await runGroundwork([
+      "session",
+      "get",
+      JSON.stringify({
+        root_dir: rootDir,
+        session_id: "a:b",
+      }),
+    ]);
+    expect(parseJson(colonResult.stdout)).toMatchObject({
+      data: {
+        state: {
+          policy: {
+            confirmedSkills: ["two"],
+          },
+        },
+      },
+    });
+  });
+
+  it("serializes concurrent session mutations", async () => {
+    const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "groundwork-session-concurrent-"));
+    const sessionId = "parallel-session";
+
+    const [skillResult, overrideResult, actionResult, pendingResult] = await Promise.all([
+      runGroundwork([
+        "session",
+        "skill-loaded",
+        JSON.stringify({ root_dir: rootDir, session_id: sessionId, skills: ["groundwork"] }),
+      ]),
+      runGroundwork([
+        "session",
+        "override",
+        JSON.stringify({ root_dir: rootDir, session_id: sessionId, reason: "approved" }),
+      ]),
+      runGroundwork([
+        "session",
+        "remember-action",
+        JSON.stringify({
+          root_dir: rootDir,
+          session_id: sessionId,
+          key: "dedupe-key",
+          source: "test",
+          action: "remember",
+        }),
+      ]),
+      runGroundwork([
+        "session",
+        "put-pending-tool",
+        JSON.stringify({
+          root_dir: rootDir,
+          session_id: sessionId,
+          call_id: "call-parallel",
+          tool_name: "Bash",
+        }),
+      ]),
+    ]);
+    expect(skillResult.exitCode).toBe(0);
+    expect(overrideResult.exitCode).toBe(0);
+    expect(actionResult.exitCode).toBe(0);
+    expect(pendingResult.exitCode).toBe(0);
+
+    const getResult = await runGroundwork([
+      "session",
+      "get",
+      JSON.stringify({ root_dir: rootDir, session_id: sessionId }),
+    ]);
+    expect(getResult.exitCode).toBe(0);
+    expect(parseJson(getResult.stdout)).toMatchObject({
+      data: {
+        state: {
+          policy: {
+            confirmedSkills: ["groundwork"],
+            overrides: [expect.objectContaining({ reason: "approved" })],
+          },
+          actions: {
+            "dedupe-key": expect.objectContaining({ count: 1 }),
+          },
+          session: {
+            pendingTools: {
+              calls: {
+                "call-parallel": expect.objectContaining({ toolName: "Bash" }),
+              },
+            },
+          },
+        },
       },
     });
   });

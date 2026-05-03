@@ -1,7 +1,7 @@
 node_modules/
 dist/
 .agents/traces/
+.groundwork/
 
 .DS_Store
 *.log
-
