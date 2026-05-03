@@ -326,7 +326,7 @@ describe("framework provenance runtime", () => {
       metadata: {
         policyRuntime: {
           completedInjectOnlyRules: ["guidance"],
-          confirmedSkills: ["policy-toml-guardrails", "sdlc"],
+          confirmedSkills: ["groundwork-readiness", "sdlc"],
         },
       },
     });
@@ -380,7 +380,7 @@ describe("framework provenance runtime", () => {
     expect(output.context[0]).toMatchInlineSnapshot(`
       "Groundwork context:
       - context: injected files /repo/AGENTS.md, /repo/packages/feature/CLAUDE.md
-      - policy: active locks policy-pending-override (mutating-tools); confirmed skills policy-toml-guardrails, sdlc; completed prompt-only rules guidance
+      - policy: active locks policy-pending-override (mutating-tools); confirmed skills groundwork-readiness, sdlc; completed prompt-only rules guidance
       - provenance: prompt role=user agent=builder model=openai/gpt-5.4 variant=careful tools edit=false, read=true, task=true; pending tools edit_file(src/main.ts)"
     `);
     expect(Buffer.byteLength(output.context[0] ?? "", "utf8")).toBeLessThanOrEqual(
@@ -409,16 +409,16 @@ text = "stay within guardrails"
 `,
         );
 
-        const previousGlobalConfig = process.env.OPENCODE_POLICY_GUARDRAIL_GLOBAL_CONFIG;
-        process.env.OPENCODE_POLICY_GUARDRAIL_GLOBAL_CONFIG = globalConfig;
+        const previousGlobalConfig = process.env.GROUNDWORK_POLICY_GLOBAL_CONFIG;
+        process.env.GROUNDWORK_POLICY_GLOBAL_CONFIG = globalConfig;
 
         try {
           return await GroundworkPlugin(context);
         } finally {
           if (previousGlobalConfig === undefined) {
-            delete process.env.OPENCODE_POLICY_GUARDRAIL_GLOBAL_CONFIG;
+            delete process.env.GROUNDWORK_POLICY_GLOBAL_CONFIG;
           } else {
-            process.env.OPENCODE_POLICY_GUARDRAIL_GLOBAL_CONFIG = previousGlobalConfig;
+            process.env.GROUNDWORK_POLICY_GLOBAL_CONFIG = previousGlobalConfig;
           }
         }
       },
@@ -476,7 +476,7 @@ text = "stay within guardrails"
 });
 
 async function writePolicy(root: string, policyToml: string): Promise<void> {
-  const policyPath = path.join(root, ".opencode", "policy.toml");
+  const policyPath = path.join(root, "groundwork.toml");
   await fs.mkdir(path.dirname(policyPath), { recursive: true });
   await fs.writeFile(policyPath, policyToml, "utf8");
 }

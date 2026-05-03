@@ -128,7 +128,7 @@ match = ["plugin/**"]
 
 [[rules.actions]]
 type = "ensure_skill_loaded"
-skills = ["sdlc", "policy-toml-guardrails"]
+skills = ["sdlc", "groundwork-readiness"]
 mode = "block"
 `,
     });
@@ -147,7 +147,7 @@ mode = "block"
           parts: [
             {
               type: "text",
-              text: "/policy skill-loaded sdlc policy-toml-guardrails",
+              text: "/policy skill-loaded sdlc groundwork-readiness",
             },
           ],
         },
@@ -351,16 +351,16 @@ async function createPolicyRuntimeHarness(options: {
         await writePolicy(context.directory, options.policyToml);
       }
 
-      const previousGlobalConfig = process.env.OPENCODE_POLICY_GUARDRAIL_GLOBAL_CONFIG;
-      process.env.OPENCODE_POLICY_GUARDRAIL_GLOBAL_CONFIG = globalConfig;
+      const previousGlobalConfig = process.env.GROUNDWORK_POLICY_GLOBAL_CONFIG;
+      process.env.GROUNDWORK_POLICY_GLOBAL_CONFIG = globalConfig;
 
       try {
         return await GroundworkPlugin(context);
       } finally {
         if (previousGlobalConfig === undefined) {
-          delete process.env.OPENCODE_POLICY_GUARDRAIL_GLOBAL_CONFIG;
+          delete process.env.GROUNDWORK_POLICY_GLOBAL_CONFIG;
         } else {
-          process.env.OPENCODE_POLICY_GUARDRAIL_GLOBAL_CONFIG = previousGlobalConfig;
+          process.env.GROUNDWORK_POLICY_GLOBAL_CONFIG = previousGlobalConfig;
         }
       }
     },
@@ -368,7 +368,7 @@ async function createPolicyRuntimeHarness(options: {
 }
 
 async function writePolicy(root: string, policyToml: string): Promise<void> {
-  const policyPath = path.join(root, ".opencode", "policy.toml");
+  const policyPath = path.join(root, "groundwork.toml");
   await fs.mkdir(path.dirname(policyPath), { recursive: true });
   await fs.writeFile(policyPath, policyToml, "utf8");
 }

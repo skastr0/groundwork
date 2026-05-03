@@ -138,9 +138,7 @@ type ContentMatchRegionRunner = (params: {
 
 const PROJECT_GROUNDWORK_CONFIG_FILE = "groundwork.toml";
 const PROJECT_GROUNDWORK_CONFIG_DIR = ".groundwork";
-const PROJECT_LEGACY_CONFIG_FILE = ".opencode/policy.toml";
 const GLOBAL_GROUNDWORK_CONFIG_DIR = ".groundwork";
-const GLOBAL_LEGACY_CONFIG_FILE = path.join(".config", "opencode", PROJECT_LEGACY_CONFIG_FILE);
 const ACTIVE_WORK_ITEM_FOLDERS = ["exploring", "committed", "building", "reviewing"];
 const AST_GREP_STRICTNESS = new Set<AstGrepStrictness>([
   "cst",
@@ -310,10 +308,7 @@ export function resolveProjectPolicyConfigPaths(
   rootDir: string,
   env: NodeJS.ProcessEnv = process.env,
 ): string[] {
-  const configured = firstConfiguredEnv(
-    env.GROUNDWORK_POLICY_CONFIG,
-    env.OPENCODE_POLICY_GUARDRAIL_CONFIG,
-  );
+  const configured = firstConfiguredEnv(env.GROUNDWORK_POLICY_CONFIG);
   if (configured) {
     return [resolveEnvPath(configured, rootDir)];
   }
@@ -328,19 +323,11 @@ export function resolveProjectPolicyConfigPaths(
     return groundworkConfigs;
   }
 
-  const legacyPath = path.join(rootDir, PROJECT_LEGACY_CONFIG_FILE);
-  if (pathExists(legacyPath)) {
-    return [legacyPath];
-  }
-
   return [groundworkRootConfig];
 }
 
 export function resolveGlobalPolicyConfigPaths(env: NodeJS.ProcessEnv = process.env): string[] {
-  const configured = firstConfiguredEnv(
-    env.GROUNDWORK_POLICY_GLOBAL_CONFIG,
-    env.OPENCODE_POLICY_GUARDRAIL_GLOBAL_CONFIG,
-  );
+  const configured = firstConfiguredEnv(env.GROUNDWORK_POLICY_GLOBAL_CONFIG);
   if (configured) {
     return [resolveEnvPath(configured, env.HOME)];
   }
@@ -356,11 +343,6 @@ export function resolveGlobalPolicyConfigPaths(env: NodeJS.ProcessEnv = process.
   );
   if (groundworkConfigs.length > 0) {
     return groundworkConfigs;
-  }
-
-  const legacyPath = path.join(home, GLOBAL_LEGACY_CONFIG_FILE);
-  if (pathExists(legacyPath)) {
-    return [legacyPath];
   }
 
   return [groundworkRootConfig];

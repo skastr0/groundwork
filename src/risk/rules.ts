@@ -32,9 +32,9 @@ export const DEFAULT_GUARD_CONFIG: GuardConfig = {
 
 export function configFromEnv(env: NodeJS.ProcessEnv = process.env): GuardConfig {
   return {
-    mode: parseMode(env.OPENCODE_DESTRUCTIVE_GUARD_MODE),
-    includeExtendedRules: parseBoolean(env.OPENCODE_DESTRUCTIVE_GUARD_EXTENDED, true),
-    allowTempRecursiveForceRm: parseBoolean(env.OPENCODE_DESTRUCTIVE_GUARD_ALLOW_TMP_RM_RF, true),
+    mode: parseMode(env.GROUNDWORK_DESTRUCTIVE_GUARD_MODE),
+    includeExtendedRules: parseBoolean(env.GROUNDWORK_DESTRUCTIVE_GUARD_EXTENDED, true),
+    allowTempRecursiveForceRm: parseBoolean(env.GROUNDWORK_DESTRUCTIVE_GUARD_ALLOW_TMP_RM_RF, true),
   };
 }
 

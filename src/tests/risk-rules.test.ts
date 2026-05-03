@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_GUARD_CONFIG,
+  configFromEnv,
   evaluateBashCommand,
 } from "../../groundwork/risk/index.ts";
 
@@ -68,6 +69,19 @@ describe("evaluateBashCommand", () => {
   it("blocks git reset --hard", () => {
     const result = evaluateBashCommand("git reset --hard HEAD~1", config);
     expect(result.violation?.ruleId).toBe("git.reset-hard");
+  });
+
+  it("ignores legacy OpenCode destructive guard env names", () => {
+    const resolved = configFromEnv({
+      OPENCODE_DESTRUCTIVE_GUARD_MODE: "off",
+      OPENCODE_DESTRUCTIVE_GUARD_EXTENDED: "false",
+      OPENCODE_DESTRUCTIVE_GUARD_ALLOW_TMP_RM_RF: "false",
+    });
+
+    expect(resolved).toEqual(DEFAULT_GUARD_CONFIG);
+    expect(evaluateBashCommand("git reset --hard", resolved).violation?.ruleId).toBe(
+      "git.reset-hard",
+    );
   });
 
   it("blocks git clean with force", () => {

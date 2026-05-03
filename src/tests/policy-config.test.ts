@@ -1235,7 +1235,7 @@ text = "b"
     }
   });
 
-  it("prefers Groundwork paths over legacy OpenCode paths", async () => {
+  it("ignores legacy OpenCode policy paths when Groundwork paths exist", async () => {
     const home = await createTempRoot();
     const root = await createTempRoot();
     const globalGroundworkPath = path.join(home, ".groundwork", "policy.toml");
@@ -1277,7 +1277,7 @@ text = "b"
     ]);
   });
 
-  it("falls back to legacy OpenCode policy paths when no Groundwork config exists", async () => {
+  it("does not fall back to legacy OpenCode policy paths", async () => {
     const home = await createTempRoot();
     const root = await createTempRoot();
     const globalPath = path.join(home, ".config", "opencode", ".opencode", "policy.toml");
@@ -1295,61 +1295,71 @@ text = "b"
     );
 
     const merged = await loadMergedPolicyConfig(root, { HOME: home });
-    expect(merged.sourceCount).toBe(2);
-    expect(merged.globalPaths).toEqual([globalPath]);
-    expect(merged.projectPaths).toEqual([projectPath]);
-    expect(merged.config?.rules.map((rule) => rule.id)).toEqual([
-      "global-legacy",
-      "project-legacy",
-    ]);
+    expect(merged.sourceCount).toBe(0);
+    expect(merged.globalPaths).toEqual([path.join(home, ".groundwork", "groundwork.toml")]);
+    expect(merged.projectPaths).toEqual([path.join(root, "groundwork.toml")]);
+    expect(merged.config).toBeNull();
   });
 
-  it("uses Groundwork env overrides before legacy OpenCode env overrides", async () => {
+  it("uses Groundwork project env overrides", async () => {
     const root = await createTempRoot();
     const groundworkPath = path.join(root, "groundwork.env.toml");
-    const legacyPath = path.join(root, "legacy.env.toml");
     await fs.writeFile(
       groundworkPath,
       toTomlPolicy({ id: "groundwork-env", match: "src/**", text: "groundwork env" }),
-    );
-    await fs.writeFile(
-      legacyPath,
-      toTomlPolicy({ id: "legacy-env", match: "src/**", text: "legacy env" }),
     );
 
     const merged = await loadMergedPolicyConfig(root, {
       HOME: path.join(root, "home"),
       GROUNDWORK_POLICY_CONFIG: groundworkPath,
-      OPENCODE_POLICY_GUARDRAIL_CONFIG: legacyPath,
     });
     expect(merged.projectPaths).toEqual([groundworkPath]);
     expect(merged.config?.rules.map((rule) => rule.id)).toEqual(["groundwork-env"]);
   });
 
-  it("uses Groundwork global env override before legacy OpenCode global env override", async () => {
+  it("uses Groundwork global env overrides", async () => {
     const root = await createTempRoot();
     const home = await createTempRoot();
     const groundworkPath = path.join(home, "groundwork.global.env.toml");
-    const legacyPath = path.join(home, "legacy.global.env.toml");
     await fs.writeFile(
       groundworkPath,
       toTomlPolicy({ id: "groundwork-global-env", match: "src/**", text: "groundwork global" }),
-    );
-    await fs.writeFile(
-      legacyPath,
-      toTomlPolicy({ id: "legacy-global-env", match: "src/**", text: "legacy global" }),
     );
 
     const merged = await loadMergedPolicyConfig(root, {
       HOME: home,
       GROUNDWORK_POLICY_GLOBAL_CONFIG: groundworkPath,
-      OPENCODE_POLICY_GUARDRAIL_GLOBAL_CONFIG: legacyPath,
     });
     expect(merged.globalPaths).toEqual([groundworkPath]);
     expect(merged.config?.rules.map((rule) => rule.id)).toEqual(["groundwork-global-env"]);
   });
 
-  it("does not load non-canonical legacy policy filenames", async () => {
+  it("ignores legacy OpenCode env overrides", async () => {
+    const root = await createTempRoot();
+    const home = await createTempRoot();
+    const projectLegacyPath = path.join(root, "legacy.env.toml");
+    const globalLegacyPath = path.join(home, "legacy.global.env.toml");
+    await fs.writeFile(
+      projectLegacyPath,
+      toTomlPolicy({ id: "legacy-project-env", match: "src/**", text: "legacy project env" }),
+    );
+    await fs.writeFile(
+      globalLegacyPath,
+      toTomlPolicy({ id: "legacy-global-env", match: "src/**", text: "legacy global env" }),
+    );
+
+    const merged = await loadMergedPolicyConfig(root, {
+      HOME: home,
+      OPENCODE_POLICY_GUARDRAIL_CONFIG: projectLegacyPath,
+      OPENCODE_POLICY_GUARDRAIL_GLOBAL_CONFIG: globalLegacyPath,
+    });
+    expect(merged.sourceCount).toBe(0);
+    expect(merged.globalPaths).toEqual([path.join(home, ".groundwork", "groundwork.toml")]);
+    expect(merged.projectPaths).toEqual([path.join(root, "groundwork.toml")]);
+    expect(merged.config).toBeNull();
+  });
+
+  it("does not load legacy OpenCode policy filenames", async () => {
     const home = await createTempRoot();
     const root = await createTempRoot();
 

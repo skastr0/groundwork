@@ -37,9 +37,7 @@ Supported behavior includes:
 
 - project paths: `groundwork.toml` and `.groundwork/*.toml`
 - global paths: `~/.groundwork/*.toml`
-- legacy project fallback: `.opencode/policy.toml`
-- legacy global fallback: `~/.config/opencode/.opencode/policy.toml`
-- env overrides: `GROUNDWORK_POLICY_CONFIG` / `GROUNDWORK_POLICY_GLOBAL_CONFIG`, with `OPENCODE_POLICY_GUARDRAIL_CONFIG` / `OPENCODE_POLICY_GUARDRAIL_GLOBAL_CONFIG` kept as fallbacks
+- env overrides: `GROUNDWORK_POLICY_CONFIG` / `GROUNDWORK_POLICY_GLOBAL_CONFIG`
 - include graphs via `include` or `includes`
 - rule-level tool filters, content matchers, and scope controls
 - session commands: `/policy override <reason>` and `/policy skill-loaded <skill...>`

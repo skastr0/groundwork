@@ -30,8 +30,8 @@ describe("GroundworkPlugin", () => {
     } = await import("../index.ts");
     const { GroundworkPlugin } = await import("../../groundwork.ts");
     const { FRAMEWORK_PROVENANCE_TOOL_IDS } = await import("../provenance/registry.ts");
-    const previousGlobalConfig = process.env.OPENCODE_POLICY_GUARDRAIL_GLOBAL_CONFIG;
-    process.env.OPENCODE_POLICY_GUARDRAIL_GLOBAL_CONFIG = path.join(
+    const previousGlobalConfig = process.env.GROUNDWORK_POLICY_GLOBAL_CONFIG;
+    process.env.GROUNDWORK_POLICY_GLOBAL_CONFIG = path.join(
       os.tmpdir(),
       "groundwork.global.none.toml",
     );
@@ -95,9 +95,9 @@ describe("GroundworkPlugin", () => {
       );
     } finally {
       if (previousGlobalConfig === undefined) {
-        delete process.env.OPENCODE_POLICY_GUARDRAIL_GLOBAL_CONFIG;
+        delete process.env.GROUNDWORK_POLICY_GLOBAL_CONFIG;
       } else {
-        process.env.OPENCODE_POLICY_GUARDRAIL_GLOBAL_CONFIG = previousGlobalConfig;
+        process.env.GROUNDWORK_POLICY_GLOBAL_CONFIG = previousGlobalConfig;
       }
       await harness.cleanup();
     }
@@ -216,16 +216,16 @@ async function createFrameworkPluginHarness(options: { policyToml?: string } = {
         await writePolicy(context.directory, options.policyToml);
       }
 
-      const previousGlobalConfig = process.env.OPENCODE_POLICY_GUARDRAIL_GLOBAL_CONFIG;
-      process.env.OPENCODE_POLICY_GUARDRAIL_GLOBAL_CONFIG = globalConfig;
+      const previousGlobalConfig = process.env.GROUNDWORK_POLICY_GLOBAL_CONFIG;
+      process.env.GROUNDWORK_POLICY_GLOBAL_CONFIG = globalConfig;
 
       try {
         return await GroundworkPlugin(context);
       } finally {
         if (previousGlobalConfig === undefined) {
-          delete process.env.OPENCODE_POLICY_GUARDRAIL_GLOBAL_CONFIG;
+          delete process.env.GROUNDWORK_POLICY_GLOBAL_CONFIG;
         } else {
-          process.env.OPENCODE_POLICY_GUARDRAIL_GLOBAL_CONFIG = previousGlobalConfig;
+          process.env.GROUNDWORK_POLICY_GLOBAL_CONFIG = previousGlobalConfig;
         }
       }
     },
@@ -233,7 +233,7 @@ async function createFrameworkPluginHarness(options: { policyToml?: string } = {
 }
 
 async function writePolicy(root: string, policyToml: string): Promise<void> {
-  const policyPath = path.join(root, ".opencode", "policy.toml");
+  const policyPath = path.join(root, "groundwork.toml");
   await fs.mkdir(path.dirname(policyPath), { recursive: true });
   await fs.writeFile(policyPath, policyToml, "utf8");
 }

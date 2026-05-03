@@ -35,7 +35,6 @@ export async function renderCodexDoctor() {
   const cwd = process.cwd();
   const projectCodexDir = path.join(cwd, ".codex");
   const pluginManifestPath = path.join(cwd, ".codex-plugin", "plugin.json");
-  const bundledSkillPath = path.join(cwd, "skills", "groundwork", "SKILL.md");
   const bundledHooksPath = path.join(cwd, "hooks", "hooks.json");
 
   return {
@@ -43,7 +42,6 @@ export async function renderCodexDoctor() {
     status: "ok",
     checks: [
       await fileCheck("plugin.manifest", pluginManifestPath),
-      await fileCheck("plugin.skill.groundwork", bundledSkillPath),
       await fileCheck("plugin.hooks", bundledHooksPath),
       await fileCheck("project.codex_dir", projectCodexDir),
     ],
@@ -54,15 +52,11 @@ export async function renderCodexDoctor() {
 export async function installCodexProject(input: CodexInstallProjectInput) {
   const targetDir = path.resolve(input.target_dir ?? process.cwd());
   const codexDir = path.join(targetDir, ".codex");
-  const hooksDir = path.join(codexDir, "hooks");
-  const skillsDir = path.join(codexDir, "skills", "groundwork");
 
-  await fs.mkdir(hooksDir, { recursive: true });
-  await fs.mkdir(skillsDir, { recursive: true });
+  await fs.mkdir(codexDir, { recursive: true });
 
   const configPath = path.join(codexDir, "config.toml");
   const hooksPath = path.join(codexDir, "hooks.json");
-  const skillPath = path.join(skillsDir, "SKILL.md");
 
   const writes = [
     await ensureCodexHooksFeature(configPath),
@@ -71,7 +65,6 @@ export async function installCodexProject(input: CodexInstallProjectInput) {
       `${JSON.stringify(codexHooksConfig(input.hook_command), null, 2)}\n`,
       input.force ?? false,
     ),
-    await writeFileIfAllowed(skillPath, groundworkSkillMarkdown(), input.force ?? false),
   ];
 
   return {
@@ -87,10 +80,8 @@ export async function installCodexUser(input: CodexInstallUserInput) {
   const codexHome = path.resolve(input.codex_home ?? process.env["CODEX_HOME"] ?? path.join(os.homedir(), ".codex"));
   const configPath = path.join(codexHome, "config.toml");
   const hooksPath = path.join(codexHome, "hooks.json");
-  const skillsDir = path.join(codexHome, "skills", "groundwork");
-  const skillPath = path.join(skillsDir, "SKILL.md");
 
-  await fs.mkdir(skillsDir, { recursive: true });
+  await fs.mkdir(codexHome, { recursive: true });
 
   const writes = [
     await ensureCodexHooksFeature(configPath),
@@ -99,7 +90,6 @@ export async function installCodexUser(input: CodexInstallUserInput) {
       `${JSON.stringify(codexHooksConfig(input.hook_command), null, 2)}\n`,
       input.force ?? false,
     ),
-    await writeFileIfAllowed(skillPath, groundworkSkillMarkdown(), input.force ?? false),
   ];
 
   return {
@@ -352,39 +342,6 @@ function codexHooksConfig(hookCommand?: string) {
 
 function resolveHookCommand(hookCommand: string | undefined): string {
   return hookCommand?.trim() || "groundwork codex hook";
-}
-
-function groundworkSkillMarkdown(): string {
-  return `---
-name: groundwork
-description: Use Groundwork for policy, provenance, context, and risk guardrails through the JSON-first groundwork CLI.
----
-
-# Groundwork
-
-Use the \`groundwork\` CLI when you need policy, provenance, context, or risk evidence.
-
-Policy config is Groundwork-owned: prefer project \`groundwork.toml\` or \`.groundwork/*.toml\` and global \`~/.groundwork/*.toml\`. Legacy \`.opencode/policy.toml\` paths are compatibility fallbacks.
-
-Core commands:
-
-- \`groundwork doctor\`
-- \`groundwork capabilities\`
-- \`groundwork schema list\`
-- \`groundwork examples list\`
-- \`groundwork risk evaluate-command '{"command":"git reset --hard"}'\`
-- \`groundwork policy evaluate-tool-call '{"session_id":"codex","tool":"edit","args":{"path":"src/index.ts"}}'\`
-- \`groundwork policy skill-loaded '{"session_id":"codex","skills":["sdlc"]}'\`
-- \`groundwork context discover '{"target_path":"src/index.ts"}'\`
-- \`groundwork context touched-paths '{"session_id":"codex","tool":"edit","args":{"path":"src/index.ts"}}'\`
-- \`groundwork session render-compaction '{"session_id":"codex"}'\`
-- \`groundwork provenance repo-state '{"limit":10}'\`
-- \`groundwork provenance file-state '{"path":"src/index.ts"}'\`
-- \`groundwork provenance read '{"path":"src/index.ts","max_bytes":4000}'\`
-- \`groundwork provenance run '{"tool":"gw_worktree_overview","args":{"limit":10}}'\`
-
-Codex hooks are best-effort guardrails. They can deny supported Bash/apply_patch/Edit/Write calls through \`PreToolUse\`, capture explicit policy commands from user prompts, and report post-tool policy feedback. They do not intercept every tool path, \`PostToolUse\` cannot undo side effects, and Codex V1 cannot inject tool-triggered synthetic prompts with full OpenCode parity.
-`;
 }
 
 function sessionStartContext(): string {

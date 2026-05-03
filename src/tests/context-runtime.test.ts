@@ -281,16 +281,16 @@ async function createContextPluginHarness(
       sessionMessages: options.sessionMessages,
     },
     createHooks: async (context) => {
-      const previousGlobalConfig = process.env.OPENCODE_POLICY_GUARDRAIL_GLOBAL_CONFIG;
-      process.env.OPENCODE_POLICY_GUARDRAIL_GLOBAL_CONFIG = globalConfig;
+      const previousGlobalConfig = process.env.GROUNDWORK_POLICY_GLOBAL_CONFIG;
+      process.env.GROUNDWORK_POLICY_GLOBAL_CONFIG = globalConfig;
 
       try {
         return await GroundworkPlugin(context);
       } finally {
         if (previousGlobalConfig === undefined) {
-          delete process.env.OPENCODE_POLICY_GUARDRAIL_GLOBAL_CONFIG;
+          delete process.env.GROUNDWORK_POLICY_GLOBAL_CONFIG;
         } else {
-          process.env.OPENCODE_POLICY_GUARDRAIL_GLOBAL_CONFIG = previousGlobalConfig;
+          process.env.GROUNDWORK_POLICY_GLOBAL_CONFIG = previousGlobalConfig;
         }
       }
     },

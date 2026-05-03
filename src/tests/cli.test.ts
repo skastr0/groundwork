@@ -150,14 +150,13 @@ describe("groundwork CLI", () => {
         status: "ok",
         checks: expect.arrayContaining([
           expect.objectContaining({ name: "plugin.manifest", ok: true }),
-          expect.objectContaining({ name: "plugin.skill.groundwork", ok: true }),
           expect.objectContaining({ name: "plugin.hooks", ok: true }),
         ]),
       },
     });
   });
 
-  it("installs project-local Codex hooks and skill files", async () => {
+  it("installs project-local Codex hooks and config files", async () => {
     const targetDir = await fs.mkdtemp(path.join(os.tmpdir(), "groundwork-codex-project-"));
     const result = await runGroundwork([
       "codex",
@@ -193,8 +192,8 @@ describe("groundwork CLI", () => {
       "UserPromptSubmit",
     ]);
     await expect(
-      fs.readFile(path.join(targetDir, ".codex", "skills", "groundwork", "SKILL.md"), "utf8"),
-    ).resolves.toContain("name: groundwork");
+      fs.access(path.join(targetDir, ".codex", "skills", "groundwork", "SKILL.md")),
+    ).rejects.toThrow();
   });
 
   it("installs project-local Codex hooks with an explicit hook command", async () => {
@@ -299,7 +298,7 @@ describe("groundwork CLI", () => {
     );
   });
 
-  it("installs user-level Codex hooks and skill files", async () => {
+  it("installs user-level Codex hooks and config files", async () => {
     const codexHome = await fs.mkdtemp(path.join(os.tmpdir(), "groundwork-codex-home-"));
     const result = await runGroundwork([
       "codex",
@@ -322,9 +321,7 @@ describe("groundwork CLI", () => {
     await expect(fs.readFile(path.join(codexHome, "config.toml"), "utf8")).resolves.toContain(
       "codex_hooks = true",
     );
-    await expect(
-      fs.readFile(path.join(codexHome, "skills", "groundwork", "SKILL.md"), "utf8"),
-    ).resolves.toContain("name: groundwork");
+    await expect(fs.access(path.join(codexHome, "skills", "groundwork", "SKILL.md"))).rejects.toThrow();
   });
 
   it("installs user-level Codex hooks with an explicit hook command", async () => {
@@ -399,7 +396,7 @@ describe("groundwork CLI", () => {
           command: "git reset --hard",
         },
       }),
-      { OPENCODE_DESTRUCTIVE_GUARD_MODE: "warn" },
+      { GROUNDWORK_DESTRUCTIVE_GUARD_MODE: "warn" },
     );
     expect(result.exitCode).toBe(0);
     expect(result.stderr).toBe("");
@@ -418,7 +415,7 @@ describe("groundwork CLI", () => {
           command: "git reset --hard",
         },
       }),
-      { OPENCODE_DESTRUCTIVE_GUARD_MODE: "off" },
+      { GROUNDWORK_DESTRUCTIVE_GUARD_MODE: "off" },
     );
     expect(result.exitCode).toBe(0);
     expect(result.stderr).toBe("");
@@ -484,9 +481,8 @@ message = "src edits require review"
 
   it("still applies policy denial when Bash risk is warn-only", async () => {
     const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "groundwork-codex-risk-policy-"));
-    await fs.mkdir(path.join(rootDir, ".opencode"), { recursive: true });
     await fs.writeFile(
-      path.join(rootDir, ".opencode", "policy.toml"),
+      path.join(rootDir, "groundwork.toml"),
       `version = 1
 
 [[rules]]
@@ -514,7 +510,7 @@ message = "bash command blocked by policy"
           path: "blocked.txt",
         },
       }),
-      { OPENCODE_DESTRUCTIVE_GUARD_MODE: "warn" },
+      { GROUNDWORK_DESTRUCTIVE_GUARD_MODE: "warn" },
     );
     expect(result.exitCode).toBe(0);
     expect(parseJson(result.stdout)).toMatchObject({
@@ -587,11 +583,10 @@ message = "bash command blocked by policy"
 
   it("reports Codex PostToolUse policy feedback without prevention claims", async () => {
     const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "groundwork-codex-post-"));
-    await fs.mkdir(path.join(rootDir, ".opencode"), { recursive: true });
     await fs.mkdir(path.join(rootDir, "src"), { recursive: true });
     await fs.writeFile(path.join(rootDir, "src", "main.ts"), "const before = true;\n", "utf8");
     await fs.writeFile(
-      path.join(rootDir, ".opencode", "policy.toml"),
+      path.join(rootDir, "groundwork.toml"),
       `version = 1
 
 [[rules]]
@@ -651,11 +646,10 @@ message = "console logging is blocked"
 
   it("keeps Codex PostToolUse warnings non-blocking", async () => {
     const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "groundwork-codex-post-warn-"));
-    await fs.mkdir(path.join(rootDir, ".opencode"), { recursive: true });
     await fs.mkdir(path.join(rootDir, "src"), { recursive: true });
     await fs.writeFile(path.join(rootDir, "src", "main.ts"), "const before = true;\n", "utf8");
     await fs.writeFile(
-      path.join(rootDir, ".opencode", "policy.toml"),
+      path.join(rootDir, "groundwork.toml"),
       `version = 1
 
 [[rules]]
@@ -714,12 +708,11 @@ message = "console logging should be reviewed"
 
   it("combines Codex PostToolUse policy warnings with context reminders", async () => {
     const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "groundwork-codex-warn-context-"));
-    await fs.mkdir(path.join(rootDir, ".opencode"), { recursive: true });
     await fs.mkdir(path.join(rootDir, "src", "feature"), { recursive: true });
     await fs.writeFile(path.join(rootDir, "src", "AGENTS.md"), "Use combined context.\n", "utf8");
     await fs.writeFile(path.join(rootDir, "src", "feature", "main.ts"), "const before = true;\n", "utf8");
     await fs.writeFile(
-      path.join(rootDir, ".opencode", "policy.toml"),
+      path.join(rootDir, "groundwork.toml"),
       `version = 1
 
 [[rules]]
@@ -1524,11 +1517,10 @@ message = "console logging should be reviewed"
   it("renders compact Groundwork session context", async () => {
     const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "groundwork-compaction-"));
     const sessionId = "compact-session";
-    await fs.mkdir(path.join(rootDir, ".opencode"), { recursive: true });
     await fs.mkdir(path.join(rootDir, "src", "feature"), { recursive: true });
     await fs.writeFile(path.join(rootDir, "src", "AGENTS.md"), "Use compact context.\n", "utf8");
     await fs.writeFile(
-      path.join(rootDir, ".opencode", "policy.toml"),
+      path.join(rootDir, "groundwork.toml"),
       `version = 1
 
 [[rules]]
@@ -1668,9 +1660,8 @@ message = "infra needs override"
 
   it("evaluates policy prompt guidance and blocks strict skill gates", async () => {
     const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "groundwork-policy-cli-"));
-    await fs.mkdir(path.join(rootDir, ".opencode"), { recursive: true });
     await fs.writeFile(
-      path.join(rootDir, ".opencode", "policy.toml"),
+      path.join(rootDir, "groundwork.toml"),
       `version = 1
 
 [[rules]]
@@ -1766,11 +1757,10 @@ mode = "block"
 
   it("uses policy override locks and post-tool result evaluation", async () => {
     const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "groundwork-policy-cli-"));
-    await fs.mkdir(path.join(rootDir, ".opencode"), { recursive: true });
     await fs.mkdir(path.join(rootDir, "src"), { recursive: true });
     await fs.writeFile(path.join(rootDir, "src", "main.ts"), "const before = true;\n", "utf8");
     await fs.writeFile(
-      path.join(rootDir, ".opencode", "policy.toml"),
+      path.join(rootDir, "groundwork.toml"),
       `version = 1
 
 [[rules]]

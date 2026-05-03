@@ -14,7 +14,7 @@ bun link groundwork
 ./node_modules/.bin/groundwork doctor
 ```
 
-Packaged installs use `bin.groundwork -> dist/cli.js`. The published file surface includes `dist/`, `docs/`, `hooks/`, `skills/`, `.codex-plugin/`, and this README.
+Packaged installs use `bin.groundwork -> dist/cli.js`. The published file surface includes `dist/`, `docs/`, `hooks/`, `.codex-plugin/`, and this README.
 
 ## CLI
 
@@ -43,15 +43,12 @@ Groundwork-owned config paths are canonical:
 - project config directory: `.groundwork/*.toml`
 - user/global config directory: `~/.groundwork/*.toml`
 
-The policy loader merges global configs first, then project configs. Later files can override earlier rules by reusing the same rule `id`. Legacy OpenCode policy paths remain compatibility fallbacks only when no Groundwork config exists:
+The policy loader merges global configs first, then project configs. Later files can override earlier rules by reusing the same rule `id`. Legacy OpenCode policy paths are not read.
 
-- project fallback: `.opencode/policy.toml`
-- global fallback: `~/.config/opencode/.opencode/policy.toml`
+Environment overrides use Groundwork names only:
 
-Environment overrides prefer Groundwork names and still accept legacy names:
-
-- project: `GROUNDWORK_POLICY_CONFIG`, then `OPENCODE_POLICY_GUARDRAIL_CONFIG`
-- global: `GROUNDWORK_POLICY_GLOBAL_CONFIG`, then `OPENCODE_POLICY_GUARDRAIL_GLOBAL_CONFIG`
+- project: `GROUNDWORK_POLICY_CONFIG`
+- global: `GROUNDWORK_POLICY_GLOBAL_CONFIG`
 
 Use `include` or `includes` for complex composition:
 
@@ -78,9 +75,9 @@ groundwork codex install-user '{}'
 groundwork codex doctor
 ```
 
-The package also includes a Codex plugin bundle at `.codex-plugin/plugin.json`, with bundled `skills/groundwork/SKILL.md` and `hooks/hooks.json`.
+The package also includes a Codex plugin bundle at `.codex-plugin/plugin.json`, with `hooks/hooks.json`.
 
-Project and user installers patch `config.toml` to enable Codex hooks, install `hooks.json`, and install the Groundwork skill. Hooks call `groundwork codex hook` by default. If `groundwork` is not on `PATH` for hook execution, pass an explicit `hook_command`:
+Project and user installers patch `config.toml` to enable Codex hooks and install `hooks.json`. Skills are managed from `ai-plugins`, not from this package. Hooks call `groundwork codex hook` by default. If `groundwork` is not on `PATH` for hook execution, pass an explicit `hook_command`:
 
 ```sh
 groundwork codex install-project '{"target_dir":".","hook_command":"/absolute/path/to/groundwork codex hook"}'
@@ -120,6 +117,6 @@ bun run verify
 - `src/cli.ts` and `src/cli/` implement the standalone CLI protocol and Codex installers/hooks.
 - `src/risk/`, `src/policy/`, `src/context/`, `src/provenance/`, and `src/session/` contain the Groundwork foundations.
 - `src/server.ts` exports the OpenCode plugin entrypoint.
-- `.codex-plugin/`, `hooks/`, and `skills/` define the Codex plugin/install surface.
+- `.codex-plugin/` and `hooks/` define the Codex plugin/install surface.
 - `docs/` contains integration and session artifact notes.
 - `.agents/sdlc/` tracks work items and review evidence.

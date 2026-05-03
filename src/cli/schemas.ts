@@ -271,7 +271,7 @@ export const CodexInstallProjectInputSchemaContract = {
   schema_id: "groundwork.codex.install-project.input/v1",
   command_id: "codex.install-project",
   command: "codex install-project",
-  description: "Install Groundwork hooks and skill files into a project .codex/ directory.",
+  description: "Install Groundwork hooks and config into a project .codex/ directory.",
   schema: {
     type: "object",
     additionalProperties: false,
@@ -287,7 +287,7 @@ export const CodexInstallUserInputSchemaContract = {
   schema_id: "groundwork.codex.install-user.input/v1",
   command_id: "codex.install-user",
   command: "codex install-user",
-  description: "Install Groundwork hooks and skill files into CODEX_HOME.",
+  description: "Install Groundwork hooks and config into CODEX_HOME.",
   schema: {
     type: "object",
     additionalProperties: false,

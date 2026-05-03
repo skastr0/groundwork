@@ -44,8 +44,8 @@ async function runGroundwork(args: string[]): Promise<CommandResult> {
 describe("framework risk layer", () => {
   it("blocks destructive bash commands through the framework plugin without standalone activation", async () => {
     const { GroundworkPlugin } = await import("../index.ts");
-    const previousGlobalConfig = process.env.OPENCODE_POLICY_GUARDRAIL_GLOBAL_CONFIG;
-    process.env.OPENCODE_POLICY_GUARDRAIL_GLOBAL_CONFIG = path.join(
+    const previousGlobalConfig = process.env.GROUNDWORK_POLICY_GLOBAL_CONFIG;
+    process.env.GROUNDWORK_POLICY_GLOBAL_CONFIG = path.join(
       os.tmpdir(),
       "groundwork.global.none.toml",
     );
@@ -81,9 +81,9 @@ describe("framework risk layer", () => {
       );
     } finally {
       if (previousGlobalConfig === undefined) {
-        delete process.env.OPENCODE_POLICY_GUARDRAIL_GLOBAL_CONFIG;
+        delete process.env.GROUNDWORK_POLICY_GLOBAL_CONFIG;
       } else {
-        process.env.OPENCODE_POLICY_GUARDRAIL_GLOBAL_CONFIG = previousGlobalConfig;
+        process.env.GROUNDWORK_POLICY_GLOBAL_CONFIG = previousGlobalConfig;
       }
       await harness.cleanup();
     }
@@ -96,7 +96,7 @@ describe("framework risk layer", () => {
           "risk": await createFrameworkRiskLayer({
             client: context.client,
             env: {
-              OPENCODE_DESTRUCTIVE_GUARD_MODE: "warn",
+              GROUNDWORK_DESTRUCTIVE_GUARD_MODE: "warn",
             },
           }),
         }),
@@ -160,7 +160,7 @@ describe("framework risk layer", () => {
           "risk": await createFrameworkRiskLayer({
             client: context.client,
             env: {
-              OPENCODE_DESTRUCTIVE_GUARD_MODE: "block",
+              GROUNDWORK_DESTRUCTIVE_GUARD_MODE: "block",
             },
           }),
         }),
@@ -223,7 +223,7 @@ describe("framework risk layer", () => {
           "risk": await createFrameworkRiskLayer({
             client: context.client,
             env: {
-              OPENCODE_DESTRUCTIVE_GUARD_MODE: "warn",
+              GROUNDWORK_DESTRUCTIVE_GUARD_MODE: "warn",
             },
           }),
         }),
@@ -279,7 +279,7 @@ describe("framework risk layer", () => {
           "risk": await createFrameworkRiskLayer({
             client: context.client,
             env: {
-              OPENCODE_DESTRUCTIVE_GUARD_MODE: "off",
+              GROUNDWORK_DESTRUCTIVE_GUARD_MODE: "off",
             },
           }),
         }),
