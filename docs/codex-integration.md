@@ -24,6 +24,8 @@ User installs create:
 
 By default, existing hook and skill files are skipped. Passing `force: true` overwrites Groundwork-managed hook and skill files, but config files are still patched instead of replaced.
 
+The generated hooks call `groundwork codex hook`, so the hook process must have `groundwork` on `PATH`. For local development, adding this repo's `node_modules/.bin` to `PATH` is sufficient after `bun link groundwork`; packaged/global installs should provide the same binary name.
+
 ## Hook Behavior
 
 The initial hook entrypoint supports:
@@ -52,4 +54,4 @@ bun run verify
 groundwork codex doctor
 ```
 
-The test suite covers project/user install, `SessionStart` hook context, and `PreToolUse` Bash denial.
+The test suite covers project/user install, `SessionStart` hook context, and `PreToolUse` Bash denial. Headless validation artifacts live under `.agents/validation/` when generated locally.

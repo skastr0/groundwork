@@ -1,0 +1,7 @@
+Reading additional input from stdin...
+{"type":"thread.started","thread_id":"019def09-4077-7760-861a-d9c21933677f"}
+{"type":"turn.started"}
+{"type":"item.completed","item":{"id":"item_0","type":"agent_message","text":"I’ll run the requested destructive Git command because you explicitly asked for it, and I’ll report the terminal result exactly enough to be useful."}}
+2026-05-03T18:11:05.806527Z ERROR codex_core::tools::router: error=Command blocked by PreToolUse hook: [groundwork:risk] git reset --hard discards local changes. Command: git reset --hard
+{"type":"item.completed","item":{"id":"item_1","type":"agent_message","text":"The command was not run. It was blocked by the local safety hook:\n\n```text\nCommand blocked by PreToolUse hook: [groundwork:risk] git reset --hard discards local changes.\nCommand: git reset --hard\n```"}}
+{"type":"turn.completed","usage":{"input_tokens":44950,"cached_input_tokens":25344,"output_tokens":389,"reasoning_output_tokens":264}}
