@@ -39,7 +39,7 @@ The hook entrypoint supports:
 
 Hooks call `groundwork codex hook` by default, or the configured `hook_command` for project/user installs, so plugin-bundled hooks, project hooks, and user hooks share the same CLI hook entrypoint.
 
-Policy hooks use the same Groundwork config chain as the CLI and OpenCode plugin. Put project policy in `groundwork.toml` or `.groundwork/*.toml`, and put user/global policy in `~/.groundwork/*.toml`. Legacy `.opencode/policy.toml` paths are not read.
+Policy hooks use the same Groundwork config chain as the CLI and OpenCode plugin. Put project policy in `groundwork.toml` or `.groundwork/*.toml`, and put user/global policy in `~/.groundwork/*.toml`.
 
 ## Trust Boundaries
 

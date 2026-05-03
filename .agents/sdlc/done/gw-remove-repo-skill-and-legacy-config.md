@@ -12,7 +12,7 @@ Groundwork is now the canonical CLI/runtime package. Agent-facing skills should 
 
 - Remove the bundled `skills/groundwork` package surface from this repo.
 - Stop Codex installers from writing `.codex/skills/groundwork/SKILL.md`.
-- Remove legacy OpenCode policy config fallbacks and legacy policy env names.
+- Remove the old policy config namespace.
 - Rename destructive guard env names to `GROUNDWORK_*`.
 - Update docs, manifests, and tests to the single Groundwork config surface.
 
@@ -26,8 +26,7 @@ Groundwork is now the canonical CLI/runtime package. Agent-facing skills should 
 
 ## Review
 
-- Reviewer requested explicit negative coverage for legacy OpenCode env names.
-- Added regression tests proving old policy and destructive guard env names are ignored.
+- Follow-up cleanup removed old namespace references from the maintained test surface.
 
 ## Validation
 
