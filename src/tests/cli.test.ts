@@ -686,6 +686,98 @@ message = "console logging should be reviewed"
     });
   }, 35_000);
 
+  it("combines Codex PostToolUse policy warnings with context reminders", async () => {
+    const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "groundwork-codex-warn-context-"));
+    await fs.mkdir(path.join(rootDir, ".opencode"), { recursive: true });
+    await fs.mkdir(path.join(rootDir, "src", "feature"), { recursive: true });
+    await fs.writeFile(path.join(rootDir, "src", "AGENTS.md"), "Use combined context.\n", "utf8");
+    await fs.writeFile(path.join(rootDir, "src", "feature", "main.ts"), "const before = true;\n", "utf8");
+    await fs.writeFile(
+      path.join(rootDir, ".opencode", "policy.toml"),
+      `version = 1
+
+[[rules]]
+id = "warn-console"
+match = ["src/**"]
+severity = "warn"
+content_scope = "changed_lines"
+
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = "console.log($A)"
+
+[[rules.actions]]
+type = "block_tool"
+message = "console logging should be reviewed"
+`,
+      "utf8",
+    );
+
+    const patchText = "*** Begin Patch\n*** Update File: src/feature/main.ts\n@@\n-const before = true;\n+console.log(\"after\");\n*** End Patch\n";
+    await runGroundwork(
+      ["codex", "hook"],
+      JSON.stringify({
+        hook_event_name: "PreToolUse",
+        session_id: "warn-context-session",
+        cwd: rootDir,
+        tool_name: "apply_patch",
+        tool_use_id: "warn-context-call",
+        tool_input: { patchText },
+      }),
+    );
+    await fs.writeFile(path.join(rootDir, "src", "feature", "main.ts"), 'console.log("after");\n', "utf8");
+
+    const post = await runGroundwork(
+      ["codex", "hook"],
+      JSON.stringify({
+        hook_event_name: "PostToolUse",
+        session_id: "warn-context-session",
+        cwd: rootDir,
+        tool_name: "apply_patch",
+        tool_use_id: "warn-context-call",
+        tool_input: { patchText },
+      }),
+    );
+    const parsed = parseJson(post.stdout) as Record<string, unknown>;
+    expect(parsed).not.toHaveProperty("decision");
+    expect(parsed.systemMessage).toEqual(expect.stringContaining("console logging should be reviewed"));
+    expect(parsed.systemMessage).toEqual(expect.stringContaining("Use combined context."));
+  }, 35_000);
+
+  it("reports Codex PostToolUse context reminders with dedupe", async () => {
+    const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "groundwork-codex-context-"));
+    await fs.mkdir(path.join(rootDir, "src", "feature"), { recursive: true });
+    await fs.writeFile(path.join(rootDir, "src", "AGENTS.md"), "Use Codex context guidance.\n", "utf8");
+
+    const payload = {
+      hook_event_name: "PostToolUse",
+      session_id: "codex-context-session",
+      cwd: rootDir,
+      tool_name: "apply_patch",
+      tool_use_id: "context-call",
+      tool_input: {
+        patchText:
+          "*** Begin Patch\n*** Add File: src/feature/main.ts\n+export {}\n*** End Patch\n",
+      },
+    };
+    const first = await runGroundwork(["codex", "hook"], JSON.stringify(payload));
+    expect(parseJson(first.stdout)).toMatchObject({
+      systemMessage: expect.stringContaining("Use Codex context guidance."),
+      hookSpecificOutput: {
+        hookEventName: "PostToolUse",
+        additionalContext: expect.stringContaining("not synthetic prompt injection"),
+      },
+    });
+
+    const second = await runGroundwork(
+      ["codex", "hook"],
+      JSON.stringify({ ...payload, tool_use_id: "context-call-2" }),
+    );
+    expect(second.exitCode).toBe(0);
+    expect(second.stdout).toBe("");
+  });
+
   it("returns JSON feedback for invalid Codex hook payloads", async () => {
     const result = await runGroundwork(["codex", "hook"], "{");
     expect(result.exitCode).toBe(0);
@@ -950,6 +1042,93 @@ message = "console logging should be reviewed"
             content: "Use local app guidance.\n",
           }),
         ],
+      },
+    });
+  });
+
+  it("dedupes context reminders for touched paths", async () => {
+    const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "groundwork-context-touched-"));
+    await fs.mkdir(path.join(rootDir, "src", "feature"), { recursive: true });
+    await fs.writeFile(path.join(rootDir, "src", "AGENTS.md"), "Use feature guidance.\n", "utf8");
+    await fs.writeFile(path.join(rootDir, "src", "feature", "main.ts"), "export {}\n", "utf8");
+
+    const input = {
+      root_dir: rootDir,
+      session_id: "context-session",
+      tool: "edit",
+      args: { path: "src/feature/main.ts" },
+    };
+    const first = await runGroundwork(["context", "touched-paths", JSON.stringify(input)]);
+    expect(first.exitCode).toBe(0);
+    expect(parseJson(first.stdout)).toMatchObject({
+      ok: true,
+      command: "context touched-paths",
+      data: {
+        new_files: [expect.objectContaining({ file_name: "AGENTS.md" })],
+        repeated_files: [],
+        reminders: [expect.stringContaining("Use feature guidance.")],
+      },
+    });
+
+    const second = await runGroundwork(["context", "touched-paths", JSON.stringify(input)]);
+    expect(parseJson(second.stdout)).toMatchObject({
+      data: {
+        new_files: [],
+        repeated_files: [expect.objectContaining({ file_name: "AGENTS.md" })],
+        reminders: [],
+      },
+    });
+  });
+
+  it("writes context dedupe state under the resolved directory root", async () => {
+    const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "groundwork-context-directory-"));
+    const directory = path.join(rootDir, "packages", "app");
+    await fs.mkdir(path.join(directory, "src"), { recursive: true });
+    await fs.writeFile(path.join(directory, "src", "AGENTS.md"), "Use app guidance.\n", "utf8");
+
+    const input = {
+      directory,
+      session_id: "directory-session",
+      tool: "edit",
+      args: { path: "src/main.ts" },
+    };
+    const first = await runGroundwork(["context", "touched-paths", JSON.stringify(input)]);
+    expect(parseJson(first.stdout)).toMatchObject({
+      data: {
+        reminders: [expect.stringContaining("Use app guidance.")],
+      },
+    });
+    const second = await runGroundwork(["context", "touched-paths", JSON.stringify(input)]);
+    expect(parseJson(second.stdout)).toMatchObject({
+      data: {
+        new_files: [],
+        repeated_files: [expect.objectContaining({ file_name: "AGENTS.md" })],
+      },
+    });
+    await expect(fs.readdir(path.join(directory, ".groundwork", "sessions"))).resolves.toHaveLength(1);
+  });
+
+  it("normalizes explicit context targets safely", async () => {
+    const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "groundwork-context-targets-"));
+    await fs.mkdir(path.join(rootDir, "src", "feature"), { recursive: true });
+    await fs.writeFile(path.join(rootDir, "src", "AGENTS.md"), "Use explicit target guidance.\n", "utf8");
+    const result = await runGroundwork([
+      "context",
+      "touched-paths",
+      JSON.stringify({
+        root_dir: rootDir,
+        directory: rootDir,
+        session_id: "target-session",
+        targets: [
+          { path: path.join(rootDir, "src", "feature", "main.ts") },
+          { path: "../outside.ts" },
+        ],
+      }),
+    ]);
+    expect(parseJson(result.stdout)).toMatchObject({
+      data: {
+        new_files: [expect.objectContaining({ file_name: "AGENTS.md" })],
+        reminders: [expect.stringContaining("Use explicit target guidance.")],
       },
     });
   });

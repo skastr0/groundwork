@@ -57,6 +57,13 @@ export const COMMAND_CAPABILITIES = [
     schemas: ["groundwork.context.discover.input/v1"],
   },
   {
+    command_id: "context.touched-paths",
+    command: "context touched-paths",
+    category: "workflow",
+    description: "Discover inherited instruction files for hook-style touched paths with session dedupe.",
+    schemas: ["groundwork.context.touched-paths.input/v1"],
+  },
+  {
     command_id: "policy.evaluate-tool-call",
     command: "policy evaluate-tool-call",
     category: "workflow",
@@ -173,6 +180,14 @@ export const EXAMPLES = [
     command: "context discover",
     name: "Find inherited instructions for a file",
     args: [`{"target_path":"src/index.ts"}`],
+  },
+  {
+    command_id: "context.touched-paths",
+    command: "context touched-paths",
+    name: "Render new context reminders for touched paths",
+    args: [
+      `{"session_id":"example","tool":"edit","args":{"path":"src/index.ts"}}`,
+    ],
   },
   {
     command_id: "provenance.repo-state",

@@ -10,6 +10,7 @@ import {
   evaluatePolicyToolCall,
   evaluatePolicyToolResult,
 } from "../policy/cli-service.ts";
+import { evaluateContextTouchedPaths } from "../context/cli-service.ts";
 
 export const CodexInstallProjectInputSchema = z
   .object({
@@ -254,19 +255,41 @@ async function runPostToolUseHook(payload: unknown) {
     call_id: toolUseID,
     tool: toolName ? normalizePolicyToolName(toolName) : undefined,
   });
+  const contextResult = await evaluateContextTouchedPaths({
+    root_dir: cwdFromHookPayload(payload),
+    directory: cwdFromHookPayload(payload),
+    session_id: sessionID,
+    tool: toolName ? normalizePolicyToolName(toolName) : undefined,
+    args: toolInputFromHookPayload(payload),
+  });
   if (isPolicyWarn(result)) {
     writeHookJson({
-      systemMessage: `${renderPolicyDecisionReason(result)} Side effects may already have happened; inspect and repair if needed.`,
+      systemMessage: combineHookMessages([
+        `${renderPolicyDecisionReason(result)} Side effects may already have happened; inspect and repair if needed.`,
+        renderContextReminderMessage(contextResult),
+      ]),
       hookSpecificOutput: {
         hookEventName: "PostToolUse",
         additionalContext:
-          "Groundwork policy reported non-blocking post-tool feedback. This cannot undo side effects.",
+          "Groundwork reported non-blocking post-tool feedback. This cannot undo side effects or provide synthetic prompt injection parity.",
       },
     });
     return;
   }
 
-  if (!isPolicyBlock(result)) return;
+  if (!isPolicyBlock(result)) {
+    if (contextResult.reminders.length > 0) {
+      writeHookJson({
+        systemMessage: renderContextReminderMessage(contextResult),
+        hookSpecificOutput: {
+          hookEventName: "PostToolUse",
+          additionalContext:
+            "Groundwork found new context reminders for touched paths. This is feedback, not synthetic prompt injection parity.",
+        },
+      });
+    }
+    return;
+  }
 
   writeHookJson({
     decision: "block",
@@ -351,6 +374,7 @@ Core commands:
 - \`groundwork policy evaluate-tool-call '{"session_id":"codex","tool":"edit","args":{"path":"src/index.ts"}}'\`
 - \`groundwork policy skill-loaded '{"session_id":"codex","skills":["sdlc"]}'\`
 - \`groundwork context discover '{"target_path":"src/index.ts"}'\`
+- \`groundwork context touched-paths '{"session_id":"codex","tool":"edit","args":{"path":"src/index.ts"}}'\`
 - \`groundwork provenance repo-state '{"limit":10}'\`
 - \`groundwork provenance file-state '{"path":"src/index.ts"}'\`
 
@@ -536,6 +560,16 @@ function renderPolicyDecisionReason(value: unknown): string {
     )
     .find((text): text is string => typeof text === "string" && text.length > 0);
   return firstText ?? "[groundwork:policy] Policy check requested attention.";
+}
+
+function renderContextReminderMessage(value: { reminders?: string[] }): string | undefined {
+  return value.reminders && value.reminders.length > 0
+    ? `[groundwork:context] New inherited instructions apply to touched paths:\n${value.reminders.join("\n\n")}`
+    : undefined;
+}
+
+function combineHookMessages(messages: Array<string | undefined>): string {
+  return messages.filter((message): message is string => !!message).join("\n\n");
 }
 
 type ParsedPolicyPromptCommand =

@@ -3,6 +3,7 @@ import { Args, Command } from "@effect/cli";
 import { Effect } from "effect";
 import { attachProcessRunner } from "../../shared/effect-runtime.ts";
 import { discoverFrameworkContextFiles } from "../context/discovery.ts";
+import { evaluateContextTouchedPaths } from "../context/cli-service.ts";
 import { evaluateRiskCommand } from "../risk/service.ts";
 import {
   acceptPolicyOverride,
@@ -35,6 +36,7 @@ import {
 } from "./codex.ts";
 import {
   ContextDiscoverInputSchema,
+  ContextTouchedPathsInputSchema,
   PolicyEvaluateToolCallInputSchema,
   PolicyEvaluateToolResultInputSchema,
   PolicyOverrideInputSchema,
@@ -156,9 +158,18 @@ const contextDiscoverCommand = Command.make("discover", { input: inputArg }, ({ 
   ),
 );
 
+const contextTouchedPathsCommand = Command.make("touched-paths", { input: inputArg }, ({ input }) =>
+  toEffect(() =>
+    executeJsonCommand("context touched-paths", async () => {
+      const payload = await decodeJsonInput(input, ContextTouchedPathsInputSchema);
+      return evaluateContextTouchedPaths(payload);
+    }),
+  ),
+);
+
 const contextCommand = Command.make("context").pipe(
   Command.withDescription("Context foundation commands"),
-  Command.withSubcommands([contextDiscoverCommand]),
+  Command.withSubcommands([contextDiscoverCommand, contextTouchedPathsCommand]),
 );
 
 const policyEvaluateToolCallCommand = Command.make(

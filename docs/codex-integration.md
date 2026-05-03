@@ -36,6 +36,7 @@ The hook entrypoint supports:
 - `PreToolUse`: evaluates supported Bash risk and policy checks for supported Bash/apply_patch/Edit/Write calls, and denies only through Codex-supported `PreToolUse` denial.
 - `PermissionRequest`: denies risky Bash approval requests when the shared risk guardrail blocks the command.
 - `PostToolUse`: runs post-mutation policy checks and reports feedback. This does not undo side effects.
+- `PostToolUse`: also reports new inherited context reminders for supported touched paths using session dedupe. This is feedback, not synthetic prompt injection.
 - `Stop`: currently returns an empty JSON success object so the shared entrypoint is valid for the event without forcing continuation.
 
 Hooks call `groundwork codex hook` by default, or the configured `hook_command` for project/user installs, so plugin-bundled hooks, project hooks, and user hooks share the same CLI hook entrypoint.
@@ -49,6 +50,7 @@ Codex hooks are best-effort guardrails, not a complete security boundary.
 - `PostToolUse` cannot undo side effects; it can only report feedback after the tool has run.
 - Tool-triggered synthetic prompt injection is unsupported in Codex V1. Prompt-mode policy guidance is surfaced through explicit CLI output, static skill guidance, or user-prompt hook context, not through automatic tool-triggered prompt injection.
 - The Groundwork skill teaches explicit CLI usage for paths hooks cannot cover.
+- Use `groundwork context touched-paths` explicitly when hook coverage is missing or when you need deterministic context reminder output.
 
 ## Validation
 

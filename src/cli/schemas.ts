@@ -22,6 +22,15 @@ export const ContextDiscoverInputSchema = z.object({
   root_dir: RootDirSchema,
 }).strict();
 
+export const ContextTouchedPathsInputSchema = z.object({
+  root_dir: RootDirSchema,
+  directory: DirectorySchema,
+  session_id: z.string().min(1),
+  tool: z.string().min(1).optional(),
+  args: z.record(z.string(), z.unknown()).optional(),
+  targets: z.array(z.record(z.string(), z.unknown())).optional(),
+}).strict();
+
 export const ProvenanceRepoStateInputSchema = z.object({
   root_dir: RootDirSchema,
   base: BaseSchema,
@@ -220,6 +229,7 @@ const SessionCleanupInputSchemaContract = {
 
 export type RiskEvaluateCommandInput = z.infer<typeof RiskEvaluateCommandInputSchema>;
 export type ContextDiscoverInput = z.infer<typeof ContextDiscoverInputSchema>;
+export type ContextTouchedPathsInput = z.infer<typeof ContextTouchedPathsInputSchema>;
 export type ProvenanceRepoStateInput = z.infer<typeof ProvenanceRepoStateInputSchema>;
 export type ProvenanceFileStateInput = z.infer<typeof ProvenanceFileStateInputSchema>;
 export type PolicyEvaluateToolCallInput = z.infer<typeof PolicyEvaluateToolCallInputSchema>;
@@ -324,6 +334,25 @@ export const SCHEMA_CONTRACTS = [
         target_path: { type: "string", minLength: 1 },
         directory: { type: "string", minLength: 1 },
         root_dir: { type: "string", minLength: 1 },
+      },
+    },
+  },
+  {
+    schema_id: "groundwork.context.touched-paths.input/v1",
+    command_id: "context.touched-paths",
+    command: "context touched-paths",
+    description: "Discover inherited instruction files for hook-style touched paths with session dedupe.",
+    schema: {
+      type: "object",
+      required: ["session_id"],
+      additionalProperties: false,
+      properties: {
+        root_dir: { type: "string", minLength: 1 },
+        directory: { type: "string", minLength: 1 },
+        session_id: { type: "string", minLength: 1 },
+        tool: { type: "string", minLength: 1 },
+        args: { type: "object" },
+        targets: { type: "array", items: { type: "object" } },
       },
     },
   },

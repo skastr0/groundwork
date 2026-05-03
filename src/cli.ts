@@ -59,7 +59,10 @@ function validateCommandShape(args: string[]): CommandShapeFailure | undefined {
         "evaluate-command",
       ]);
     case "context":
-      return validateInputCommand("context discover", subcommand, input, args, ["discover"]);
+      return validateInputCommand("context", subcommand, input, args, [
+        "discover",
+        "touched-paths",
+      ]);
     case "policy":
       return validateInputCommand("policy", subcommand, input, args, [
         "evaluate-tool-call",
