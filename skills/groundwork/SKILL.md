@@ -7,6 +7,8 @@ description: Use Groundwork for policy, provenance, context, and risk guardrails
 
 Use the `groundwork` CLI when you need policy, provenance, context, or risk evidence.
 
+Policy config is Groundwork-owned: prefer project `groundwork.toml` or `.groundwork/*.toml` and global `~/.groundwork/*.toml`. Legacy `.opencode/policy.toml` paths are compatibility fallbacks.
+
 Core commands:
 
 - `groundwork doctor`

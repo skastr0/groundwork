@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { promises as fs, type Dirent } from "node:fs";
+import { existsSync, promises as fs, readdirSync, type Dirent } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { parse as parseToml } from "@iarna/toml";
@@ -136,8 +136,11 @@ type ContentMatchRegionRunner = (params: {
   snippet?: GuardrailMatcherSnippet;
 }) => Promise<LineRange[]>;
 
-const PROJECT_DEFAULT_CONFIG_FILE = ".opencode/policy.toml";
-const GLOBAL_DEFAULT_CONFIG_FILE = path.join(".config", "opencode", PROJECT_DEFAULT_CONFIG_FILE);
+const PROJECT_GROUNDWORK_CONFIG_FILE = "groundwork.toml";
+const PROJECT_GROUNDWORK_CONFIG_DIR = ".groundwork";
+const PROJECT_LEGACY_CONFIG_FILE = ".opencode/policy.toml";
+const GLOBAL_GROUNDWORK_CONFIG_DIR = ".groundwork";
+const GLOBAL_LEGACY_CONFIG_FILE = path.join(".config", "opencode", PROJECT_LEGACY_CONFIG_FILE);
 const ACTIVE_WORK_ITEM_FOLDERS = ["exploring", "committed", "building", "reviewing"];
 const AST_GREP_STRICTNESS = new Set<AstGrepStrictness>([
   "cst",
@@ -199,6 +202,53 @@ function toError(error: unknown): Error {
   return error instanceof Error ? error : new Error(String(error));
 }
 
+function firstConfiguredEnv(...values: Array<string | undefined>): string | null {
+  for (const value of values) {
+    const trimmed = value?.trim();
+    if (trimmed) return trimmed;
+  }
+  return null;
+}
+
+function resolveEnvPath(configured: string, baseDir: string | undefined): string {
+  if (path.isAbsolute(configured)) {
+    return configured;
+  }
+  return baseDir ? path.resolve(baseDir, configured) : path.resolve(configured);
+}
+
+function listTomlFiles(directory: string): string[] {
+  try {
+    return readdirSync(directory, { withFileTypes: true })
+      .filter((entry) => entry.isFile() && entry.name.endsWith(".toml"))
+      .map((entry) => path.join(directory, entry.name))
+      .sort();
+  } catch (error) {
+    const code =
+      typeof error === "object" && error && "code" in error
+        ? String((error as { code?: unknown }).code ?? "")
+        : "";
+    if (code === "ENOENT") return [];
+    throw error;
+  }
+}
+
+function uniquePaths(paths: readonly string[]): string[] {
+  const seen = new Set<string>();
+  const output: string[] = [];
+  for (const candidate of paths) {
+    const resolved = path.resolve(candidate);
+    if (seen.has(resolved)) continue;
+    seen.add(resolved);
+    output.push(candidate);
+  }
+  return output;
+}
+
+function pathExists(candidate: string): boolean {
+  return existsSync(candidate);
+}
+
 export const DEFAULT_EDIT_FOCUSED_TOOLS = [
   "edit",
   "write",
@@ -247,39 +297,82 @@ export function resolveProjectPolicyConfigPath(
   rootDir: string,
   env: NodeJS.ProcessEnv = process.env,
 ): string {
-  const configured = env.OPENCODE_POLICY_GUARDRAIL_CONFIG;
-  if (!configured || configured.trim().length === 0) {
-    return path.join(rootDir, PROJECT_DEFAULT_CONFIG_FILE);
-  }
-
-  return path.isAbsolute(configured) ? configured : path.resolve(rootDir, configured);
+  return resolveProjectPolicyConfigPaths(rootDir, env)[0]!;
 }
 
 export function resolveGlobalPolicyConfigPath(env: NodeJS.ProcessEnv = process.env): string | null {
-  const configured = env.OPENCODE_POLICY_GUARDRAIL_GLOBAL_CONFIG;
-  if (configured && configured.trim().length > 0) {
-    if (path.isAbsolute(configured)) {
-      return configured;
-    }
-
-    const home = env.HOME;
-    return home ? path.resolve(home, configured) : path.resolve(configured);
-  }
-
-  const home = env.HOME;
-  if (!home) return null;
-  return path.join(home, GLOBAL_DEFAULT_CONFIG_FILE);
+  return resolveGlobalPolicyConfigPaths(env)[0] ?? null;
 }
 
 export const resolvePolicyConfigPath = resolveProjectPolicyConfigPath;
+
+export function resolveProjectPolicyConfigPaths(
+  rootDir: string,
+  env: NodeJS.ProcessEnv = process.env,
+): string[] {
+  const configured = firstConfiguredEnv(
+    env.GROUNDWORK_POLICY_CONFIG,
+    env.OPENCODE_POLICY_GUARDRAIL_CONFIG,
+  );
+  if (configured) {
+    return [resolveEnvPath(configured, rootDir)];
+  }
+
+  const groundworkRootConfig = path.join(rootDir, PROJECT_GROUNDWORK_CONFIG_FILE);
+  const groundworkDir = path.join(rootDir, PROJECT_GROUNDWORK_CONFIG_DIR);
+  const groundworkDirConfigs = listTomlFiles(groundworkDir);
+  const groundworkConfigs = uniquePaths([groundworkRootConfig, ...groundworkDirConfigs]).filter(
+    pathExists,
+  );
+  if (groundworkConfigs.length > 0) {
+    return groundworkConfigs;
+  }
+
+  const legacyPath = path.join(rootDir, PROJECT_LEGACY_CONFIG_FILE);
+  if (pathExists(legacyPath)) {
+    return [legacyPath];
+  }
+
+  return [groundworkRootConfig];
+}
+
+export function resolveGlobalPolicyConfigPaths(env: NodeJS.ProcessEnv = process.env): string[] {
+  const configured = firstConfiguredEnv(
+    env.GROUNDWORK_POLICY_GLOBAL_CONFIG,
+    env.OPENCODE_POLICY_GUARDRAIL_GLOBAL_CONFIG,
+  );
+  if (configured) {
+    return [resolveEnvPath(configured, env.HOME)];
+  }
+
+  const home = env.HOME;
+  if (!home) return [];
+
+  const groundworkDir = path.join(home, GLOBAL_GROUNDWORK_CONFIG_DIR);
+  const groundworkRootConfig = path.join(groundworkDir, PROJECT_GROUNDWORK_CONFIG_FILE);
+  const groundworkDirConfigs = listTomlFiles(groundworkDir);
+  const groundworkConfigs = uniquePaths([groundworkRootConfig, ...groundworkDirConfigs]).filter(
+    pathExists,
+  );
+  if (groundworkConfigs.length > 0) {
+    return groundworkConfigs;
+  }
+
+  const legacyPath = path.join(home, GLOBAL_LEGACY_CONFIG_FILE);
+  if (pathExists(legacyPath)) {
+    return [legacyPath];
+  }
+
+  return [groundworkRootConfig];
+}
 
 export async function loadPolicyConfig(
   rootDir: string,
   env: NodeJS.ProcessEnv = process.env,
 ): Promise<{ config: GuardrailPolicyConfig | null; path: string }> {
-  const configPath = resolveProjectPolicyConfigPath(rootDir, env);
-  const config = await loadPolicyConfigFromPath(configPath);
-  return { config, path: configPath };
+  const configPaths = resolveProjectPolicyConfigPaths(rootDir, env);
+  const { config } = await loadPolicyConfigFromPaths(configPaths);
+  return { config, path: configPaths[0]! };
 }
 
 export async function loadMergedPolicyConfig(
@@ -289,24 +382,45 @@ export async function loadMergedPolicyConfig(
   config: GuardrailPolicyConfig | null;
   projectPath: string;
   globalPath: string | null;
+  projectPaths: string[];
+  globalPaths: string[];
   sourceCount: number;
 }> {
-  const projectPath = resolveProjectPolicyConfigPath(rootDir, env);
-  const globalPath = resolveGlobalPolicyConfigPath(env);
-  const sameConfigPath =
-    globalPath !== null && path.resolve(globalPath) === path.resolve(projectPath);
+  const projectPaths = resolveProjectPolicyConfigPaths(rootDir, env);
+  const globalPaths = resolveGlobalPolicyConfigPaths(env);
+  const projectPath = projectPaths[0]!;
+  const globalPath = globalPaths[0] ?? null;
+  const projectPathSet = new Set(projectPaths.map((configPath) => path.resolve(configPath)));
+  const distinctGlobalPaths = globalPaths.filter(
+    (configPath) => !projectPathSet.has(path.resolve(configPath)),
+  );
 
-  const globalConfig = globalPath ? await loadPolicyConfigFromPath(globalPath) : null;
-  const projectConfig = sameConfigPath ? globalConfig : await loadPolicyConfigFromPath(projectPath);
+  const globalResult = await loadPolicyConfigFromPaths(distinctGlobalPaths);
+  const projectResult = await loadPolicyConfigFromPaths(projectPaths);
 
-  const sourceCount =
-    Number(globalConfig !== null) + Number(!sameConfigPath && projectConfig !== null);
+  const sourceCount = globalResult.sourceCount + projectResult.sourceCount;
   return {
-    config: mergePolicyConfigs(globalConfig, projectConfig),
+    config: mergePolicyConfigs(globalResult.config, projectResult.config),
     projectPath,
     globalPath,
+    projectPaths,
+    globalPaths,
     sourceCount,
   };
+}
+
+async function loadPolicyConfigFromPaths(
+  configPaths: readonly string[],
+): Promise<{ config: GuardrailPolicyConfig | null; sourceCount: number }> {
+  let merged: GuardrailPolicyConfig | null = null;
+  let sourceCount = 0;
+  for (const configPath of uniquePaths(configPaths)) {
+    const config = await loadPolicyConfigFromPath(configPath);
+    if (!config) continue;
+    merged = mergePolicyConfigs(merged, config);
+    sourceCount += 1;
+  }
+  return { config: merged, sourceCount };
 }
 
 export function mergePolicyConfigs(

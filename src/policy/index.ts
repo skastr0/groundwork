@@ -4,8 +4,10 @@ export {
   mergePolicyConfigs,
   parsePolicyConfig,
   resolveGlobalPolicyConfigPath,
+  resolveGlobalPolicyConfigPaths,
   resolvePolicyConfigPath,
   resolveProjectPolicyConfigPath,
+  resolveProjectPolicyConfigPaths,
 } from "./config.ts";
 export { createFrameworkPolicyLayer } from "./runtime.ts";
 export type {

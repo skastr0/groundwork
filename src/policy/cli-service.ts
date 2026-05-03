@@ -105,12 +105,15 @@ interface PolicyEvaluationContext {
 
 export async function evaluatePolicyToolCall(input: PolicyEvaluateToolCallInput) {
   const rootDir = resolveRootDir(input.root_dir);
-  const { config, projectPath, globalPath, sourceCount } = await loadMergedPolicyConfig(rootDir);
+  const { config, projectPath, globalPath, projectPaths, globalPaths, sourceCount } =
+    await loadMergedPolicyConfig(rootDir);
   if (!config) {
     return policyIdleResult("policy evaluate-tool-call", input.session_id, {
       rootDir,
       projectPath,
       globalPath,
+      projectPaths,
+      globalPaths,
       sourceCount,
     });
   }
@@ -174,12 +177,15 @@ export async function evaluatePolicyToolCall(input: PolicyEvaluateToolCallInput)
 
 export async function evaluatePolicyToolResult(input: PolicyEvaluateToolResultInput) {
   const rootDir = resolveRootDir(input.root_dir);
-  const { config, projectPath, globalPath, sourceCount } = await loadMergedPolicyConfig(rootDir);
+  const { config, projectPath, globalPath, projectPaths, globalPaths, sourceCount } =
+    await loadMergedPolicyConfig(rootDir);
   if (!config) {
     return policyIdleResult("policy evaluate-tool-result", input.session_id, {
       rootDir,
       projectPath,
       globalPath,
+      projectPaths,
+      globalPaths,
       sourceCount,
     });
   }

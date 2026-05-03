@@ -14,7 +14,9 @@ import {
   parsePolicyConfig,
   resolveRuleScope,
   resolveGlobalPolicyConfigPath,
+  resolveGlobalPolicyConfigPaths,
   resolveProjectPolicyConfigPath,
+  resolveProjectPolicyConfigPaths,
   runContentMatcher,
   ruleMatchesTool,
 } from "../policy/config.ts";
@@ -1003,12 +1005,12 @@ describe("config merging", () => {
     expect(merged?.rules[1]?.id).toBe("global-only");
   });
 
-  it("loads merged config from global and project files", async () => {
+  it("loads merged config from Groundwork global and project files", async () => {
     const home = await createTempRoot();
     const root = await createTempRoot();
 
-    const globalPath = path.join(home, ".config", "opencode", ".opencode", "policy.toml");
-    const projectPath = path.join(root, ".opencode", "policy.toml");
+    const globalPath = path.join(home, ".groundwork", "groundwork.toml");
+    const projectPath = path.join(root, "groundwork.toml");
 
     await fs.mkdir(path.dirname(globalPath), { recursive: true });
     await fs.mkdir(path.dirname(projectPath), { recursive: true });
@@ -1025,12 +1027,14 @@ describe("config merging", () => {
 
     const merged = await loadMergedPolicyConfig(root, { HOME: home });
     expect(merged.sourceCount).toBe(2);
+    expect(merged.globalPaths).toEqual([globalPath]);
+    expect(merged.projectPaths).toEqual([projectPath]);
     expect(merged.config?.rules.map((rule) => rule.id)).toEqual(["global", "project"]);
   });
 
   it("loads project includes using glob patterns", async () => {
     const root = await createTempRoot();
-    const projectDir = path.join(root, ".opencode");
+    const projectDir = path.join(root, ".groundwork");
     const projectPath = path.join(projectDir, "policy.toml");
     const includeAPath = path.join(projectDir, "policy.auth.toml");
     const includeBPath = path.join(projectDir, "policy.queue.toml");
@@ -1076,7 +1080,7 @@ text = "base rule"
 
   it("throws when include graph has duplicate rule ids", async () => {
     const root = await createTempRoot();
-    const projectDir = path.join(root, ".opencode");
+    const projectDir = path.join(root, ".groundwork");
     const projectPath = path.join(projectDir, "policy.toml");
 
     await fs.mkdir(projectDir, { recursive: true });
@@ -1110,7 +1114,7 @@ text = "base rule"
 
   it("throws when include graph has a cycle", async () => {
     const root = await createTempRoot();
-    const projectDir = path.join(root, ".opencode");
+    const projectDir = path.join(root, ".groundwork");
 
     await fs.mkdir(projectDir, { recursive: true });
     await fs.writeFile(
@@ -1163,7 +1167,189 @@ text = "b"
     );
   });
 
-  it("does not load non-canonical policy filenames", async () => {
+  it("loads multiple Groundwork directory TOML files deterministically", async () => {
+    const root = await createTempRoot();
+    const projectDir = path.join(root, ".groundwork");
+    await fs.mkdir(projectDir, { recursive: true });
+    await fs.writeFile(
+      path.join(projectDir, "policy.auth.toml"),
+      toTomlPolicy({ id: "auth", match: "apps/auth/**", text: "auth" }),
+    );
+    await fs.writeFile(
+      path.join(projectDir, "policy.queue.toml"),
+      toTomlPolicy({ id: "queue", match: "apps/queue/**", text: "queue" }),
+    );
+
+    const merged = await loadMergedPolicyConfig(root, { HOME: path.join(root, "home") });
+    expect(merged.projectPaths.map((configPath) => path.basename(configPath))).toEqual([
+      "policy.auth.toml",
+      "policy.queue.toml",
+    ]);
+    expect(merged.config?.rules.map((rule) => rule.id)).toEqual(["auth", "queue"]);
+  });
+
+  it("merges project groundwork.toml with project .groundwork TOML files", async () => {
+    const root = await createTempRoot();
+    const projectDir = path.join(root, ".groundwork");
+    const rootConfig = path.join(root, "groundwork.toml");
+    const directoryConfig = path.join(projectDir, "policy.auth.toml");
+    await fs.mkdir(projectDir, { recursive: true });
+    await fs.writeFile(
+      rootConfig,
+      toTomlPolicy({ id: "root-config", match: "src/**", text: "root config" }),
+    );
+    await fs.writeFile(
+      directoryConfig,
+      toTomlPolicy({ id: "directory-config", match: "apps/auth/**", text: "directory config" }),
+    );
+
+    const merged = await loadMergedPolicyConfig(root, { HOME: path.join(root, "home") });
+    expect(merged.projectPaths).toEqual([rootConfig, directoryConfig]);
+    expect(merged.config?.rules.map((rule) => rule.id)).toEqual([
+      "root-config",
+      "directory-config",
+    ]);
+  });
+
+  it("lets .groundwork TOML files override root groundwork.toml rules by id", async () => {
+    const root = await createTempRoot();
+    const projectDir = path.join(root, ".groundwork");
+    const rootConfig = path.join(root, "groundwork.toml");
+    const directoryConfig = path.join(projectDir, "policy.toml");
+    await fs.mkdir(projectDir, { recursive: true });
+    await fs.writeFile(
+      rootConfig,
+      toTomlPolicy({ id: "shared", match: "src/**", text: "root shared" }),
+    );
+    await fs.writeFile(
+      directoryConfig,
+      toTomlPolicy({ id: "shared", match: "src/**", text: "directory shared" }),
+    );
+
+    const merged = await loadMergedPolicyConfig(root, { HOME: path.join(root, "home") });
+    expect(merged.config?.rules).toHaveLength(1);
+    const action = merged.config?.rules[0]?.actions[0];
+    expect(action?.type).toBe("inject_prompt");
+    if (action?.type === "inject_prompt") {
+      expect(action.text).toBe("directory shared");
+    }
+  });
+
+  it("prefers Groundwork paths over legacy OpenCode paths", async () => {
+    const home = await createTempRoot();
+    const root = await createTempRoot();
+    const globalGroundworkPath = path.join(home, ".groundwork", "policy.toml");
+    const globalLegacyPath = path.join(home, ".config", "opencode", ".opencode", "policy.toml");
+    const projectGroundworkPath = path.join(root, ".groundwork", "policy.toml");
+    const projectLegacyPath = path.join(root, ".opencode", "policy.toml");
+
+    for (const configPath of [
+      globalGroundworkPath,
+      globalLegacyPath,
+      projectGroundworkPath,
+      projectLegacyPath,
+    ]) {
+      await fs.mkdir(path.dirname(configPath), { recursive: true });
+    }
+    await fs.writeFile(
+      globalGroundworkPath,
+      toTomlPolicy({ id: "global-groundwork", match: "global/**", text: "global groundwork" }),
+    );
+    await fs.writeFile(
+      globalLegacyPath,
+      toTomlPolicy({ id: "global-legacy", match: "global/**", text: "global legacy" }),
+    );
+    await fs.writeFile(
+      projectGroundworkPath,
+      toTomlPolicy({ id: "project-groundwork", match: "project/**", text: "project groundwork" }),
+    );
+    await fs.writeFile(
+      projectLegacyPath,
+      toTomlPolicy({ id: "project-legacy", match: "project/**", text: "project legacy" }),
+    );
+
+    const merged = await loadMergedPolicyConfig(root, { HOME: home });
+    expect(merged.globalPaths).toEqual([globalGroundworkPath]);
+    expect(merged.projectPaths).toEqual([projectGroundworkPath]);
+    expect(merged.config?.rules.map((rule) => rule.id)).toEqual([
+      "global-groundwork",
+      "project-groundwork",
+    ]);
+  });
+
+  it("falls back to legacy OpenCode policy paths when no Groundwork config exists", async () => {
+    const home = await createTempRoot();
+    const root = await createTempRoot();
+    const globalPath = path.join(home, ".config", "opencode", ".opencode", "policy.toml");
+    const projectPath = path.join(root, ".opencode", "policy.toml");
+
+    await fs.mkdir(path.dirname(globalPath), { recursive: true });
+    await fs.mkdir(path.dirname(projectPath), { recursive: true });
+    await fs.writeFile(
+      globalPath,
+      toTomlPolicy({ id: "global-legacy", match: "global/**", text: "global legacy" }),
+    );
+    await fs.writeFile(
+      projectPath,
+      toTomlPolicy({ id: "project-legacy", match: "project/**", text: "project legacy" }),
+    );
+
+    const merged = await loadMergedPolicyConfig(root, { HOME: home });
+    expect(merged.sourceCount).toBe(2);
+    expect(merged.globalPaths).toEqual([globalPath]);
+    expect(merged.projectPaths).toEqual([projectPath]);
+    expect(merged.config?.rules.map((rule) => rule.id)).toEqual([
+      "global-legacy",
+      "project-legacy",
+    ]);
+  });
+
+  it("uses Groundwork env overrides before legacy OpenCode env overrides", async () => {
+    const root = await createTempRoot();
+    const groundworkPath = path.join(root, "groundwork.env.toml");
+    const legacyPath = path.join(root, "legacy.env.toml");
+    await fs.writeFile(
+      groundworkPath,
+      toTomlPolicy({ id: "groundwork-env", match: "src/**", text: "groundwork env" }),
+    );
+    await fs.writeFile(
+      legacyPath,
+      toTomlPolicy({ id: "legacy-env", match: "src/**", text: "legacy env" }),
+    );
+
+    const merged = await loadMergedPolicyConfig(root, {
+      HOME: path.join(root, "home"),
+      GROUNDWORK_POLICY_CONFIG: groundworkPath,
+      OPENCODE_POLICY_GUARDRAIL_CONFIG: legacyPath,
+    });
+    expect(merged.projectPaths).toEqual([groundworkPath]);
+    expect(merged.config?.rules.map((rule) => rule.id)).toEqual(["groundwork-env"]);
+  });
+
+  it("uses Groundwork global env override before legacy OpenCode global env override", async () => {
+    const root = await createTempRoot();
+    const home = await createTempRoot();
+    const groundworkPath = path.join(home, "groundwork.global.env.toml");
+    const legacyPath = path.join(home, "legacy.global.env.toml");
+    await fs.writeFile(
+      groundworkPath,
+      toTomlPolicy({ id: "groundwork-global-env", match: "src/**", text: "groundwork global" }),
+    );
+    await fs.writeFile(
+      legacyPath,
+      toTomlPolicy({ id: "legacy-global-env", match: "src/**", text: "legacy global" }),
+    );
+
+    const merged = await loadMergedPolicyConfig(root, {
+      HOME: home,
+      GROUNDWORK_POLICY_GLOBAL_CONFIG: groundworkPath,
+      OPENCODE_POLICY_GUARDRAIL_GLOBAL_CONFIG: legacyPath,
+    });
+    expect(merged.globalPaths).toEqual([groundworkPath]);
+    expect(merged.config?.rules.map((rule) => rule.id)).toEqual(["groundwork-global-env"]);
+  });
+
+  it("does not load non-canonical legacy policy filenames", async () => {
     const home = await createTempRoot();
     const root = await createTempRoot();
 
@@ -1195,10 +1381,14 @@ text = "b"
 
   it("resolves default config paths", () => {
     const projectPath = resolveProjectPolicyConfigPath("/repo");
-    expect(projectPath).toBe("/repo/.opencode/policy.toml");
+    expect(projectPath).toBe("/repo/groundwork.toml");
+    expect(resolveProjectPolicyConfigPaths("/repo")).toEqual(["/repo/groundwork.toml"]);
 
     const globalPath = resolveGlobalPolicyConfigPath({ HOME: "/home/tester" });
-    expect(globalPath).toBe("/home/tester/.config/opencode/.opencode/policy.toml");
+    expect(globalPath).toBe("/home/tester/.groundwork/groundwork.toml");
+    expect(resolveGlobalPolicyConfigPaths({ HOME: "/home/tester" })).toEqual([
+      "/home/tester/.groundwork/groundwork.toml",
+    ]);
   });
 });
 

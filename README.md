@@ -35,6 +35,39 @@ groundwork session render-compaction '{"session_id":"codex"}'
 
 Discovery commands expose supported capabilities, examples, and JSON schema contracts.
 
+## Policy Configuration
+
+Groundwork-owned config paths are canonical:
+
+- project root: `groundwork.toml`
+- project config directory: `.groundwork/*.toml`
+- user/global config directory: `~/.groundwork/*.toml`
+
+The policy loader merges global configs first, then project configs. Later files can override earlier rules by reusing the same rule `id`. Legacy OpenCode policy paths remain compatibility fallbacks only when no Groundwork config exists:
+
+- project fallback: `.opencode/policy.toml`
+- global fallback: `~/.config/opencode/.opencode/policy.toml`
+
+Environment overrides prefer Groundwork names and still accept legacy names:
+
+- project: `GROUNDWORK_POLICY_CONFIG`, then `OPENCODE_POLICY_GUARDRAIL_CONFIG`
+- global: `GROUNDWORK_POLICY_GLOBAL_CONFIG`, then `OPENCODE_POLICY_GUARDRAIL_GLOBAL_CONFIG`
+
+Use `include` or `includes` for complex composition:
+
+```toml
+version = 1
+includes = [".groundwork/policy.*.toml"]
+
+[[rules]]
+id = "protect-src"
+match = ["src/**"]
+
+[[rules.actions]]
+type = "block_tool"
+message = "src edits require review"
+```
+
 ## Codex
 
 Groundwork can be installed into Codex three ways:

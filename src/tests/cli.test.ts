@@ -443,9 +443,8 @@ describe("groundwork CLI", () => {
 
   it("denies policy violations from Codex PreToolUse hooks", async () => {
     const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "groundwork-codex-policy-"));
-    await fs.mkdir(path.join(rootDir, ".opencode"), { recursive: true });
     await fs.writeFile(
-      path.join(rootDir, ".opencode", "policy.toml"),
+      path.join(rootDir, "groundwork.toml"),
       `version = 1
 
 [[rules]]

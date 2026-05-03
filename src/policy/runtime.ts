@@ -99,7 +99,7 @@ export async function createFrameworkPolicyLayer(
 ): Promise<GroundworkLayerRegistration> {
   const directory = path.resolve(options.directory);
   const rootDir = path.resolve(options.worktree ?? options.directory);
-  const { config, projectPath, globalPath, sourceCount } = await loadMergedPolicyConfig(
+  const { config, projectPath, globalPath, projectPaths, globalPaths, sourceCount } = await loadMergedPolicyConfig(
     rootDir,
     options.env,
   );
@@ -109,6 +109,8 @@ export async function createFrameworkPolicyLayer(
     rootDir,
     project_config_path: projectPath,
     global_config_path: globalPath,
+    project_config_paths: projectPaths,
+    global_config_paths: globalPaths,
     config_sources: sourceCount,
     rules: config?.rules.length ?? 0,
     enabled: Boolean(config),
@@ -118,6 +120,8 @@ export async function createFrameworkPolicyLayer(
     await log(options.client, "info", "No policy config found; framework policy layer idle", {
       project_config_path: projectPath,
       global_config_path: globalPath,
+      project_config_paths: projectPaths,
+      global_config_paths: globalPaths,
     });
   }
 

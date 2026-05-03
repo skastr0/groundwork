@@ -39,8 +39,10 @@ export {
   mergePolicyConfigs,
   parsePolicyConfig,
   resolveGlobalPolicyConfigPath,
+  resolveGlobalPolicyConfigPaths,
   resolvePolicyConfigPath,
   resolveProjectPolicyConfigPath,
+  resolveProjectPolicyConfigPaths,
 } from "./policy/index.ts";
 export {
   augmentFrameworkToolDescription,
