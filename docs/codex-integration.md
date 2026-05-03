@@ -29,10 +29,14 @@ The generated hooks call `groundwork codex hook` by default, so the hook process
 
 ## Hook Behavior
 
-The initial hook entrypoint supports:
+The hook entrypoint supports:
 
 - `SessionStart`: adds Groundwork CLI guidance as developer context.
-- `PreToolUse` for `Bash`: evaluates the command with `groundwork:risk` rules and denies supported destructive commands.
+- `UserPromptSubmit`: records explicit `/policy override <reason>` and `/policy skill-loaded <skills...>` commands into durable Groundwork session artifacts.
+- `PreToolUse`: evaluates supported Bash risk and policy checks for supported Bash/apply_patch/Edit/Write calls, and denies only through Codex-supported `PreToolUse` denial.
+- `PermissionRequest`: denies risky Bash approval requests when the shared risk guardrail blocks the command.
+- `PostToolUse`: runs post-mutation policy checks and reports feedback. This does not undo side effects.
+- `Stop`: currently returns an empty JSON success object so the shared entrypoint is valid for the event without forcing continuation.
 
 Hooks call `groundwork codex hook` by default, or the configured `hook_command` for project/user installs, so plugin-bundled hooks, project hooks, and user hooks share the same CLI hook entrypoint.
 
@@ -42,8 +46,8 @@ Codex hooks are best-effort guardrails, not a complete security boundary.
 
 - Project-local `.codex/` hooks load only when the project is trusted by Codex.
 - `PreToolUse` only intercepts supported tool paths.
-- `PostToolUse` cannot undo side effects.
-- Tool-triggered synthetic prompt injection does not have OpenCode parity in Codex V1.
+- `PostToolUse` cannot undo side effects; it can only report feedback after the tool has run.
+- Tool-triggered synthetic prompt injection is unsupported in Codex V1. Prompt-mode policy guidance is surfaced through explicit CLI output, static skill guidance, or user-prompt hook context, not through automatic tool-triggered prompt injection.
 - The Groundwork skill teaches explicit CLI usage for paths hooks cannot cover.
 
 ## Validation
@@ -55,4 +59,4 @@ bun run verify
 groundwork codex doctor
 ```
 
-The test suite covers project/user install, `SessionStart` hook context, and `PreToolUse` Bash denial. Headless validation artifacts live under `.agents/validation/` when generated locally.
+The test suite covers project/user install, `SessionStart` hook context, `UserPromptSubmit` policy command capture, `PreToolUse` Bash risk and policy denial, `PermissionRequest` denial, `PostToolUse` feedback, unsupported/no-config hook paths, and malformed hook payloads. Headless validation artifacts live under `.agents/validation/` when generated locally.

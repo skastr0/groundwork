@@ -4,6 +4,12 @@ import path from "node:path";
 import { z } from "zod";
 import { configFromEnv } from "../risk/rules.ts";
 import { evaluateRiskCommand } from "../risk/service.ts";
+import {
+  acceptPolicyOverride,
+  confirmPolicySkillsLoaded,
+  evaluatePolicyToolCall,
+  evaluatePolicyToolResult,
+} from "../policy/cli-service.ts";
 
 export const CodexInstallProjectInputSchema = z
   .object({
@@ -104,79 +110,217 @@ export async function installCodexUser(input: CodexInstallUserInput) {
 }
 
 export async function runCodexHook() {
-  const payload = await new Response(Bun.stdin.stream()).json();
+  const payload = await readHookPayload();
   const eventName = stringField(payload, "hook_event_name");
 
   if (eventName === "SessionStart") {
-    process.stdout.write(
-      `${JSON.stringify({
-        hookSpecificOutput: {
-          hookEventName: "SessionStart",
-          additionalContext: sessionStartContext(),
-        },
-      })}\n`,
-    );
+    writeHookJson({
+      hookSpecificOutput: {
+        hookEventName: "SessionStart",
+        additionalContext: sessionStartContext(),
+      },
+    });
     return;
   }
 
-  if (eventName === "PreToolUse" && stringField(payload, "tool_name") === "Bash") {
-    const command = commandFromHookPayload(payload);
-    if (!command) {
-      return;
-    }
-    const config = configFromEnv(process.env);
-    const decision = evaluateRiskCommand({ command, config });
-    if (decision.violation) {
-      if (decision.decision === "warn") {
-        process.stdout.write(
-          `${JSON.stringify({
-            systemMessage: `[groundwork:risk] Warn mode matched ${decision.violation.ruleId}: ${decision.violation.reason}`,
-          })}\n`,
-        );
-        return;
-      }
+  if (eventName === "UserPromptSubmit") return runUserPromptSubmitHook(payload);
+  if (eventName === "PreToolUse") return runPreToolUseHook(payload);
+  if (eventName === "PermissionRequest") return runPermissionRequestHook(payload);
+  if (eventName === "PostToolUse") return runPostToolUseHook(payload);
+  if (eventName === "Stop") writeHookJson({});
+}
 
-      process.stdout.write(
-        `${JSON.stringify({
-          hookSpecificOutput: {
-            hookEventName: "PreToolUse",
-            permissionDecision: "deny",
-            permissionDecisionReason: `[groundwork:risk] ${decision.violation.reason}`,
-          },
-        })}\n`,
-      );
+async function runUserPromptSubmitHook(payload: unknown) {
+  const sessionID = stringField(payload, "session_id");
+  const prompt = stringField(payload, "prompt");
+  if (!sessionID || !prompt) return;
+
+  const commands = parsePolicyPromptCommands(prompt);
+  for (const command of commands) {
+    if (command.type === "override") {
+      await acceptPolicyOverride({
+        root_dir: cwdFromHookPayload(payload),
+        session_id: sessionID,
+        reason: command.reason,
+      });
+    } else {
+      await confirmPolicySkillsLoaded({
+        root_dir: cwdFromHookPayload(payload),
+        session_id: sessionID,
+        skills: command.skills,
+      });
     }
   }
+
+  if (commands.length > 0) {
+    writeHookJson({
+      hookSpecificOutput: {
+        hookEventName: "UserPromptSubmit",
+        additionalContext: "[groundwork:policy] Policy command state was recorded.",
+      },
+    });
+  }
+}
+
+async function runPreToolUseHook(payload: unknown) {
+  const toolName = stringField(payload, "tool_name");
+  if (!toolName) return;
+
+  let riskWarning: string | undefined;
+  if (toolName === "Bash") {
+    const command = commandFromHookPayload(payload);
+    if (command) {
+      const decision = evaluateRiskCommand({ command, config: configFromEnv(process.env) });
+      if (decision.violation) {
+        if (decision.decision === "warn") {
+          riskWarning = `[groundwork:risk] Warn mode matched ${decision.violation.ruleId}: ${decision.violation.reason}`;
+        } else {
+          writeHookJson({
+            hookSpecificOutput: {
+              hookEventName: "PreToolUse",
+              permissionDecision: "deny",
+              permissionDecisionReason: `[groundwork:risk] ${decision.violation.reason}`,
+            },
+          });
+          return;
+        }
+      }
+    }
+  }
+
+  const sessionID = stringField(payload, "session_id");
+  if (!sessionID) {
+    if (riskWarning) writeHookJson({ systemMessage: riskWarning });
+    return;
+  }
+  const result = await evaluatePolicyToolCall({
+    root_dir: cwdFromHookPayload(payload),
+    directory: cwdFromHookPayload(payload),
+    session_id: sessionID,
+    tool: normalizePolicyToolName(toolName),
+    call_id: stringField(payload, "tool_use_id"),
+    args: toolInputFromHookPayload(payload),
+  });
+
+  if (isPolicyBlock(result)) {
+    writeHookJson({
+      hookSpecificOutput: {
+        hookEventName: "PreToolUse",
+        permissionDecision: "deny",
+        permissionDecisionReason: renderPolicyDecisionReason(result),
+      },
+    });
+    return;
+  }
+
+  if (isPolicyWarn(result)) {
+    writeHookJson({ systemMessage: renderPolicyDecisionReason(result) });
+    return;
+  }
+
+  if (riskWarning) {
+    writeHookJson({ systemMessage: riskWarning });
+  }
+}
+
+async function runPermissionRequestHook(payload: unknown) {
+  if (stringField(payload, "tool_name") !== "Bash") return;
+  const command = commandFromHookPayload(payload);
+  if (!command) return;
+
+  const decision = evaluateRiskCommand({ command, config: configFromEnv(process.env) });
+  if (!decision.violation || decision.decision !== "block") return;
+
+  writeHookJson({
+    hookSpecificOutput: {
+      hookEventName: "PermissionRequest",
+      decision: {
+        behavior: "deny",
+        message: `[groundwork:risk] ${decision.violation.reason}`,
+      },
+    },
+  });
+}
+
+async function runPostToolUseHook(payload: unknown) {
+  const sessionID = stringField(payload, "session_id");
+  const toolUseID = stringField(payload, "tool_use_id");
+  const toolName = stringField(payload, "tool_name");
+  if (!sessionID || !toolUseID) return;
+
+  const result = await evaluatePolicyToolResult({
+    root_dir: cwdFromHookPayload(payload),
+    session_id: sessionID,
+    call_id: toolUseID,
+    tool: toolName ? normalizePolicyToolName(toolName) : undefined,
+  });
+  if (isPolicyWarn(result)) {
+    writeHookJson({
+      systemMessage: `${renderPolicyDecisionReason(result)} Side effects may already have happened; inspect and repair if needed.`,
+      hookSpecificOutput: {
+        hookEventName: "PostToolUse",
+        additionalContext:
+          "Groundwork policy reported non-blocking post-tool feedback. This cannot undo side effects.",
+      },
+    });
+    return;
+  }
+
+  if (!isPolicyBlock(result)) return;
+
+  writeHookJson({
+    decision: "block",
+    reason: `${renderPolicyDecisionReason(result)} Side effects may already have happened; inspect and repair before continuing.`,
+    hookSpecificOutput: {
+      hookEventName: "PostToolUse",
+      additionalContext:
+        "Groundwork policy reported post-tool feedback. This cannot undo side effects.",
+    },
+  });
 }
 
 function codexHooksConfig(hookCommand?: string) {
   const command = resolveHookCommand(hookCommand);
+  const commandHook = (statusMessage: string) => ({
+    type: "command",
+    command,
+    timeout: 30,
+    statusMessage,
+  });
   return {
     hooks: {
       SessionStart: [
         {
           matcher: "startup|resume|clear",
-          hooks: [
-            {
-              type: "command",
-              command,
-              timeout: 30,
-              statusMessage: "Loading Groundwork guidance",
-            },
-          ],
+          hooks: [commandHook("Loading Groundwork guidance")],
+        },
+      ],
+      UserPromptSubmit: [
+        {
+          hooks: [commandHook("Recording Groundwork policy commands")],
         },
       ],
       PreToolUse: [
         {
-          matcher: "^Bash$",
-          hooks: [
-            {
-              type: "command",
-              command,
-              timeout: 30,
-              statusMessage: "Checking Groundwork risk policy",
-            },
-          ],
+          matcher: "^Bash$|^apply_patch$|^Edit$|^Write$",
+          hooks: [commandHook("Checking Groundwork pre-tool policy")],
+        },
+      ],
+      PermissionRequest: [
+        {
+          matcher: "^Bash$|^apply_patch$|^Edit$|^Write$",
+          hooks: [commandHook("Checking Groundwork approval policy")],
+        },
+      ],
+      PostToolUse: [
+        {
+          matcher: "^Bash$|^apply_patch$|^Edit$|^Write$",
+          hooks: [commandHook("Recording Groundwork post-tool feedback")],
+        },
+      ],
+      Stop: [
+        {
+          hooks: [commandHook("Finalizing Groundwork hook state")],
         },
       ],
     },
@@ -204,11 +348,13 @@ Core commands:
 - \`groundwork schema list\`
 - \`groundwork examples list\`
 - \`groundwork risk evaluate-command '{"command":"git reset --hard"}'\`
+- \`groundwork policy evaluate-tool-call '{"session_id":"codex","tool":"edit","args":{"path":"src/index.ts"}}'\`
+- \`groundwork policy skill-loaded '{"session_id":"codex","skills":["sdlc"]}'\`
 - \`groundwork context discover '{"target_path":"src/index.ts"}'\`
 - \`groundwork provenance repo-state '{"limit":10}'\`
 - \`groundwork provenance file-state '{"path":"src/index.ts"}'\`
 
-Codex hooks are best-effort guardrails. They can deny supported Bash calls through \`PreToolUse\`, but they do not intercept every tool path and cannot inject tool-triggered synthetic prompts with full OpenCode parity.
+Codex hooks are best-effort guardrails. They can deny supported Bash/apply_patch/Edit/Write calls through \`PreToolUse\`, capture explicit policy commands from user prompts, and report post-tool policy feedback. They do not intercept every tool path, \`PostToolUse\` cannot undo side effects, and Codex V1 cannot inject tool-triggered synthetic prompts with full OpenCode parity.
 `;
 }
 
@@ -326,14 +472,94 @@ function stringField(value: unknown, key: string): string | undefined {
   return typeof field === "string" ? field : undefined;
 }
 
-function commandFromHookPayload(value: unknown): string | undefined {
-  if (!value || typeof value !== "object") {
-    return undefined;
+async function readHookPayload(): Promise<unknown> {
+  try {
+    return await new Response(Bun.stdin.stream()).json();
+  } catch {
+    writeHookJson({ systemMessage: "[groundwork] Ignoring invalid Codex hook JSON payload." });
+    return {};
   }
+}
+
+function writeHookJson(value: unknown): void {
+  process.stdout.write(`${JSON.stringify(value)}\n`);
+}
+
+function cwdFromHookPayload(value: unknown): string | undefined {
+  return stringField(value, "cwd");
+}
+
+function toolInputFromHookPayload(value: unknown): Record<string, unknown> | undefined {
+  if (!value || typeof value !== "object") return undefined;
   const input = (value as Record<string, unknown>)["tool_input"];
-  if (!input || typeof input !== "object") {
-    return undefined;
-  }
-  const command = (input as Record<string, unknown>)["command"];
+  return input && typeof input === "object" && !Array.isArray(input)
+    ? (input as Record<string, unknown>)
+    : undefined;
+}
+
+function commandFromHookPayload(value: unknown): string | undefined {
+  const input = toolInputFromHookPayload(value);
+  const command = input?.["command"];
   return typeof command === "string" ? command : undefined;
+}
+
+function normalizePolicyToolName(toolName: string): string {
+  if (toolName === "Bash") return "bash";
+  if (toolName === "apply_patch") return "edit";
+  return toolName.toLowerCase();
+}
+
+function isPolicyBlock(value: unknown): boolean {
+  return readDecision(value) === "block";
+}
+
+function isPolicyWarn(value: unknown): boolean {
+  return readDecision(value) === "warn";
+}
+
+function readDecision(value: unknown): string | undefined {
+  return value && typeof value === "object"
+    ? ((value as Record<string, unknown>)["decision"] as string | undefined)
+    : undefined;
+}
+
+function renderPolicyDecisionReason(value: unknown): string {
+  const messages =
+    value && typeof value === "object" && Array.isArray((value as Record<string, unknown>)["messages"])
+      ? ((value as Record<string, unknown>)["messages"] as unknown[])
+      : [];
+  const firstText = messages
+    .map((message) =>
+      message && typeof message === "object"
+        ? (message as Record<string, unknown>)["text"]
+        : undefined,
+    )
+    .find((text): text is string => typeof text === "string" && text.length > 0);
+  return firstText ?? "[groundwork:policy] Policy check requested attention.";
+}
+
+type ParsedPolicyPromptCommand =
+  | { type: "override"; reason: string }
+  | { type: "skill-loaded"; skills: string[] };
+
+function parsePolicyPromptCommands(prompt: string): ParsedPolicyPromptCommand[] {
+  const commands: ParsedPolicyPromptCommand[] = [];
+  for (const line of prompt.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (trimmed.startsWith("/policy override ")) {
+      const reason = trimmed.slice("/policy override ".length).trim();
+      if (reason) commands.push({ type: "override", reason });
+      continue;
+    }
+
+    if (trimmed.startsWith("/policy skill-loaded ")) {
+      const skills = trimmed
+        .slice("/policy skill-loaded ".length)
+        .split(/[\s,]+/)
+        .map((entry) => entry.trim())
+        .filter((entry) => entry.length > 0);
+      if (skills.length > 0) commands.push({ type: "skill-loaded", skills });
+    }
+  }
+  return commands;
 }

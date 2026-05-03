@@ -14,8 +14,10 @@ Core commands:
 - `groundwork schema list`
 - `groundwork examples list`
 - `groundwork risk evaluate-command '{"command":"git reset --hard"}'`
+- `groundwork policy evaluate-tool-call '{"session_id":"codex","tool":"edit","args":{"path":"src/index.ts"}}'`
+- `groundwork policy skill-loaded '{"session_id":"codex","skills":["sdlc"]}'`
 - `groundwork context discover '{"target_path":"src/index.ts"}'`
 - `groundwork provenance repo-state '{"limit":10}'`
 - `groundwork provenance file-state '{"path":"src/index.ts"}'`
 
-Codex hooks are best-effort guardrails. They can deny supported Bash calls through `PreToolUse`, but they do not intercept every tool path and cannot inject tool-triggered synthetic prompts with full OpenCode parity.
+Codex hooks are best-effort guardrails. They can deny supported Bash/apply_patch/Edit/Write calls through `PreToolUse`, capture explicit policy commands from user prompts, and report post-tool policy feedback. They do not intercept every tool path, `PostToolUse` cannot undo side effects, and Codex V1 cannot inject tool-triggered synthetic prompts with full OpenCode parity.

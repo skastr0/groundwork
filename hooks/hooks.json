@@ -13,15 +13,65 @@
         ]
       }
     ],
-    "PreToolUse": [
+    "UserPromptSubmit": [
       {
-        "matcher": "^Bash$",
         "hooks": [
           {
             "type": "command",
             "command": "groundwork codex hook",
             "timeout": 30,
-            "statusMessage": "Checking Groundwork risk policy"
+            "statusMessage": "Recording Groundwork policy commands"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "^Bash$|^apply_patch$|^Edit$|^Write$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "groundwork codex hook",
+            "timeout": 30,
+            "statusMessage": "Checking Groundwork pre-tool policy"
+          }
+        ]
+      }
+    ],
+    "PermissionRequest": [
+      {
+        "matcher": "^Bash$|^apply_patch$|^Edit$|^Write$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "groundwork codex hook",
+            "timeout": 30,
+            "statusMessage": "Checking Groundwork approval policy"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "^Bash$|^apply_patch$|^Edit$|^Write$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "groundwork codex hook",
+            "timeout": 30,
+            "statusMessage": "Recording Groundwork post-tool feedback"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "groundwork codex hook",
+            "timeout": 30,
+            "statusMessage": "Finalizing Groundwork hook state"
           }
         ]
       }
