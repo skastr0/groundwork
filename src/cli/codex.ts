@@ -378,6 +378,8 @@ Core commands:
 - \`groundwork session render-compaction '{"session_id":"codex"}'\`
 - \`groundwork provenance repo-state '{"limit":10}'\`
 - \`groundwork provenance file-state '{"path":"src/index.ts"}'\`
+- \`groundwork provenance read '{"path":"src/index.ts","max_bytes":4000}'\`
+- \`groundwork provenance run '{"tool":"gw_worktree_overview","args":{"limit":10}}'\`
 
 Codex hooks are best-effort guardrails. They can deny supported Bash/apply_patch/Edit/Write calls through \`PreToolUse\`, capture explicit policy commands from user prompts, and report post-tool policy feedback. They do not intercept every tool path, \`PostToolUse\` cannot undo side effects, and Codex V1 cannot inject tool-triggered synthetic prompts with full OpenCode parity.
 `;

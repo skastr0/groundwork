@@ -52,6 +52,7 @@ Codex hooks are best-effort guardrails, not a complete security boundary.
 - Codex compaction hook parity is unsupported in V1. Use `groundwork session render-compaction` for explicit compact Groundwork context from local artifacts.
 - The Groundwork skill teaches explicit CLI usage for paths hooks cannot cover.
 - Use `groundwork context touched-paths` explicitly when hook coverage is missing or when you need deterministic context reminder output.
+- The full `gw_*` provenance registry is available through `groundwork provenance <tool-name>` commands and `groundwork provenance run`; `gw_block_read` remains an explicit blocking read command rather than a hidden policy side effect.
 
 ## Validation
 
