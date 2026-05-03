@@ -258,6 +258,20 @@ export async function cleanupSessionArtifacts(input: SessionCleanupInput) {
   return { artifact_root: root, removed: removed.sort() };
 }
 
+export async function updateSessionArtifactState<T>(
+  rootDir: string | undefined,
+  sessionID: string,
+  update: (state: SessionArtifactState) => Promise<T> | T,
+): Promise<{ result: T; state: SessionArtifactState }> {
+  return withSessionLock(rootDir, sessionID, async () => {
+    const state = await readSessionState(rootDir, sessionID);
+    const result = await update(state);
+    state.session.updatedAt = new Date().toISOString();
+    await writeSessionState(rootDir, sessionID, state);
+    return { result, state };
+  });
+}
+
 async function readSessionState(
   rootDir: string | undefined,
   sessionID: string,
@@ -380,9 +394,17 @@ async function withSessionLock<T>(
   await fs.mkdir(directory, { recursive: true });
   const lockPath = path.join(directory, ".lock");
   const acquired = await acquireLock(lockPath);
+  const heartbeat = acquired
+    ? setInterval(() => {
+        fs.utimes(lockPath, new Date(), new Date()).catch(() => undefined);
+      }, Math.max(1_000, Math.floor(LOCK_STALE_MS / 3)))
+    : undefined;
   try {
     return await run();
   } finally {
+    if (heartbeat) {
+      clearInterval(heartbeat);
+    }
     if (acquired) {
       await fs.rm(lockPath, { force: true }).catch(() => undefined);
     }

@@ -34,6 +34,34 @@ export const ProvenanceFileStateInputSchema = z.object({
   base: BaseSchema,
 }).strict();
 
+const PolicyBaseInputSchema = z.object({
+  root_dir: RootDirSchema,
+  session_id: z.string().min(1),
+}).strict();
+
+export const PolicyEvaluateToolCallInputSchema = PolicyBaseInputSchema.extend({
+  directory: DirectorySchema,
+  tool: z.string().min(1),
+  call_id: z.string().min(1).optional(),
+  args: z.record(z.string(), z.unknown()).optional(),
+  targets: z.array(z.record(z.string(), z.unknown())).optional(),
+}).strict();
+
+export const PolicyEvaluateToolResultInputSchema = PolicyBaseInputSchema.extend({
+  call_id: z.string().min(1),
+  tool: z.string().min(1).optional(),
+}).strict();
+
+export const PolicyOverrideInputSchema = PolicyBaseInputSchema.extend({
+  reason: z.string().min(1),
+  rule_id: z.string().min(1).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+}).strict();
+
+export const PolicySkillLoadedInputSchema = PolicyBaseInputSchema.extend({
+  skills: z.array(z.string().min(1)).min(1),
+}).strict();
+
 export const CodexInstallProjectInputSchemaContract = {
   schema_id: "groundwork.codex.install-project.input/v1",
   command_id: "codex.install-project",
@@ -194,6 +222,10 @@ export type RiskEvaluateCommandInput = z.infer<typeof RiskEvaluateCommandInputSc
 export type ContextDiscoverInput = z.infer<typeof ContextDiscoverInputSchema>;
 export type ProvenanceRepoStateInput = z.infer<typeof ProvenanceRepoStateInputSchema>;
 export type ProvenanceFileStateInput = z.infer<typeof ProvenanceFileStateInputSchema>;
+export type PolicyEvaluateToolCallInput = z.infer<typeof PolicyEvaluateToolCallInputSchema>;
+export type PolicyEvaluateToolResultInput = z.infer<typeof PolicyEvaluateToolResultInputSchema>;
+export type PolicyOverrideInput = z.infer<typeof PolicyOverrideInputSchema>;
+export type PolicySkillLoadedInput = z.infer<typeof PolicySkillLoadedInputSchema>;
 
 export const SCHEMA_CONTRACTS = [
   CodexInstallProjectInputSchemaContract,
@@ -205,6 +237,57 @@ export const SCHEMA_CONTRACTS = [
   SessionPutPendingToolInputSchemaContract,
   SessionAppendTraceInputSchemaContract,
   SessionCleanupInputSchemaContract,
+  {
+    schema_id: "groundwork.policy.evaluate-tool-call.input/v1",
+    command_id: "policy.evaluate-tool-call",
+    command: "policy evaluate-tool-call",
+    description: "Evaluate one pre-tool call against Groundwork policy.",
+    schema: {
+      type: "object",
+      required: ["session_id", "tool"],
+      additionalProperties: false,
+      properties: {
+        root_dir: { type: "string", minLength: 1 },
+        directory: { type: "string", minLength: 1 },
+        session_id: { type: "string", minLength: 1 },
+        tool: { type: "string", minLength: 1 },
+        call_id: { type: "string", minLength: 1 },
+        args: { type: "object" },
+        targets: { type: "array", items: { type: "object" } },
+      },
+    },
+  },
+  {
+    schema_id: "groundwork.policy.evaluate-tool-result.input/v1",
+    command_id: "policy.evaluate-tool-result",
+    command: "policy evaluate-tool-result",
+    description: "Evaluate one completed tool call against post-mutation policy.",
+    schema: {
+      type: "object",
+      required: ["session_id", "call_id"],
+      additionalProperties: false,
+      properties: {
+        root_dir: { type: "string", minLength: 1 },
+        session_id: { type: "string", minLength: 1 },
+        call_id: { type: "string", minLength: 1 },
+        tool: { type: "string", minLength: 1 },
+      },
+    },
+  },
+  {
+    schema_id: "groundwork.policy.override.input/v1",
+    command_id: "policy.override",
+    command: "policy override",
+    description: "Accept a human policy override and clear pending override locks.",
+    schema: SessionOverrideInputSchemaContract.schema,
+  },
+  {
+    schema_id: "groundwork.policy.skill-loaded.input/v1",
+    command_id: "policy.skill-loaded",
+    command: "policy skill-loaded",
+    description: "Confirm required policy skills for one session.",
+    schema: SessionSkillLoadedInputSchemaContract.schema,
+  },
   {
     schema_id: "groundwork.risk.evaluate-command.input/v1",
     command_id: "risk.evaluate-command",

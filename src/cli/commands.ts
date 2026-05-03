@@ -5,6 +5,12 @@ import { attachProcessRunner } from "../../shared/effect-runtime.ts";
 import { discoverFrameworkContextFiles } from "../context/discovery.ts";
 import { evaluateRiskCommand } from "../risk/service.ts";
 import {
+  acceptPolicyOverride,
+  confirmPolicySkillsLoaded,
+  evaluatePolicyToolCall,
+  evaluatePolicyToolResult,
+} from "../policy/cli-service.ts";
+import {
   resolveLocalFileState,
   resolveLocalRepoState,
   type Shell,
@@ -29,6 +35,10 @@ import {
 } from "./codex.ts";
 import {
   ContextDiscoverInputSchema,
+  PolicyEvaluateToolCallInputSchema,
+  PolicyEvaluateToolResultInputSchema,
+  PolicyOverrideInputSchema,
+  PolicySkillLoadedInputSchema,
   ProvenanceFileStateInputSchema,
   ProvenanceRepoStateInputSchema,
   RiskEvaluateCommandInputSchema,
@@ -149,6 +159,58 @@ const contextDiscoverCommand = Command.make("discover", { input: inputArg }, ({ 
 const contextCommand = Command.make("context").pipe(
   Command.withDescription("Context foundation commands"),
   Command.withSubcommands([contextDiscoverCommand]),
+);
+
+const policyEvaluateToolCallCommand = Command.make(
+  "evaluate-tool-call",
+  { input: inputArg },
+  ({ input }) =>
+    toEffect(() =>
+      executeJsonCommand("policy evaluate-tool-call", async () => {
+        const payload = await decodeJsonInput(input, PolicyEvaluateToolCallInputSchema);
+        return evaluatePolicyToolCall(payload);
+      }),
+    ),
+);
+
+const policyEvaluateToolResultCommand = Command.make(
+  "evaluate-tool-result",
+  { input: inputArg },
+  ({ input }) =>
+    toEffect(() =>
+      executeJsonCommand("policy evaluate-tool-result", async () => {
+        const payload = await decodeJsonInput(input, PolicyEvaluateToolResultInputSchema);
+        return evaluatePolicyToolResult(payload);
+      }),
+    ),
+);
+
+const policyOverrideCommand = Command.make("override", { input: inputArg }, ({ input }) =>
+  toEffect(() =>
+    executeJsonCommand("policy override", async () => {
+      const payload = await decodeJsonInput(input, PolicyOverrideInputSchema);
+      return acceptPolicyOverride(payload);
+    }),
+  ),
+);
+
+const policySkillLoadedCommand = Command.make("skill-loaded", { input: inputArg }, ({ input }) =>
+  toEffect(() =>
+    executeJsonCommand("policy skill-loaded", async () => {
+      const payload = await decodeJsonInput(input, PolicySkillLoadedInputSchema);
+      return confirmPolicySkillsLoaded(payload);
+    }),
+  ),
+);
+
+const policyCommand = Command.make("policy").pipe(
+  Command.withDescription("Policy foundation commands"),
+  Command.withSubcommands([
+    policyEvaluateToolCallCommand,
+    policyEvaluateToolResultCommand,
+    policyOverrideCommand,
+    policySkillLoadedCommand,
+  ]),
 );
 
 const codexDoctorCommand = Command.make("doctor", {}, () =>
@@ -312,6 +374,7 @@ export const rootCommand = Command.make("groundwork").pipe(
     contextCommand,
     doctorCommand,
     examplesCommand,
+    policyCommand,
     provenanceCommand,
     riskCommand,
     schemaCommand,

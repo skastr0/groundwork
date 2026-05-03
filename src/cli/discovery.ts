@@ -57,6 +57,34 @@ export const COMMAND_CAPABILITIES = [
     schemas: ["groundwork.context.discover.input/v1"],
   },
   {
+    command_id: "policy.evaluate-tool-call",
+    command: "policy evaluate-tool-call",
+    category: "workflow",
+    description: "Evaluate one pre-tool call against Groundwork policy.",
+    schemas: ["groundwork.policy.evaluate-tool-call.input/v1"],
+  },
+  {
+    command_id: "policy.evaluate-tool-result",
+    command: "policy evaluate-tool-result",
+    category: "workflow",
+    description: "Evaluate one completed tool call against post-mutation policy.",
+    schemas: ["groundwork.policy.evaluate-tool-result.input/v1"],
+  },
+  {
+    command_id: "policy.override",
+    command: "policy override",
+    category: "workflow",
+    description: "Accept a human policy override and clear pending override locks.",
+    schemas: ["groundwork.policy.override.input/v1"],
+  },
+  {
+    command_id: "policy.skill-loaded",
+    command: "policy skill-loaded",
+    category: "workflow",
+    description: "Confirm required policy skills for one session.",
+    schemas: ["groundwork.policy.skill-loaded.input/v1"],
+  },
+  {
     command_id: "provenance.repo-state",
     command: "provenance repo-state",
     category: "workflow",
@@ -151,6 +179,20 @@ export const EXAMPLES = [
     command: "provenance repo-state",
     name: "Inspect current repo state",
     args: [`{"limit":10}`],
+  },
+  {
+    command_id: "policy.evaluate-tool-call",
+    command: "policy evaluate-tool-call",
+    name: "Evaluate a file edit against policy",
+    args: [
+      `{"session_id":"example","tool":"edit","call_id":"call-1","args":{"path":"src/index.ts"}}`,
+    ],
+  },
+  {
+    command_id: "policy.skill-loaded",
+    command: "policy skill-loaded",
+    name: "Confirm policy skills for a hook session",
+    args: [`{"session_id":"example","skills":["sdlc"]}`],
   },
   {
     command_id: "provenance.file-state",

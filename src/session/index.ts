@@ -15,6 +15,7 @@ export {
   recordSessionOverride,
   rememberSessionAction,
   resolveArtifactRoot,
+  updateSessionArtifactState,
   type SessionAppendTraceInput,
   type SessionArtifactState,
   type SessionCleanupInput,

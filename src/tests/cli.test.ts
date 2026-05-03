@@ -590,6 +590,9 @@ describe("groundwork CLI", () => {
       error: {
         type: "CliInputError",
         message: "Unknown command 'unknown'",
+        details: {
+          expected: expect.arrayContaining(["policy"]),
+        },
       },
     });
   });
@@ -886,6 +889,227 @@ describe("groundwork CLI", () => {
       },
     });
   });
+
+  it("evaluates policy prompt guidance and blocks strict skill gates", async () => {
+    const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "groundwork-policy-cli-"));
+    await fs.mkdir(path.join(rootDir, ".opencode"), { recursive: true });
+    await fs.writeFile(
+      path.join(rootDir, ".opencode", "policy.toml"),
+      `version = 1
+
+[[rules]]
+id = "guidance"
+match = ["src/**"]
+
+[[rules.actions]]
+type = "ensure_skill_loaded"
+skills = ["sdlc"]
+mode = "prompt"
+
+[[rules]]
+id = "strict-skill"
+match = ["secure/**"]
+
+[[rules.actions]]
+type = "ensure_skill_loaded"
+skills = ["security-reviewer"]
+mode = "block"
+`,
+      "utf8",
+    );
+
+    const guidance = await runGroundwork([
+      "policy",
+      "evaluate-tool-call",
+      JSON.stringify({
+        root_dir: rootDir,
+        session_id: "policy-session",
+        tool: "edit",
+        call_id: "call-guidance",
+        args: { filePath: "src/main.ts" },
+      }),
+    ]);
+    expect(guidance.exitCode).toBe(0);
+    expect(guidance.stderr).toBe("");
+    expect(parseJson(guidance.stdout)).toMatchObject({
+      ok: true,
+      command: "policy evaluate-tool-call",
+      data: {
+        decision: "allow",
+        messages: [expect.objectContaining({ action_type: "ensure_skill_loaded" })],
+      },
+    });
+
+    const blocked = await runGroundwork([
+      "policy",
+      "evaluate-tool-call",
+      JSON.stringify({
+        root_dir: rootDir,
+        session_id: "policy-session",
+        tool: "edit",
+        call_id: "call-strict-1",
+        args: { filePath: "secure/auth.ts" },
+      }),
+    ]);
+    expect(blocked.exitCode).toBe(0);
+    expect(parseJson(blocked.stdout)).toMatchObject({
+      ok: true,
+      data: {
+        decision: "block",
+        violations: [expect.objectContaining({ rule_id: "strict-skill", blocking: true })],
+      },
+    });
+
+    const skillLoaded = await runGroundwork([
+      "policy",
+      "skill-loaded",
+      JSON.stringify({
+        root_dir: rootDir,
+        session_id: "policy-session",
+        skills: ["security-reviewer"],
+      }),
+    ]);
+    expect(skillLoaded.exitCode).toBe(0);
+
+    const allowed = await runGroundwork([
+      "policy",
+      "evaluate-tool-call",
+      JSON.stringify({
+        root_dir: rootDir,
+        session_id: "policy-session",
+        tool: "edit",
+        call_id: "call-strict-2",
+        args: { filePath: "secure/auth.ts" },
+      }),
+    ]);
+    expect(parseJson(allowed.stdout)).toMatchObject({
+      ok: true,
+      data: { decision: "allow", violations: [] },
+    });
+  });
+
+  it("uses policy override locks and post-tool result evaluation", async () => {
+    const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "groundwork-policy-cli-"));
+    await fs.mkdir(path.join(rootDir, ".opencode"), { recursive: true });
+    await fs.mkdir(path.join(rootDir, "src"), { recursive: true });
+    await fs.writeFile(path.join(rootDir, "src", "main.ts"), "const before = true;\n", "utf8");
+    await fs.writeFile(
+      path.join(rootDir, ".opencode", "policy.toml"),
+      `version = 1
+
+[[rules]]
+id = "human-override-required"
+match = ["infra/prod/**"]
+
+[[rules.actions]]
+type = "require_human_override"
+
+[[rules]]
+id = "no-console"
+match = ["src/**"]
+content_scope = "changed_lines"
+
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = "console.log($A)"
+
+[[rules.actions]]
+type = "block_tool"
+message = "console logging is blocked"
+`,
+      "utf8",
+    );
+
+    const blocked = await runGroundwork([
+      "policy",
+      "evaluate-tool-call",
+      JSON.stringify({
+        root_dir: rootDir,
+        session_id: "override-session",
+        tool: "edit",
+        call_id: "override-1",
+        args: { filePath: "infra/prod/main.tf" },
+      }),
+    ]);
+    expect(parseJson(blocked.stdout)).toMatchObject({
+      ok: true,
+      data: { decision: "block" },
+    });
+
+    const locked = await runGroundwork([
+      "policy",
+      "evaluate-tool-call",
+      JSON.stringify({
+        root_dir: rootDir,
+        session_id: "override-session",
+        tool: "write",
+        call_id: "override-2",
+        args: { filePath: "README.md" },
+      }),
+    ]);
+    expect(parseJson(locked.stdout)).toMatchObject({
+      ok: true,
+      data: {
+        decision: "block",
+        messages: [expect.objectContaining({ text: expect.stringContaining("Mutating tools") })],
+      },
+    });
+
+    const override = await runGroundwork([
+      "policy",
+      "override",
+      JSON.stringify({
+        root_dir: rootDir,
+        session_id: "override-session",
+        reason: "human reviewed",
+      }),
+    ]);
+    expect(override.exitCode).toBe(0);
+
+    const patchText = `*** Begin Patch
+*** Update File: src/main.ts
+@@
+-const before = true;
++console.log("after");
+*** End Patch
+`;
+    const before = await runGroundwork([
+      "policy",
+      "evaluate-tool-call",
+      JSON.stringify({
+        root_dir: rootDir,
+        session_id: "override-session",
+        tool: "edit",
+        call_id: "post-1",
+        args: { filePath: "src/main.ts", patchText },
+      }),
+    ]);
+    expect(parseJson(before.stdout)).toMatchObject({
+      ok: true,
+      data: { decision: "allow" },
+    });
+    await fs.writeFile(path.join(rootDir, "src", "main.ts"), 'console.log("after");\n', "utf8");
+
+    const after = await runGroundwork([
+      "policy",
+      "evaluate-tool-result",
+      JSON.stringify({
+        root_dir: rootDir,
+        session_id: "override-session",
+        call_id: "post-1",
+      }),
+    ]);
+    expect(parseJson(after.stdout)).toMatchObject({
+      ok: true,
+      command: "policy evaluate-tool-result",
+      data: {
+        decision: "block",
+        phase: "after",
+        violations: [expect.objectContaining({ rule_id: "no-console" })],
+      },
+    });
+  }, 35_000);
 
   it("keeps distinct unsafe-looking session ids isolated on disk", async () => {
     const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "groundwork-session-collision-"));

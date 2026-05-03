@@ -60,6 +60,13 @@ function validateCommandShape(args: string[]): CommandShapeFailure | undefined {
       ]);
     case "context":
       return validateInputCommand("context discover", subcommand, input, args, ["discover"]);
+    case "policy":
+      return validateInputCommand("policy", subcommand, input, args, [
+        "evaluate-tool-call",
+        "evaluate-tool-result",
+        "override",
+        "skill-loaded",
+      ]);
     case "provenance":
       return validateInputCommand("provenance", subcommand, input, args, [
         "repo-state",
@@ -188,6 +195,7 @@ function knownTopLevelCommands(): string[] {
     "context",
     "doctor",
     "examples",
+    "policy",
     "provenance",
     "risk",
     "schema",
