@@ -6,6 +6,7 @@ export {
   SessionOverrideInputSchema,
   SessionPutPendingToolInputSchema,
   SessionRememberActionInputSchema,
+  SessionRenderCompactionInputSchema,
   SessionSkillLoadedInputSchema,
   appendSessionTrace,
   cleanupSessionArtifacts,
@@ -14,6 +15,7 @@ export {
   putPendingSessionTool,
   recordSessionOverride,
   rememberSessionAction,
+  renderSessionCompaction,
   resolveArtifactRoot,
   updateSessionArtifactState,
   type SessionAppendTraceInput,
@@ -23,5 +25,6 @@ export {
   type SessionOverrideInput,
   type SessionPutPendingToolInput,
   type SessionRememberActionInput,
+  type SessionRenderCompactionInput,
   type SessionSkillLoadedInput,
 } from "./artifacts.ts";

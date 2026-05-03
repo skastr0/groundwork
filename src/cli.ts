@@ -83,6 +83,7 @@ function validateCommandShape(args: string[]): CommandShapeFailure | undefined {
         "override",
         "put-pending-tool",
         "remember-action",
+        "render-compaction",
         "skill-loaded",
       ]);
     default:

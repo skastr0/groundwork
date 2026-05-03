@@ -1359,6 +1359,151 @@ message = "console logging should be reviewed"
     });
   });
 
+  it("renders compact Groundwork session context", async () => {
+    const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "groundwork-compaction-"));
+    const sessionId = "compact-session";
+    await fs.mkdir(path.join(rootDir, ".opencode"), { recursive: true });
+    await fs.mkdir(path.join(rootDir, "src", "feature"), { recursive: true });
+    await fs.writeFile(path.join(rootDir, "src", "AGENTS.md"), "Use compact context.\n", "utf8");
+    await fs.writeFile(
+      path.join(rootDir, ".opencode", "policy.toml"),
+      `version = 1
+
+[[rules]]
+id = "needs-override"
+match = ["infra/**"]
+
+[[rules.actions]]
+type = "require_human_override"
+message = "infra needs override"
+`,
+      "utf8",
+    );
+    await runGroundwork([
+      "session",
+      "skill-loaded",
+      JSON.stringify({ root_dir: rootDir, session_id: sessionId, skills: ["sdlc"] }),
+    ]);
+    await runGroundwork([
+      "session",
+      "override",
+      JSON.stringify({
+        root_dir: rootDir,
+        session_id: sessionId,
+        reason: "approved",
+        rule_id: "rule-1",
+      }),
+    ]);
+    await runGroundwork([
+      "context",
+      "touched-paths",
+      JSON.stringify({
+        root_dir: rootDir,
+        session_id: sessionId,
+        targets: [{ path: "src/feature/main.ts" }],
+      }),
+    ]);
+    await runGroundwork([
+      "policy",
+      "evaluate-tool-call",
+      JSON.stringify({
+        root_dir: rootDir,
+        session_id: sessionId,
+        tool: "edit",
+        args: { path: "infra/main.tf" },
+      }),
+    ]);
+    await runGroundwork([
+      "session",
+      "append-trace",
+      JSON.stringify({
+        root_dir: rootDir,
+        session_id: sessionId,
+        trace: { kind: "test-trace" },
+      }),
+    ]);
+
+    const result = await runGroundwork([
+      "session",
+      "render-compaction",
+      JSON.stringify({ root_dir: rootDir, session_id: sessionId }),
+    ]);
+    expect(result.exitCode).toBe(0);
+    expect(parseJson(result.stdout)).toMatchObject({
+      ok: true,
+      command: "session render-compaction",
+      data: {
+        summary: {
+          confirmed_skills: ["sdlc"],
+          overrides: [expect.objectContaining({ reason: "approved" })],
+          active_locks: [expect.objectContaining({ reason: "infra needs override" })],
+          context_reminders: [expect.objectContaining({ path: expect.stringContaining("AGENTS.md") })],
+          recent_traces: [expect.objectContaining({ trace: { kind: "test-trace" } })],
+        },
+        text: expect.stringContaining("Confirmed skills: sdlc"),
+      },
+    });
+    expect(parseJson(result.stdout)).toMatchObject({
+      data: {
+        text: expect.stringContaining("infra needs override"),
+      },
+    });
+  });
+
+  it("renders empty compact session context", async () => {
+    const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "groundwork-compaction-empty-"));
+    const result = await runGroundwork([
+      "session",
+      "render-compaction",
+      JSON.stringify({ root_dir: rootDir, session_id: "empty-session" }),
+    ]);
+    expect(result.exitCode).toBe(0);
+    expect(parseJson(result.stdout)).toMatchObject({
+      data: {
+        summary: {
+          confirmed_skills: [],
+          active_locks: [],
+          recent_traces: [],
+        },
+        text: expect.stringContaining("Confirmed skills: none"),
+      },
+    });
+  });
+
+  it("returns session ids for stale session cleanup", async () => {
+    const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "groundwork-cleanup-stale-"));
+    const sessionId = "cleanup-session";
+    await runGroundwork([
+      "session",
+      "skill-loaded",
+      JSON.stringify({ root_dir: rootDir, session_id: sessionId, skills: ["sdlc"] }),
+    ]);
+    const sessionRoot = path.join(rootDir, ".groundwork", "sessions");
+    const [encodedDir] = await fs.readdir(sessionRoot);
+    if (!encodedDir) throw new Error("missing session dir");
+    const old = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000);
+    await fs.utimes(path.join(sessionRoot, encodedDir), old, old);
+    const cleanup = await runGroundwork([
+      "session",
+      "cleanup",
+      JSON.stringify({ root_dir: rootDir, older_than_days: 1 }),
+    ]);
+    expect(parseJson(cleanup.stdout)).toMatchObject({
+      data: {
+        removed: [sessionId],
+      },
+    });
+  });
+
+  it("keeps Codex Stop hook non-continuing", async () => {
+    const result = await runGroundwork(
+      ["codex", "hook"],
+      JSON.stringify({ hook_event_name: "Stop", stop_hook_active: false }),
+    );
+    expect(result.exitCode).toBe(0);
+    expect(parseJson(result.stdout)).toEqual({});
+  });
+
   it("evaluates policy prompt guidance and blocks strict skill gates", async () => {
     const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "groundwork-policy-cli-"));
     await fs.mkdir(path.join(rootDir, ".opencode"), { recursive: true });

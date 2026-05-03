@@ -49,6 +49,7 @@ Codex hooks are best-effort guardrails, not a complete security boundary.
 - `PreToolUse` only intercepts supported tool paths.
 - `PostToolUse` cannot undo side effects; it can only report feedback after the tool has run.
 - Tool-triggered synthetic prompt injection is unsupported in Codex V1. Prompt-mode policy guidance is surfaced through explicit CLI output, static skill guidance, or user-prompt hook context, not through automatic tool-triggered prompt injection.
+- Codex compaction hook parity is unsupported in V1. Use `groundwork session render-compaction` for explicit compact Groundwork context from local artifacts.
 - The Groundwork skill teaches explicit CLI usage for paths hooks cannot cover.
 - Use `groundwork context touched-paths` explicitly when hook coverage is missing or when you need deterministic context reminder output.
 

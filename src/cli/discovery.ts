@@ -154,6 +154,13 @@ export const COMMAND_CAPABILITIES = [
     description: "Remove one session artifact or stale session artifacts.",
     schemas: ["groundwork.session.cleanup.input/v1"],
   },
+  {
+    command_id: "session.render-compaction",
+    command: "session render-compaction",
+    category: "workflow",
+    description: "Render compact Groundwork session context from durable artifacts.",
+    schemas: ["groundwork.session.render-compaction.input/v1"],
+  },
 ] as const;
 
 export const EXAMPLES = [
@@ -226,6 +233,12 @@ export const EXAMPLES = [
     command: "session cleanup",
     name: "Remove stale session artifacts",
     args: [`{"older_than_days":30}`],
+  },
+  {
+    command_id: "session.render-compaction",
+    command: "session render-compaction",
+    name: "Render compact session context",
+    args: [`{"session_id":"example"}`],
   },
 ] as const;
 

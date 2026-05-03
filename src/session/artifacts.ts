@@ -66,6 +66,11 @@ export const SessionCleanupInputSchema = SessionArtifactRootInputSchema.extend({
   session_id: z.string().min(1).optional(),
 }).strict();
 
+export const SessionRenderCompactionInputSchema = SessionArtifactRootInputSchema.extend({
+  session_id: z.string().min(1),
+  trace_limit: z.number().int().positive().max(100).optional(),
+}).strict();
+
 export type SessionGetInput = z.infer<typeof SessionGetInputSchema>;
 export type SessionSkillLoadedInput = z.infer<typeof SessionSkillLoadedInputSchema>;
 export type SessionOverrideInput = z.infer<typeof SessionOverrideInputSchema>;
@@ -73,6 +78,7 @@ export type SessionRememberActionInput = z.infer<typeof SessionRememberActionInp
 export type SessionPutPendingToolInput = z.infer<typeof SessionPutPendingToolInputSchema>;
 export type SessionAppendTraceInput = z.infer<typeof SessionAppendTraceInputSchema>;
 export type SessionCleanupInput = z.infer<typeof SessionCleanupInputSchema>;
+export type SessionRenderCompactionInput = z.infer<typeof SessionRenderCompactionInputSchema>;
 
 export interface SessionArtifactState {
   schemaVersion: typeof SESSION_ARTIFACT_SCHEMA_VERSION;
@@ -250,12 +256,71 @@ export async function cleanupSessionArtifacts(input: SessionCleanupInput) {
     const directory = path.join(sessionsDir, entry.name);
     const stat = await fs.stat(directory).catch(() => null);
     if (!stat || stat.mtimeMs > cutoff) continue;
+    const sessionID = await readSessionIDFromDirectory(directory).catch(() => entry.name);
     if (await removeDirectoryIfExists(directory)) {
-      removed.push(entry.name);
+      removed.push(sessionID);
     }
   }
 
   return { artifact_root: root, removed: removed.sort() };
+}
+
+export async function renderSessionCompaction(input: SessionRenderCompactionInput) {
+  const state = await readSessionState(input.root_dir, input.session_id);
+  const traces = await readRecentJsonLines(
+    resolveSessionFile(input.root_dir, input.session_id, TRACES_FILE),
+    input.trace_limit ?? 5,
+  );
+  const activeLocks = Object.entries(state.session.locks.active).map(([key, lock]) => ({
+    key,
+    scope: lock.scope,
+    reason: lock.reason,
+    source: lock.source,
+    paths: lock.paths ?? [],
+  }));
+  const contextActions = Object.entries(state.actions)
+    .filter(([, action]) => action.source === "groundwork-context")
+    .map(([key, action]) => ({
+      key,
+      count: action.count,
+      path: typeof action.metadata?.path === "string" ? action.metadata.path : undefined,
+    }));
+
+  const lines = [
+    `Groundwork session: ${input.session_id}`,
+    state.policy.confirmedSkills.length > 0
+      ? `Confirmed skills: ${state.policy.confirmedSkills.join(", ")}`
+      : "Confirmed skills: none",
+    state.policy.overrides.length > 0
+      ? `Policy overrides: ${state.policy.overrides
+          .map((override) => `${override.ruleId ?? "unscoped"} (${override.reason})`)
+          .join("; ")}`
+      : "Policy overrides: none",
+    activeLocks.length > 0
+      ? `Active locks: ${activeLocks
+          .map((lock) => `${lock.key}/${lock.scope}: ${lock.reason}`)
+          .join("; ")}`
+      : "Active locks: none",
+    contextActions.length > 0
+      ? `Context reminders seen: ${contextActions
+          .map((action) => action.path ?? action.key)
+          .join(", ")}`
+      : "Context reminders seen: none",
+    traces.length > 0 ? `Recent traces: ${traces.length}` : "Recent traces: none",
+  ];
+
+  return {
+    session_id: input.session_id,
+    artifact_root: resolveArtifactRoot(input.root_dir),
+    summary: {
+      confirmed_skills: state.policy.confirmedSkills,
+      overrides: state.policy.overrides,
+      active_locks: activeLocks,
+      context_reminders: contextActions,
+      recent_traces: traces,
+    },
+    text: lines.join("\n"),
+  };
 }
 
 export async function updateSessionArtifactState<T>(
@@ -345,6 +410,43 @@ async function appendSessionEvent(
 async function appendJsonLine(filePath: string, value: unknown) {
   await fs.mkdir(path.dirname(filePath), { recursive: true });
   await fs.appendFile(filePath, `${JSON.stringify(value)}\n`, "utf8");
+}
+
+async function readRecentJsonLines(filePath: string, limit: number): Promise<unknown[]> {
+  const raw = await readFileTail(filePath, 128 * 1024);
+  if (!raw.trim()) return [];
+  return raw
+    .trim()
+    .split(/\r?\n/)
+    .slice(-limit)
+    .map((line) => {
+      try {
+        return JSON.parse(line) as unknown;
+      } catch {
+        return { unreadable: true };
+      }
+    });
+}
+
+async function readFileTail(filePath: string, maxBytes: number): Promise<string> {
+  const handle = await fs.open(filePath, "r").catch(() => null);
+  if (!handle) return "";
+  try {
+    const stat = await handle.stat();
+    const length = Math.min(stat.size, maxBytes);
+    const position = Math.max(0, stat.size - length);
+    const buffer = Buffer.alloc(length);
+    await handle.read(buffer, 0, length, position);
+    return buffer.toString("utf8");
+  } finally {
+    await handle.close().catch(() => undefined);
+  }
+}
+
+async function readSessionIDFromDirectory(directory: string): Promise<string> {
+  const raw = await fs.readFile(path.join(directory, STATE_FILE), "utf8");
+  const parsed = JSON.parse(raw) as Partial<SessionArtifactState>;
+  return parsed.session?.sessionID ?? path.basename(directory);
 }
 
 function resolveSessionFile(rootDir: string | undefined, sessionID: string, fileName: string) {

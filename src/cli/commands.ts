@@ -52,6 +52,7 @@ import {
   SessionOverrideInputSchema,
   SessionPutPendingToolInputSchema,
   SessionRememberActionInputSchema,
+  SessionRenderCompactionInputSchema,
   SessionSkillLoadedInputSchema,
   appendSessionTrace,
   cleanupSessionArtifacts,
@@ -60,6 +61,7 @@ import {
   putPendingSessionTool,
   recordSessionOverride,
   rememberSessionAction,
+  renderSessionCompaction,
 } from "../session/index.ts";
 import { decodeJsonInput, executeJsonCommand } from "./protocol.ts";
 
@@ -364,6 +366,18 @@ const sessionCleanupCommand = Command.make("cleanup", { input: inputArg }, ({ in
   ),
 );
 
+const sessionRenderCompactionCommand = Command.make(
+  "render-compaction",
+  { input: inputArg },
+  ({ input }) =>
+    toEffect(() =>
+      executeJsonCommand("session render-compaction", async () => {
+        const payload = await decodeJsonInput(input, SessionRenderCompactionInputSchema);
+        return renderSessionCompaction(payload);
+      }),
+    ),
+);
+
 const sessionCommand = Command.make("session").pipe(
   Command.withDescription("Session artifact commands"),
   Command.withSubcommands([
@@ -373,6 +387,7 @@ const sessionCommand = Command.make("session").pipe(
     sessionOverrideCommand,
     sessionPutPendingToolCommand,
     sessionRememberActionCommand,
+    sessionRenderCompactionCommand,
     sessionSkillLoadedCommand,
   ]),
 );

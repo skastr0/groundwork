@@ -18,6 +18,7 @@ Core commands:
 - `groundwork policy skill-loaded '{"session_id":"codex","skills":["sdlc"]}'`
 - `groundwork context discover '{"target_path":"src/index.ts"}'`
 - `groundwork context touched-paths '{"session_id":"codex","tool":"edit","args":{"path":"src/index.ts"}}'`
+- `groundwork session render-compaction '{"session_id":"codex"}'`
 - `groundwork provenance repo-state '{"limit":10}'`
 - `groundwork provenance file-state '{"path":"src/index.ts"}'`
 

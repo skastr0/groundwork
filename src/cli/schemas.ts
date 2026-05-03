@@ -227,6 +227,23 @@ const SessionCleanupInputSchemaContract = {
   },
 } as const;
 
+const SessionRenderCompactionInputSchemaContract = {
+  schema_id: "groundwork.session.render-compaction.input/v1",
+  command_id: "session.render-compaction",
+  command: "session render-compaction",
+  description: "Render compact Groundwork session context from durable artifacts.",
+  schema: {
+    type: "object",
+    required: ["session_id"],
+    additionalProperties: false,
+    properties: {
+      root_dir: { type: "string", minLength: 1 },
+      session_id: { type: "string", minLength: 1 },
+      trace_limit: { type: "integer", minimum: 1, maximum: 100 },
+    },
+  },
+} as const;
+
 export type RiskEvaluateCommandInput = z.infer<typeof RiskEvaluateCommandInputSchema>;
 export type ContextDiscoverInput = z.infer<typeof ContextDiscoverInputSchema>;
 export type ContextTouchedPathsInput = z.infer<typeof ContextTouchedPathsInputSchema>;
@@ -247,6 +264,7 @@ export const SCHEMA_CONTRACTS = [
   SessionPutPendingToolInputSchemaContract,
   SessionAppendTraceInputSchemaContract,
   SessionCleanupInputSchemaContract,
+  SessionRenderCompactionInputSchemaContract,
   {
     schema_id: "groundwork.policy.evaluate-tool-call.input/v1",
     command_id: "policy.evaluate-tool-call",
