@@ -38,6 +38,7 @@ Supported behavior includes:
 - project paths: `groundwork.toml` and `.groundwork/*.toml`
 - global paths: `~/.groundwork/*.toml`
 - env overrides: `GROUNDWORK_POLICY_CONFIG` / `GROUNDWORK_POLICY_GLOBAL_CONFIG`
+- reusable policy plugins via `plugin` or `plugins`
 - include graphs via `include` or `includes`
 - rule-level tool filters, content matchers, and scope controls
 - session commands: `/policy override <reason>` and `/policy skill-loaded <skill...>`

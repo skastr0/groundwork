@@ -79,6 +79,7 @@ export type GuardrailRule = {
 
 export type GuardrailPolicyConfig = {
   version: 1;
+  plugins?: string[];
   includes?: string[];
   rules: GuardrailRule[];
 };
@@ -135,6 +136,12 @@ type ContentMatchRegionRunner = (params: {
   matcher: GuardrailContentMatcher;
   snippet?: GuardrailMatcherSnippet;
 }) => Promise<LineRange[]>;
+
+type PolicyLoadContext = {
+  rootDir: string;
+  home?: string;
+  scope: "global" | "project";
+};
 
 const PROJECT_GROUNDWORK_CONFIG_FILE = "groundwork.toml";
 const PROJECT_GROUNDWORK_CONFIG_DIR = ".groundwork";
@@ -218,7 +225,7 @@ function resolveEnvPath(configured: string, baseDir: string | undefined): string
 function listTomlFiles(directory: string): string[] {
   try {
     return readdirSync(directory, { withFileTypes: true })
-      .filter((entry) => entry.isFile() && entry.name.endsWith(".toml"))
+      .filter((entry) => entry.isFile() && isAutoPolicyTomlFile(entry.name))
       .map((entry) => path.join(directory, entry.name))
       .sort();
   } catch (error) {
@@ -229,6 +236,13 @@ function listTomlFiles(directory: string): string[] {
     if (code === "ENOENT") return [];
     throw error;
   }
+}
+
+function isAutoPolicyTomlFile(fileName: string): boolean {
+  if (!fileName.endsWith(".toml")) return false;
+  if (fileName.startsWith(".")) return false;
+  if (/^groundwork-[^.]+\.toml$/.test(fileName)) return false;
+  return true;
 }
 
 function uniquePaths(paths: readonly string[]): string[] {
@@ -353,7 +367,11 @@ export async function loadPolicyConfig(
   env: NodeJS.ProcessEnv = process.env,
 ): Promise<{ config: GuardrailPolicyConfig | null; path: string }> {
   const configPaths = resolveProjectPolicyConfigPaths(rootDir, env);
-  const { config } = await loadPolicyConfigFromPaths(configPaths);
+  const { config } = await loadPolicyConfigFromPaths(configPaths, {
+    rootDir,
+    home: env.HOME,
+    scope: "project",
+  });
   return { config, path: configPaths[0]! };
 }
 
@@ -377,8 +395,16 @@ export async function loadMergedPolicyConfig(
     (configPath) => !projectPathSet.has(path.resolve(configPath)),
   );
 
-  const globalResult = await loadPolicyConfigFromPaths(distinctGlobalPaths);
-  const projectResult = await loadPolicyConfigFromPaths(projectPaths);
+  const globalResult = await loadPolicyConfigFromPaths(distinctGlobalPaths, {
+    rootDir,
+    home: env.HOME,
+    scope: "global",
+  });
+  const projectResult = await loadPolicyConfigFromPaths(projectPaths, {
+    rootDir,
+    home: env.HOME,
+    scope: "project",
+  });
 
   const sourceCount = globalResult.sourceCount + projectResult.sourceCount;
   return {
@@ -393,11 +419,12 @@ export async function loadMergedPolicyConfig(
 
 async function loadPolicyConfigFromPaths(
   configPaths: readonly string[],
+  context: PolicyLoadContext,
 ): Promise<{ config: GuardrailPolicyConfig | null; sourceCount: number }> {
   let merged: GuardrailPolicyConfig | null = null;
   let sourceCount = 0;
   for (const configPath of uniquePaths(configPaths)) {
-    const config = await loadPolicyConfigFromPath(configPath);
+    const config = await loadPolicyConfigFromPath(configPath, context);
     if (!config) continue;
     merged = mergePolicyConfigs(merged, config);
     sourceCount += 1;
@@ -439,6 +466,7 @@ export function mergePolicyConfigs(
 
 async function loadPolicyConfigFromPath(
   configPath: string,
+  context: PolicyLoadContext,
   ancestry: string[] = [],
 ): Promise<GuardrailPolicyConfig | null> {
   const resolvedPath = path.resolve(configPath);
@@ -467,16 +495,36 @@ async function loadPolicyConfigFromPath(
     throw new Error(`Failed to load policy config at '${resolvedPath}': ${message}`);
   }
 
+  const plugins = parsedConfig.plugins ?? [];
   const includes = parsedConfig.includes ?? [];
-  if (includes.length === 0) {
+  if (plugins.length === 0 && includes.length === 0) {
     return { version: 1, rules: parsedConfig.rules };
   }
 
+  const pluginPaths = await resolvePolicyPluginPaths(resolvedPath, plugins, context);
   const includePaths = await resolveIncludedPolicyPaths(resolvedPath, includes);
   const sourceRules: Array<{ source: string; rules: GuardrailRule[] }> = [];
 
+  for (const pluginPath of pluginPaths) {
+    const pluginConfig = await loadPolicyConfigFromPath(pluginPath, context, [
+      ...ancestry,
+      resolvedPath,
+    ]);
+    if (!pluginConfig) {
+      throw new Error(`Policy plugin '${pluginPath}' was not found (from '${resolvedPath}')`);
+    }
+
+    sourceRules.push({
+      source: pluginPath,
+      rules: pluginConfig.rules,
+    });
+  }
+
   for (const includePath of includePaths) {
-    const includedConfig = await loadPolicyConfigFromPath(includePath, [...ancestry, resolvedPath]);
+    const includedConfig = await loadPolicyConfigFromPath(includePath, context, [
+      ...ancestry,
+      resolvedPath,
+    ]);
     if (!includedConfig) {
       throw new Error(
         `Included policy file '${includePath}' was not found (from '${resolvedPath}')`,
@@ -507,6 +555,8 @@ export function parsePolicyConfig(value: unknown): GuardrailPolicyConfig {
 
   const raw = value as {
     version?: unknown;
+    plugins?: unknown;
+    plugin?: unknown;
     include?: unknown;
     includes?: unknown;
     rules?: unknown;
@@ -515,14 +565,19 @@ export function parsePolicyConfig(value: unknown): GuardrailPolicyConfig {
     throw new Error("Policy config version must be 1");
   }
 
-  if (!Array.isArray(raw.rules)) {
+  const plugins = parseIncludes(raw.plugins ?? raw.plugin);
+  const includes = parseIncludes(raw.includes ?? raw.include);
+  if (raw.rules !== undefined && !Array.isArray(raw.rules)) {
+    throw new Error("Policy config rules must be an array");
+  }
+  if (raw.rules === undefined && plugins.length === 0 && includes.length === 0) {
     throw new Error("Policy config rules must be an array");
   }
 
-  const includes = parseIncludes(raw.includes ?? raw.include);
-  const rules = raw.rules.map((rule, index) => parseRule(rule, index));
+  const rawRules = raw.rules ?? [];
+  const rules = rawRules.map((rule, index) => parseRule(rule, index));
   assertUniqueRuleIds(rules, "policy config");
-  return { version: 1, includes, rules };
+  return { version: 1, plugins, includes, rules };
 }
 
 function parseRule(value: unknown, index: number): GuardrailRule {
@@ -2352,6 +2407,143 @@ async function resolveIncludedPolicyPaths(
   }
 
   return Array.from(resolved).sort();
+}
+
+async function resolvePolicyPluginPaths(
+  configPath: string,
+  plugins: string[],
+  context: PolicyLoadContext,
+): Promise<string[]> {
+  const resolved = new Set<string>();
+  for (const plugin of plugins) {
+    const pluginPaths = await resolvePolicyPluginPath(configPath, plugin, context);
+    for (const pluginPath of pluginPaths) {
+      resolved.add(path.resolve(pluginPath));
+    }
+  }
+
+  return Array.from(resolved);
+}
+
+async function resolvePolicyPluginPath(
+  configPath: string,
+  plugin: string,
+  context: PolicyLoadContext,
+): Promise<string[]> {
+  const trimmed = plugin.trim();
+  if (trimmed.length === 0) return [];
+
+  if (isPolicyPathReference(trimmed)) {
+    return resolvePolicyPluginPathReferences(configPath, [trimmed], context);
+  }
+
+  if (!/^[a-z0-9][a-z0-9_-]*$/i.test(trimmed)) {
+    throw new Error(`Invalid policy plugin name '${plugin}' in '${configPath}'`);
+  }
+
+  const candidates = uniquePaths(policyPluginCandidates(configPath, trimmed, context));
+  for (const candidate of candidates) {
+    if (await isRegularFile(candidate)) {
+      return [candidate];
+    }
+  }
+
+  throw new Error(
+    `Policy plugin '${plugin}' was not found from '${configPath}'. Checked: ${candidates.join(", ")}`,
+  );
+}
+
+function isPolicyPathReference(value: string): boolean {
+  return (
+    value.startsWith("./") ||
+    value.startsWith("../") ||
+    value.startsWith("~/") ||
+    path.isAbsolute(value) ||
+    value.includes("/") ||
+    value.includes("\\") ||
+    value.endsWith(".toml") ||
+    includeHasWildcard(value)
+  );
+}
+
+function policyPluginCandidates(
+  configPath: string,
+  pluginName: string,
+  context: PolicyLoadContext,
+): string[] {
+  const configDir = path.dirname(configPath);
+  const names = [`.${pluginName}.toml`, `${pluginName}.toml`];
+  const candidates: string[] = [];
+
+  const pushUnder = (directory: string) => {
+    for (const name of names) {
+      candidates.push(path.join(directory, name));
+    }
+    for (const name of names) {
+      candidates.push(path.join(directory, "plugins", name));
+    }
+  };
+
+  if (path.basename(configDir) === PROJECT_GROUNDWORK_CONFIG_DIR) {
+    pushUnder(configDir);
+  }
+
+  if (context.scope === "project") {
+    pushUnder(path.join(context.rootDir, PROJECT_GROUNDWORK_CONFIG_DIR));
+  }
+
+  if (context.home) {
+    pushUnder(path.join(context.home, GLOBAL_GROUNDWORK_CONFIG_DIR));
+  }
+
+  return candidates;
+}
+
+async function resolvePolicyPluginPathReferences(
+  configPath: string,
+  plugins: string[],
+  context: PolicyLoadContext,
+): Promise<string[]> {
+  const configDir = path.dirname(configPath);
+  const resolved = new Set<string>();
+
+  for (const plugin of plugins) {
+    const resolvedPlugin = resolvePolicyPluginPathReference(configDir, plugin, context);
+    const hasWildcard = includeHasWildcard(resolvedPlugin);
+
+    if (!hasWildcard) {
+      resolved.add(path.resolve(resolvedPlugin));
+      continue;
+    }
+
+    const matched = await expandIncludePattern(resolvedPlugin);
+    if (matched.length === 0) {
+      throw new Error(`Policy plugin pattern '${plugin}' in '${configPath}' matched no files`);
+    }
+
+    for (const entry of matched) {
+      resolved.add(path.resolve(entry));
+    }
+  }
+
+  return Array.from(resolved).sort();
+}
+
+function resolvePolicyPluginPathReference(
+  configDir: string,
+  plugin: string,
+  context: PolicyLoadContext,
+): string {
+  if (plugin.startsWith("~/")) {
+    if (!context.home) return plugin;
+    return path.join(context.home, plugin.slice(2));
+  }
+
+  if (path.isAbsolute(plugin)) {
+    return plugin;
+  }
+
+  return path.resolve(configDir, plugin);
 }
 
 function resolveIncludePath(configDir: string, include: string): string {

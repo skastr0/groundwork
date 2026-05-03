@@ -1,0 +1,57 @@
+version = 1
+plugins = ["groundwork-effect"]
+
+[[rules]]
+id = "groundwork-policy-config-edits"
+description = "Groundwork policy config changes should use the canonical readiness guidance"
+match = ["groundwork.toml", ".groundwork/*.toml", "src/policy/**"]
+
+[[rules.actions]]
+type = "ensure_skill_loaded"
+skills = ["groundwork-readiness"]
+mode = "prompt"
+once_per_session = true
+
+[[rules.actions]]
+type = "require_work_item"
+message = "Groundwork policy/runtime changes need an active SDLC work item."
+
+[[rules]]
+id = "groundwork-cli-surface-edits"
+description = "CLI protocol changes should preserve JSON-first agentic CLI contracts"
+match = ["src/cli.ts", "src/cli/**", "src/cli/schemas.ts"]
+
+[[rules.actions]]
+type = "ensure_skill_loaded"
+skills = ["agentic-cli-authoring"]
+mode = "prompt"
+once_per_session = true
+
+[[rules.actions]]
+type = "inject_prompt"
+text = "You are editing the Groundwork CLI surface. Preserve JSON input contracts, deterministic JSON envelopes, schema discoverability, typed errors, and script-safe behavior."
+once_per_session = true
+
+[[rules]]
+id = "groundwork-risk-policy-core-edits"
+description = "Policy and risk core changes have high guardrail blast radius"
+match = ["src/policy/**", "src/risk/**"]
+
+[[rules.actions]]
+type = "require_work_item"
+message = "Policy/risk core changes need explicit SDLC tracking with validation and rollback notes."
+
+[[rules.actions]]
+type = "inject_prompt"
+text = "Policy/risk core touched. Check harness parity, default-deny behavior, artifact/session effects, and targeted tests before finishing."
+once_per_session = true
+
+[[rules]]
+id = "groundwork-codex-opencode-integration-edits"
+description = "Harness integration changes should stay thin over the shared CLI/runtime foundations"
+match = ["src/server.ts", "src/groundwork.ts", "src/cli/codex.ts", ".codex-plugin/**", "hooks/**", "docs/codex-integration.md"]
+
+[[rules.actions]]
+type = "inject_prompt"
+text = "Harness integration touched. Keep Codex/OpenCode layers thin over shared Groundwork services, and document any harness-specific limitation explicitly."
+once_per_session = true

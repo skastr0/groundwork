@@ -164,9 +164,10 @@ describe("policy config parser", () => {
     ).toThrow("mixes content matcher types");
   });
 
-  it("parses severity, matcher expectations, includes, tool filters, scope, and ensure_skill_loaded", () => {
+  it("parses severity, matcher expectations, plugins, includes, tool filters, scope, and ensure_skill_loaded", () => {
     const config = parsePolicyConfig({
       version: 1,
+      plugins: ["groundwork-effect"],
       includes: ["./policy.auth.toml", "./policy.queue.toml"],
       rules: [
         {
@@ -195,6 +196,7 @@ describe("policy config parser", () => {
       ],
     });
 
+    expect(config.plugins).toEqual(["groundwork-effect"]);
     expect(config.includes).toEqual(["./policy.auth.toml", "./policy.queue.toml"]);
     expect(config.rules[0]?.severity).toBe("terminate");
     expect(config.rules[0]?.tools_include).toEqual(["edit", "write"]);
@@ -202,6 +204,21 @@ describe("policy config parser", () => {
     expect(config.rules[0]?.scope).toBe("changed_lines");
     expect(config.rules[0]?.content?.[0]?.expect).toBe("absent");
     expect(config.rules[0]?.actions[0]?.type).toBe("ensure_skill_loaded");
+  });
+
+  it("allows composition-only configs with plugins or includes", () => {
+    expect(parsePolicyConfig({ version: 1, plugins: ["groundwork-effect"] })).toEqual({
+      version: 1,
+      plugins: ["groundwork-effect"],
+      includes: [],
+      rules: [],
+    });
+    expect(parsePolicyConfig({ version: 1, includes: [".groundwork/policy.*.toml"] })).toEqual({
+      version: 1,
+      plugins: [],
+      includes: [".groundwork/policy.*.toml"],
+      rules: [],
+    });
   });
 
   it("rejects duplicate rule ids in the same config", () => {
@@ -1078,6 +1095,167 @@ text = "base rule"
     expect(merged.config?.rules.map((rule) => rule.id)).toEqual(["auth", "queue", "base"]);
   });
 
+  it("loads named policy plugins from user Groundwork config", async () => {
+    const home = await createTempRoot();
+    const root = await createTempRoot();
+    const pluginPath = path.join(home, ".groundwork", "groundwork-effect.toml");
+    const projectPath = path.join(root, "groundwork.toml");
+    await fs.mkdir(path.dirname(pluginPath), { recursive: true });
+    await fs.writeFile(
+      pluginPath,
+      toTomlPolicy({ id: "effect-plugin", match: "src/**", text: "effect plugin" }),
+    );
+    await fs.writeFile(
+      projectPath,
+      `version = 1
+plugins = ["groundwork-effect"]
+
+[[rules]]
+id = "project"
+match = ["src/**"]
+
+[[rules.actions]]
+type = "inject_prompt"
+text = "project"
+`,
+    );
+
+    const merged = await loadMergedPolicyConfig(root, { HOME: home });
+    expect(merged.config?.rules.map((rule) => rule.id)).toEqual(["effect-plugin", "project"]);
+  });
+
+  it("loads tilde policy plugin paths using the configured HOME", async () => {
+    const originalHome = process.env.HOME;
+    const processHome = await createTempRoot();
+    const configuredHome = await createTempRoot();
+    const root = await createTempRoot();
+    const configuredPluginPath = path.join(configuredHome, ".groundwork", "custom-effect.toml");
+    const processPluginPath = path.join(processHome, ".groundwork", "custom-effect.toml");
+    await fs.mkdir(path.dirname(configuredPluginPath), { recursive: true });
+    await fs.mkdir(path.dirname(processPluginPath), { recursive: true });
+    await fs.writeFile(
+      configuredPluginPath,
+      toTomlPolicy({ id: "configured-home", match: "src/**", text: "configured home" }),
+    );
+    await fs.writeFile(
+      processPluginPath,
+      toTomlPolicy({ id: "process-home", match: "src/**", text: "process home" }),
+    );
+    await fs.writeFile(
+      path.join(root, "groundwork.toml"),
+      `version = 1
+plugins = ["~/.groundwork/custom-effect.toml"]
+`,
+    );
+
+    try {
+      process.env.HOME = processHome;
+      const merged = await loadMergedPolicyConfig(root, { HOME: configuredHome });
+      expect(merged.config?.rules.map((rule) => rule.id)).toEqual(["configured-home"]);
+    } finally {
+      if (originalHome === undefined) {
+        delete process.env.HOME;
+      } else {
+        process.env.HOME = originalHome;
+      }
+    }
+  });
+
+  it("loads named policy plugins from project Groundwork config before user plugins", async () => {
+    const home = await createTempRoot();
+    const root = await createTempRoot();
+    const userPluginPath = path.join(home, ".groundwork", "groundwork-effect.toml");
+    const projectPluginPath = path.join(root, ".groundwork", ".groundwork-effect.toml");
+    await fs.mkdir(path.dirname(userPluginPath), { recursive: true });
+    await fs.mkdir(path.dirname(projectPluginPath), { recursive: true });
+    await fs.writeFile(
+      userPluginPath,
+      toTomlPolicy({ id: "user-effect", match: "src/**", text: "user effect" }),
+    );
+    await fs.writeFile(
+      projectPluginPath,
+      toTomlPolicy({ id: "project-effect", match: "src/**", text: "project effect" }),
+    );
+    await fs.writeFile(
+      path.join(root, "groundwork.toml"),
+      `version = 1
+plugins = ["groundwork-effect"]
+
+[[rules]]
+id = "project"
+match = ["src/**"]
+
+[[rules.actions]]
+type = "inject_prompt"
+text = "project"
+`,
+    );
+
+    const merged = await loadMergedPolicyConfig(root, { HOME: home });
+    expect(merged.config?.rules.map((rule) => rule.id)).toEqual(["project-effect", "project"]);
+  });
+
+  it("does not let root-level bare plugin files shadow project Groundwork plugins", async () => {
+    const home = await createTempRoot();
+    const root = await createTempRoot();
+    const rootSiblingPath = path.join(root, "groundwork-effect.toml");
+    const projectPluginPath = path.join(root, ".groundwork", "groundwork-effect.toml");
+    await fs.mkdir(path.dirname(projectPluginPath), { recursive: true });
+    await fs.writeFile(
+      rootSiblingPath,
+      toTomlPolicy({ id: "root-sibling", match: "src/**", text: "root sibling" }),
+    );
+    await fs.writeFile(
+      projectPluginPath,
+      toTomlPolicy({ id: "project-plugin", match: "src/**", text: "project plugin" }),
+    );
+    await fs.writeFile(
+      path.join(root, "groundwork.toml"),
+      `version = 1
+plugins = ["groundwork-effect"]
+`,
+    );
+
+    const merged = await loadMergedPolicyConfig(root, { HOME: home });
+    expect(merged.config?.rules.map((rule) => rule.id)).toEqual(["project-plugin"]);
+  });
+
+  it("loads policy plugins from relative and absolute paths", async () => {
+    const root = await createTempRoot();
+    const relativePluginPath = path.join(root, ".groundwork", "relative.toml");
+    const absolutePluginPath = path.join(root, ".groundwork", "absolute.toml");
+    await fs.mkdir(path.dirname(relativePluginPath), { recursive: true });
+    await fs.writeFile(
+      relativePluginPath,
+      toTomlPolicy({ id: "relative-plugin", match: "src/**", text: "relative plugin" }),
+    );
+    await fs.writeFile(
+      absolutePluginPath,
+      toTomlPolicy({ id: "absolute-plugin", match: "src/**", text: "absolute plugin" }),
+    );
+    await fs.writeFile(
+      path.join(root, "groundwork.toml"),
+      `version = 1
+plugins = [".groundwork/relative.toml", "${absolutePluginPath}"]
+
+[[rules]]
+id = "project"
+match = ["src/**"]
+
+[[rules.actions]]
+type = "inject_prompt"
+text = "project"
+`,
+    );
+
+    const merged = await loadMergedPolicyConfig(root, { HOME: path.join(root, "home") });
+    expect(merged.config?.rules.map((rule) => rule.id)).toEqual([
+      "relative-plugin",
+      "absolute-plugin",
+      "project",
+    ]);
+  });
+
   it("throws when include graph has duplicate rule ids", async () => {
     const root = await createTempRoot();
     const projectDir = path.join(root, ".groundwork");
@@ -1186,6 +1364,30 @@ text = "b"
       "policy.queue.toml",
     ]);
     expect(merged.config?.rules.map((rule) => rule.id)).toEqual(["auth", "queue"]);
+  });
+
+  it("does not auto-load policy plugin pack files from Groundwork directories", async () => {
+    const root = await createTempRoot();
+    const projectDir = path.join(root, ".groundwork");
+    await fs.mkdir(projectDir, { recursive: true });
+    await fs.writeFile(
+      path.join(projectDir, "groundwork-effect.toml"),
+      toTomlPolicy({ id: "effect", match: "src/**", text: "effect" }),
+    );
+    await fs.writeFile(
+      path.join(projectDir, ".groundwork-security.toml"),
+      toTomlPolicy({ id: "security", match: "src/**", text: "security" }),
+    );
+    await fs.writeFile(
+      path.join(projectDir, "policy.auth.toml"),
+      toTomlPolicy({ id: "auth", match: "apps/auth/**", text: "auth" }),
+    );
+
+    const merged = await loadMergedPolicyConfig(root, { HOME: path.join(root, "home") });
+    expect(merged.projectPaths.map((configPath) => path.basename(configPath))).toEqual([
+      "policy.auth.toml",
+    ]);
+    expect(merged.config?.rules.map((rule) => rule.id)).toEqual(["auth"]);
   });
 
   it("merges project groundwork.toml with project .groundwork TOML files", async () => {

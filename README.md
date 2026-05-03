@@ -40,20 +40,21 @@ Discovery commands expose supported capabilities, examples, and JSON schema cont
 Groundwork-owned config paths are canonical:
 
 - project root: `groundwork.toml`
-- project config directory: `.groundwork/*.toml`
-- user/global config directory: `~/.groundwork/*.toml`
+- project config directory: `.groundwork/*.toml` policy files
+- user/global config directory: `~/.groundwork/*.toml` policy files
 
-The policy loader merges global configs first, then project configs. Later files can override earlier rules by reusing the same rule `id`. Legacy OpenCode policy paths are not read.
+The policy loader merges global configs first, then project configs. Later files can override earlier rules by reusing the same rule `id`.
 
 Environment overrides use Groundwork names only:
 
 - project: `GROUNDWORK_POLICY_CONFIG`
 - global: `GROUNDWORK_POLICY_GLOBAL_CONFIG`
 
-Use `include` or `includes` for complex composition:
+Use `plugins` for reusable policy packs and `include` or `includes` for local file composition. Plugin pack files such as `groundwork-effect.toml` are opt-in and are not auto-loaded merely because they live in a Groundwork directory:
 
 ```toml
 version = 1
+plugins = ["groundwork-effect"]
 includes = [".groundwork/policy.*.toml"]
 
 [[rules]]
