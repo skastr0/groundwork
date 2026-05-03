@@ -10,7 +10,7 @@ import {
   createSessionKernelStore,
   rememberFrameworkAction,
   renderFrameworkCompactionContext,
-  EpistemologyFrameworkPlugin,
+  GroundworkPlugin,
   FRAMEWORK_AMBIENT_BUDGET_LEDGER_KEYS,
   FRAMEWORK_COMPACTION_CONTEXT_MAX_BYTES,
   FRAMEWORK_SYSTEM_TRANSFORM_GUIDANCE,
@@ -37,10 +37,10 @@ vi.mock("@opencode-ai/plugin", async () => {
 describe("framework provenance runtime", () => {
   it("keeps the system transform guidance stable and within budget", () => {
     expect(renderFrameworkSystemTransformGuidance()).toMatchInlineSnapshot(`
-      "Epistemology framework reminders:
-      - worldview: honor inherited \`AGENTS.md\`/\`CLAUDE.md\` reminders; deeper files override parents.
+      "Groundwork reminders:
+      - context: honor inherited \`AGENTS.md\`/\`CLAUDE.md\` reminders; deeper files override parents.
       - policy: treat guardrails and tool blocks as binding, not puzzles to route around.
-      - provenance: use \`prov_*\` tools when history or trust matters, and separate observed evidence from inference."
+      - provenance: use \`gw_*\` tools when history or trust matters, and separate observed evidence from inference."
     `);
     expect(FRAMEWORK_SYSTEM_TRANSFORM_GUIDANCE).toBe(renderFrameworkSystemTransformGuidance());
     expect(Buffer.byteLength(FRAMEWORK_SYSTEM_TRANSFORM_GUIDANCE, "utf8")).toBeLessThanOrEqual(
@@ -80,7 +80,7 @@ describe("framework provenance runtime", () => {
     }
   });
 
-  it("exports the prov_* surface from one framework registry path", async () => {
+  it("exports the gw_* surface from one framework registry path", async () => {
     const { createFrameworkProvenanceTools, FRAMEWORK_PROVENANCE_TOOL_IDS } =
       await import("../provenance/registry.ts");
     const tools = createFrameworkProvenanceTools({
@@ -129,31 +129,31 @@ describe("framework provenance runtime", () => {
       {
         toolID: "read",
         description:
-          "read description. Provenance: if lineage matters, prefer `prov_read`, `prov_file_state`, or `prov_span_history`.",
+          "read description. Provenance: if lineage matters, prefer `gw_read`, `gw_file_state`, or `gw_span_history`.",
         schemaStable: true,
       },
       {
         toolID: "grep",
         description:
-          "grep description. Provenance: if match clusters matter, prefer `prov_tree_expand` or `prov_worktree_overview`.",
+          "grep description. Provenance: if match clusters matter, prefer `gw_tree_expand` or `gw_worktree_overview`.",
         schemaStable: true,
       },
       {
         toolID: "edit",
         description:
-          "edit description. Provenance: if recent edits are unclear, inspect `prov_span_history` or `prov_file_state` first.",
+          "edit description. Provenance: if recent edits are unclear, inspect `gw_span_history` or `gw_file_state` first.",
         schemaStable: true,
       },
       {
         toolID: "task",
         description:
-          "task description. Provenance: if delegated work needs verification, ask for cited files or commits and confirm with `prov_pr_expand` or `prov_worktree_overview`.",
+          "task description. Provenance: if delegated work needs verification, ask for cited files or commits and confirm with `gw_pr_expand` or `gw_worktree_overview`.",
         schemaStable: true,
       },
       {
         toolID: "bash",
         description:
-          "bash description. Provenance: for repo state or recent history, prefer `prov_repo_state`, `prov_worktree_overview`, or `prov_commit_expand`.",
+          "bash description. Provenance: for repo state or recent history, prefer `gw_repo_state`, `gw_worktree_overview`, or `gw_commit_expand`.",
         schemaStable: true,
       },
       {
@@ -334,7 +334,7 @@ describe("framework provenance runtime", () => {
     state.locks.active["policy-pending-override"] = {
       scope: "mutating-tools",
       reason: "Need explicit human review before continuing.",
-      source: "epistemology-framework-policy",
+      source: "groundwork-policy",
       createdAt: "2026-03-18T08:09:01.000Z",
       paths: ["infra/prod/main.tf"],
     };
@@ -347,7 +347,7 @@ describe("framework provenance runtime", () => {
     };
     rememberFrameworkAction(state, {
       now: "2026-03-18T08:09:03.000Z",
-      source: "worldview",
+      source: "context",
       action: "inject-file",
       parts: ["/repo/AGENTS.md"],
       metadata: {
@@ -357,7 +357,7 @@ describe("framework provenance runtime", () => {
     });
     rememberFrameworkAction(state, {
       now: "2026-03-18T08:09:04.000Z",
-      source: "worldview",
+      source: "context",
       action: "inject-file",
       parts: ["/repo/packages/feature/CLAUDE.md"],
       metadata: {
@@ -378,8 +378,8 @@ describe("framework provenance runtime", () => {
       renderFrameworkCompactionContext(sessionStore.get("session-compaction-1")!),
     );
     expect(output.context[0]).toMatchInlineSnapshot(`
-      "Epistemology framework context:
-      - worldview: injected files /repo/AGENTS.md, /repo/packages/feature/CLAUDE.md
+      "Groundwork context:
+      - context: injected files /repo/AGENTS.md, /repo/packages/feature/CLAUDE.md
       - policy: active locks policy-pending-override (mutating-tools); confirmed skills policy-toml-guardrails, sdlc; completed prompt-only rules guidance
       - provenance: prompt role=user agent=builder model=openai/gpt-5.4 variant=careful tools edit=false, read=true, task=true; pending tools edit_file(src/main.ts)"
     `);
@@ -388,10 +388,10 @@ describe("framework provenance runtime", () => {
     );
   });
 
-  it("preserves shared worldview and policy state through plugin compaction", async () => {
+  it("preserves shared context and policy state through plugin compaction", async () => {
     const globalConfig = path.join(
       os.tmpdir(),
-      `epistemology-framework-global-${Date.now()}-${Math.random().toString(16).slice(2)}.toml`,
+      `groundwork-global-${Date.now()}-${Math.random().toString(16).slice(2)}.toml`,
     );
     const harness = await createFrameworkHookHarness({
       createHooks: async (context) => {
@@ -413,7 +413,7 @@ text = "stay within guardrails"
         process.env.OPENCODE_POLICY_GUARDRAIL_GLOBAL_CONFIG = globalConfig;
 
         try {
-          return await EpistemologyFrameworkPlugin(context);
+          return await GroundworkPlugin(context);
         } finally {
           if (previousGlobalConfig === undefined) {
             delete process.env.OPENCODE_POLICY_GUARDRAIL_GLOBAL_CONFIG;
@@ -428,8 +428,8 @@ text = "stay within guardrails"
       const parentPath = path.join(harness.rootDir, "packages", "AGENTS.md");
       const childPath = path.join(harness.rootDir, "packages", "feature", "CLAUDE.md");
 
-      await writeText(parentPath, "Parent worldview guidance");
-      await writeText(childPath, "Child worldview guidance");
+      await writeText(parentPath, "Parent context guidance");
+      await writeText(childPath, "Child context guidance");
 
       await harness.invokeChatMessage(
         { sessionID: "session-compaction-2" },
@@ -462,7 +462,7 @@ text = "stay within guardrails"
       );
 
       expect(compactionOutput.context).toHaveLength(1);
-      expect(compactionOutput.context[0]).toContain("worldview: injected files");
+      expect(compactionOutput.context[0]).toContain("context: injected files");
       expect(compactionOutput.context[0]).toContain(parentPath);
       expect(compactionOutput.context[0]).toContain(childPath);
       expect(compactionOutput.context[0]).toContain("confirmed skills sdlc");

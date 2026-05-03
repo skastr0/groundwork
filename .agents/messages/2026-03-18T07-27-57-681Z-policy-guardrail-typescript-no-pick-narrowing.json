@@ -15,7 +15,7 @@
       "call_id": "call_dGJc3mZddEie5HSLp5rx1vHL",
       "message": "Avoid `Pick<...>` narrowing. Define the exact shape you need as a named contract or pass the original owned type through the boundary.",
       "paths": [
-        "plugin/epistemology-framework/provenance/runtime.ts"
+        "plugin/groundwork/provenance/runtime.ts"
       ]
     }
   },

@@ -1,6 +1,6 @@
 import path from "node:path";
 import type { PluginInput } from "@opencode-ai/plugin";
-import type { EpistemologyFrameworkLayerRegistration } from "../layer/index.ts";
+import type { GroundworkLayerRegistration } from "../layer/index.ts";
 import {
   applyFrameworkPromptBudget,
   createFrameworkActionDedupeKey,
@@ -18,64 +18,64 @@ import {
   type SessionKernelStore,
 } from "../kernel/index.ts";
 import {
-  discoverFrameworkWorldviewFiles,
-  type FrameworkDiscoveredWorldviewFile,
+  discoverFrameworkContextFiles,
+  type FrameworkDiscoveredContextFile,
 } from "./discovery.ts";
 
-const SERVICE = "epistemology-framework-worldview";
-const WORLDVIEW_TRIGGER_TOOLS = new Set(["read", "edit", "write", "patch", "apply_patch"]);
-const WORLDVIEW_PROMPT_CONTEXT_LIMIT = 10;
-const WORLDVIEW_REMINDER_PREFIX = "<system-reminder>\n";
-const WORLDVIEW_REMINDER_SUFFIX = "\n</system-reminder>";
-const WORLDVIEW_REMINDER_SEPARATOR = "\n\n";
-const WORLDVIEW_DEDUPE_SOURCE = "worldview";
-const WORLDVIEW_DEDUPE_ACTION = "inject-file";
+const SERVICE = "groundwork-context";
+const CONTEXT_TRIGGER_TOOLS = new Set(["read", "edit", "write", "patch", "apply_patch"]);
+const CONTEXT_PROMPT_CONTEXT_LIMIT = 10;
+const CONTEXT_REMINDER_PREFIX = "<system-reminder>\n";
+const CONTEXT_REMINDER_SUFFIX = "\n</system-reminder>";
+const CONTEXT_REMINDER_SEPARATOR = "\n\n";
+const CONTEXT_DEDUPE_SOURCE = "context";
+const CONTEXT_DEDUPE_ACTION = "inject-file";
 
-export const FRAMEWORK_WORLDVIEW_INJECTION_MAX_ITEMS = 4;
-export const FRAMEWORK_WORLDVIEW_INJECTION_MAX_BYTES = 3072;
+export const FRAMEWORK_CONTEXT_INJECTION_MAX_ITEMS = 4;
+export const FRAMEWORK_CONTEXT_INJECTION_MAX_BYTES = 3072;
 
-const WORLDVIEW_REMINDER_CONTENT_MAX_BYTES = Math.max(
+const CONTEXT_REMINDER_CONTENT_MAX_BYTES = Math.max(
   0,
-  FRAMEWORK_WORLDVIEW_INJECTION_MAX_BYTES -
-    Buffer.byteLength(WORLDVIEW_REMINDER_PREFIX, "utf8") -
-    Buffer.byteLength(WORLDVIEW_REMINDER_SUFFIX, "utf8") -
-    Buffer.byteLength(WORLDVIEW_REMINDER_SEPARATOR, "utf8") *
-      Math.max(0, FRAMEWORK_WORLDVIEW_INJECTION_MAX_ITEMS - 1),
+  FRAMEWORK_CONTEXT_INJECTION_MAX_BYTES -
+    Buffer.byteLength(CONTEXT_REMINDER_PREFIX, "utf8") -
+    Buffer.byteLength(CONTEXT_REMINDER_SUFFIX, "utf8") -
+    Buffer.byteLength(CONTEXT_REMINDER_SEPARATOR, "utf8") *
+      Math.max(0, FRAMEWORK_CONTEXT_INJECTION_MAX_ITEMS - 1),
 );
 
-type FrameworkWorldviewRuntimeClient = PluginInput["client"] & FrameworkPromptContextClient;
+type FrameworkContextRuntimeClient = PluginInput["client"] & FrameworkPromptContextClient;
 
-type BoundedWorldviewReminder = {
-  file: FrameworkDiscoveredWorldviewFile;
+type BoundedContextReminder = {
+  file: FrameworkDiscoveredContextFile;
   text: string;
 };
 
-export interface CreateFrameworkWorldviewLayerOptions {
-  client: FrameworkWorldviewRuntimeClient;
+export interface CreateFrameworkContextLayerOptions {
+  client: FrameworkContextRuntimeClient;
   directory: string;
   sessionStore?: SessionKernelStore;
   worktree?: string;
 }
 
-export async function createFrameworkWorldviewLayer(
-  options: CreateFrameworkWorldviewLayerOptions,
-): Promise<EpistemologyFrameworkLayerRegistration> {
+export async function createFrameworkContextLayer(
+  options: CreateFrameworkContextLayerOptions,
+): Promise<GroundworkLayerRegistration> {
   const directory = path.resolve(options.directory);
   const rootDir = path.resolve(options.worktree ?? options.directory);
   const sessionStore = options.sessionStore ?? createSessionKernelStore();
 
-  await log(options.client, "info", "Framework worldview runtime initialized", {
+  await log(options.client, "info", "Framework context runtime initialized", {
     directory,
     rootDir,
-    max_items: FRAMEWORK_WORLDVIEW_INJECTION_MAX_ITEMS,
-    max_bytes: FRAMEWORK_WORLDVIEW_INJECTION_MAX_BYTES,
+    max_items: FRAMEWORK_CONTEXT_INJECTION_MAX_ITEMS,
+    max_bytes: FRAMEWORK_CONTEXT_INJECTION_MAX_BYTES,
   });
 
   return {
     active: true,
     hooks: {
       "tool.execute.before": async ({ tool, callID, sessionID }, { args }) => {
-        if (!WORLDVIEW_TRIGGER_TOOLS.has(tool)) {
+        if (!CONTEXT_TRIGGER_TOOLS.has(tool)) {
           return;
         }
 
@@ -89,7 +89,7 @@ export async function createFrameworkWorldviewLayer(
         }
 
         const state = getOrCreateSessionState(sessionStore, sessionID);
-        state.pendingTools.calls[createWorldviewPendingToolKey(callID)] = {
+        state.pendingTools.calls[createContextPendingToolKey(callID)] = {
           callID,
           toolName: tool,
           phase: "after",
@@ -103,12 +103,12 @@ export async function createFrameworkWorldviewLayer(
       },
 
       "tool.execute.after": async ({ tool, callID, sessionID }) => {
-        if (!WORLDVIEW_TRIGGER_TOOLS.has(tool)) {
+        if (!CONTEXT_TRIGGER_TOOLS.has(tool)) {
           return;
         }
 
         let state = getOrCreateSessionState(sessionStore, sessionID);
-        const pendingKey = createWorldviewPendingToolKey(callID);
+        const pendingKey = createContextPendingToolKey(callID);
         const pending = state.pendingTools.calls[pendingKey];
         if (!pending) {
           return;
@@ -117,29 +117,29 @@ export async function createFrameworkWorldviewLayer(
         delete state.pendingTools.calls[pendingKey];
         state = sessionStore.set(state);
 
-        const discoveredFiles = await collectDiscoveredWorldviewFiles(pending.targets, {
+        const discoveredFiles = await collectDiscoveredContextFiles(pending.targets, {
           directory,
           rootDir,
         });
         const unseenFiles = discoveredFiles.filter(
-          (file) => !hasInjectedWorldviewFile(state, file.path),
+          (file) => !hasInjectedContextFile(state, file.path),
         );
         if (unseenFiles.length === 0) {
           return;
         }
 
-        const promptContext = await resolveWorldviewPromptContext(options.client, state, sessionID);
+        const promptContext = await resolveContextPromptContext(options.client, state, sessionID);
         if (!promptContext) {
           await log(
             options.client,
             "warn",
-            "Skipping worldview injection because prompt context is unavailable",
+            "Skipping context injection because prompt context is unavailable",
             {
               sessionID,
               callID,
               tool,
               target_count: pending.targets.length,
-              worldview_paths: unseenFiles.map((file) => file.path),
+              context_paths: unseenFiles.map((file) => file.path),
             },
           );
           return;
@@ -149,12 +149,12 @@ export async function createFrameworkWorldviewLayer(
         state = sessionStore.set(state);
 
         const now = new Date().toISOString();
-        const reminders = buildBoundedWorldviewReminders(state, unseenFiles, now);
+        const reminders = buildBoundedContextReminders(state, unseenFiles, now);
         if (reminders.length === 0) {
           return;
         }
 
-        const text = wrapWorldviewReminder(reminders.map((reminder) => reminder.text));
+        const text = wrapContextReminder(reminders.map((reminder) => reminder.text));
         if (!text) {
           return;
         }
@@ -177,8 +177,8 @@ export async function createFrameworkWorldviewLayer(
         for (const reminder of reminders) {
           rememberFrameworkAction(state, {
             now,
-            source: WORLDVIEW_DEDUPE_SOURCE,
-            action: WORLDVIEW_DEDUPE_ACTION,
+            source: CONTEXT_DEDUPE_SOURCE,
+            action: CONTEXT_DEDUPE_ACTION,
             parts: [reminder.file.path],
             metadata: {
               path: reminder.file.path,
@@ -188,13 +188,13 @@ export async function createFrameworkWorldviewLayer(
         }
         sessionStore.set(state);
 
-        await log(options.client, "info", "Injected worldview reminders", {
+        await log(options.client, "info", "Injected context reminders", {
           sessionID,
           callID,
           tool,
           injected_count: reminders.length,
           discovered_count: discoveredFiles.length,
-          worldview_paths: reminders.map((reminder) => reminder.file.path),
+          context_paths: reminders.map((reminder) => reminder.file.path),
           bounded_bytes: Buffer.byteLength(text, "utf8"),
         });
       },
@@ -230,15 +230,15 @@ function getOrCreateSessionState(
   return sessionStore.get(sessionID) ?? sessionStore.create(sessionID);
 }
 
-function createWorldviewPendingToolKey(callID: string): string {
+function createContextPendingToolKey(callID: string): string {
   return `${SERVICE}::${callID}`;
 }
 
-async function collectDiscoveredWorldviewFiles(
+async function collectDiscoveredContextFiles(
   targets: readonly FrameworkToolTarget[],
   options: { directory: string; rootDir: string },
-): Promise<FrameworkDiscoveredWorldviewFile[]> {
-  const files: FrameworkDiscoveredWorldviewFile[] = [];
+): Promise<FrameworkDiscoveredContextFile[]> {
+  const files: FrameworkDiscoveredContextFile[] = [];
   const seenPaths = new Set<string>();
 
   for (const target of targets) {
@@ -247,7 +247,7 @@ async function collectDiscoveredWorldviewFiles(
       continue;
     }
 
-    const discovered = await discoverFrameworkWorldviewFiles({
+    const discovered = await discoverFrameworkContextFiles({
       targetPath,
       directory: options.directory,
       rootDir: options.rootDir,
@@ -275,8 +275,8 @@ function resolveDiscoveryTargetPath(target: FrameworkToolTarget, rootDir: string
   return path.join(rootDir, normalizedPath);
 }
 
-async function resolveWorldviewPromptContext(
-  client: FrameworkWorldviewRuntimeClient,
+async function resolveContextPromptContext(
+  client: FrameworkContextRuntimeClient,
   state: FrameworkSessionKernelState,
   sessionID: string,
 ): Promise<FrameworkPromptContext | null> {
@@ -285,7 +285,7 @@ async function resolveWorldviewPromptContext(
   }
 
   const promptContext = await resolveSessionPromptContext(client, sessionID, {
-    limit: WORLDVIEW_PROMPT_CONTEXT_LIMIT,
+    limit: CONTEXT_PROMPT_CONTEXT_LIMIT,
   });
   if (promptContext) {
     state.promptContext = promptContext;
@@ -294,14 +294,14 @@ async function resolveWorldviewPromptContext(
   return promptContext;
 }
 
-function hasInjectedWorldviewFile(
+function hasInjectedContextFile(
   state: FrameworkSessionKernelState,
-  worldviewPath: string,
+  contextPath: string,
 ): boolean {
   const key = createFrameworkActionDedupeKey({
-    source: WORLDVIEW_DEDUPE_SOURCE,
-    action: WORLDVIEW_DEDUPE_ACTION,
-    parts: [worldviewPath],
+    source: CONTEXT_DEDUPE_SOURCE,
+    action: CONTEXT_DEDUPE_ACTION,
+    parts: [contextPath],
   });
 
   return (
@@ -310,38 +310,38 @@ function hasInjectedWorldviewFile(
   );
 }
 
-function buildBoundedWorldviewReminders(
+function buildBoundedContextReminders(
   state: FrameworkSessionKernelState,
-  files: readonly FrameworkDiscoveredWorldviewFile[],
+  files: readonly FrameworkDiscoveredContextFile[],
   now: string,
-): BoundedWorldviewReminder[] {
+): BoundedContextReminder[] {
   const reminders = files.map((file) => ({
     file,
-    text: createWorldviewReminderText(file),
+    text: createContextReminderText(file),
   }));
 
   return applyFrameworkPromptBudget(state, reminders, {
     now,
-    itemLimit: FRAMEWORK_WORLDVIEW_INJECTION_MAX_ITEMS,
-    byteLimit: WORLDVIEW_REMINDER_CONTENT_MAX_BYTES,
+    itemLimit: FRAMEWORK_CONTEXT_INJECTION_MAX_ITEMS,
+    byteLimit: CONTEXT_REMINDER_CONTENT_MAX_BYTES,
     getSize: (reminder) => Buffer.byteLength(reminder.text, "utf8"),
     truncateItem: (reminder, maxBytes) => {
-      const text = truncateWorldviewReminderText(reminder.file, maxBytes);
+      const text = truncateContextReminderText(reminder.file, maxBytes);
       return text ? { ...reminder, text } : null;
     },
     metadata: {
-      purpose: "worldview",
+      purpose: "context",
       source: SERVICE,
     },
   }).items;
 }
 
-function createWorldviewReminderText(file: FrameworkDiscoveredWorldviewFile): string {
+function createContextReminderText(file: FrameworkDiscoveredContextFile): string {
   return `Instructions from: ${file.path}\n${file.content}`;
 }
 
-function truncateWorldviewReminderText(
-  file: FrameworkDiscoveredWorldviewFile,
+function truncateContextReminderText(
+  file: FrameworkDiscoveredContextFile,
   maxBytes: number,
 ): string {
   const limit = Math.max(0, Math.floor(maxBytes));
@@ -359,13 +359,13 @@ function truncateWorldviewReminderText(
   return truncatedContent ? `${header}${truncatedContent}` : header.trimEnd();
 }
 
-function wrapWorldviewReminder(reminders: readonly string[]): string {
-  const body = reminders.join(WORLDVIEW_REMINDER_SEPARATOR).trim();
+function wrapContextReminder(reminders: readonly string[]): string {
+  const body = reminders.join(CONTEXT_REMINDER_SEPARATOR).trim();
   if (!body) {
     return "";
   }
 
-  return `${WORLDVIEW_REMINDER_PREFIX}${body}${WORLDVIEW_REMINDER_SUFFIX}`;
+  return `${CONTEXT_REMINDER_PREFIX}${body}${CONTEXT_REMINDER_SUFFIX}`;
 }
 
 function toSessionPromptContext(promptContext: FrameworkPromptContext): {
@@ -420,7 +420,7 @@ function readEventSessionID(properties: unknown): string | null {
 }
 
 async function log(
-  client: FrameworkWorldviewRuntimeClient,
+  client: FrameworkContextRuntimeClient,
   level: "debug" | "info" | "warn" | "error",
   message: string,
   extra?: Record<string, unknown>,

@@ -11,13 +11,13 @@ import {
   ProvRepoStateDataSchema,
 } from "../state/index.ts";
 
-export const PROV_DIFF_EXPAND_TOOL = "prov_diff_expand" as const;
-export const PROV_COMMIT_MATERIALIZE_TOOL = "prov_commit_materialize" as const;
-export const PROV_COMMIT_EXPAND_TOOL = "prov_commit_expand" as const;
-export const PROV_TREE_EXPAND_TOOL = "prov_tree_expand" as const;
-export const PROV_WORKTREE_OVERVIEW_TOOL = "prov_worktree_overview" as const;
-export const PROV_PR_MATERIALIZE_TOOL = "prov_pr_materialize" as const;
-export const PROV_PR_EXPAND_TOOL = "prov_pr_expand" as const;
+export const GW_DIFF_EXPAND_TOOL = "gw_diff_expand" as const;
+export const GW_COMMIT_MATERIALIZE_TOOL = "gw_commit_materialize" as const;
+export const GW_COMMIT_EXPAND_TOOL = "gw_commit_expand" as const;
+export const GW_TREE_EXPAND_TOOL = "gw_tree_expand" as const;
+export const GW_WORKTREE_OVERVIEW_TOOL = "gw_worktree_overview" as const;
+export const GW_PR_MATERIALIZE_TOOL = "gw_pr_materialize" as const;
+export const GW_PR_EXPAND_TOOL = "gw_pr_expand" as const;
 
 export const ANCHOR_KIND_VALUES = ["file", "diff"] as const;
 export const CHANGE_CONTEXT_KEY_VALUES = [

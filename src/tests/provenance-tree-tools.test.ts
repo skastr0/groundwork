@@ -22,8 +22,8 @@ vi.mock("@opencode-ai/plugin", () => {
 });
 
 const HEAD_HASH = "abcdef1234567890abcdef1234567890abcdef12";
-const TOOLING_ROOT_PATH = path.join("plugin", "epistemology-framework", "provenance", "tooling");
-const TOOLING_ROOT_POSIX = "plugin/epistemology-framework/provenance/tooling";
+const TOOLING_ROOT_PATH = path.join("plugin", "groundwork", "provenance", "tooling");
+const TOOLING_ROOT_POSIX = "plugin/groundwork/provenance/tooling";
 const TREE_TOOLS_FILE = `${TOOLING_ROOT_POSIX}/expand/tree-tools.ts`;
 const STATE_FILE = `${TOOLING_ROOT_POSIX}/state/index.ts`;
 const QUERY_FILE = `${TOOLING_ROOT_POSIX}/query/index.ts`;
@@ -398,7 +398,7 @@ describe("tree provenance tools", () => {
       },
     });
     expect(result.data.focusAreas.map((area: { path: string }) => area.path)).toEqual([
-      "plugin/epistemology-framework/provenance",
+      "plugin/groundwork/provenance",
     ]);
     expect(result.data.files.map((file: { matchedPath: string }) => file.matchedPath)).toEqual([
       TREE_TOOLS_FILE,

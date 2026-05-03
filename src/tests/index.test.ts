@@ -13,45 +13,45 @@ vi.mock("@opencode-ai/plugin", async () => {
   };
 });
 
-describe("EpistemologyFrameworkPlugin", () => {
+describe("GroundworkPlugin", () => {
   afterEach(() => {
     vi.restoreAllMocks();
   });
 
   it("keeps the empty framework helper inert while the discovery barrel initializes the unified runtime layers", async () => {
     const {
-      EMPTY_EPISTEMOLOGY_FRAMEWORK_LAYER,
-      EPISTEMOLOGY_FRAMEWORK_HOOK_SURFACE,
-      EPISTEMOLOGY_FRAMEWORK_LAYER_META,
-      EPISTEMOLOGY_FRAMEWORK_LAYER_ORDER,
-      EpistemologyFrameworkPlugin: directEpistemologyFrameworkPlugin,
+      EMPTY_GROUNDWORK_LAYER,
+      GROUNDWORK_HOOK_SURFACE,
+      GROUNDWORK_LAYER_META,
+      GROUNDWORK_LAYER_ORDER,
+      GroundworkPlugin: directGroundworkPlugin,
       FRAMEWORK_SYSTEM_TRANSFORM_GUIDANCE,
-      createEpistemologyFrameworkLayer,
+      createGroundworkLayer,
     } = await import("../index.ts");
-    const { EpistemologyFrameworkPlugin } = await import("../../epistemology-framework.ts");
+    const { GroundworkPlugin } = await import("../../groundwork.ts");
     const { FRAMEWORK_PROVENANCE_TOOL_IDS } = await import("../provenance/registry.ts");
     const previousGlobalConfig = process.env.OPENCODE_POLICY_GUARDRAIL_GLOBAL_CONFIG;
     process.env.OPENCODE_POLICY_GUARDRAIL_GLOBAL_CONFIG = path.join(
       os.tmpdir(),
-      "epistemology-framework.global.none.toml",
+      "groundwork.global.none.toml",
     );
 
     const harness = await createFrameworkHookHarness({
-      plugin: EpistemologyFrameworkPlugin,
+      plugin: GroundworkPlugin,
       shell: createUnexpectedShell(),
     });
 
     try {
-      expect(EPISTEMOLOGY_FRAMEWORK_LAYER_META).toEqual({
-        pluginId: "epistemology-framework",
+      expect(GROUNDWORK_LAYER_META).toEqual({
+        pluginId: "groundwork",
         activeDiscoveryBarrel: true,
         migrationStatus: "single-home",
-        hookSurface: EPISTEMOLOGY_FRAMEWORK_HOOK_SURFACE,
-        layerOrder: EPISTEMOLOGY_FRAMEWORK_LAYER_ORDER,
+        hookSurface: GROUNDWORK_HOOK_SURFACE,
+        layerOrder: GROUNDWORK_LAYER_ORDER,
       });
-      expect(EpistemologyFrameworkPlugin).toBe(directEpistemologyFrameworkPlugin);
-      expect(createEpistemologyFrameworkLayer()).toBe(EMPTY_EPISTEMOLOGY_FRAMEWORK_LAYER);
-      expect(Object.isFrozen(EMPTY_EPISTEMOLOGY_FRAMEWORK_LAYER)).toBe(true);
+      expect(GroundworkPlugin).toBe(directGroundworkPlugin);
+      expect(createGroundworkLayer()).toBe(EMPTY_GROUNDWORK_LAYER);
+      expect(Object.isFrozen(EMPTY_GROUNDWORK_LAYER)).toBe(true);
       expect(Object.keys(harness.hooks.tool ?? {})).toEqual(FRAMEWORK_PROVENANCE_TOOL_IDS);
       expect(typeof harness.hooks["chat.message"]).toBe("function");
       expect(typeof harness.hooks["tool.execute.before"]).toBe("function");
@@ -71,23 +71,23 @@ describe("EpistemologyFrameworkPlugin", () => {
         systemOutput,
       );
 
-      expect(harness.hooks).not.toBe(EMPTY_EPISTEMOLOGY_FRAMEWORK_LAYER);
+      expect(harness.hooks).not.toBe(EMPTY_GROUNDWORK_LAYER);
       expect(systemOutput.system).toEqual([FRAMEWORK_SYSTEM_TRANSFORM_GUIDANCE]);
 
       expect(harness.client.app.log).toHaveBeenCalledWith(
         expect.objectContaining({
           body: {
-            service: "epistemology-framework",
+            service: "groundwork",
             level: "info",
-            message: "Epistemology framework composition root initialized",
-            extra: EPISTEMOLOGY_FRAMEWORK_LAYER_META,
+            message: "Groundwork composition root initialized",
+            extra: GROUNDWORK_LAYER_META,
           },
         }),
       );
       expect(harness.client.app.log).toHaveBeenCalledWith(
         expect.objectContaining({
           body: expect.objectContaining({
-            service: "epistemology-framework-policy",
+            service: "groundwork-policy",
             level: "info",
             message: "No policy config found; framework policy layer idle",
           }),
@@ -159,7 +159,7 @@ message = "patch blocked by policy"
           { command: "git checkout -- src/main.ts" },
         ),
       ).rejects.toThrow(
-        `[epistemology-framework:mutation-risk] git checkout -- discards local file changes (rule: git.checkout-discard)`,
+        `[groundwork:risk] git checkout -- discards local file changes (rule: git.checkout-discard)`,
       );
 
       const patchText = `*** Begin Patch
@@ -195,19 +195,19 @@ message = "patch blocked by policy"
   });
 
   it("loads the unified composition root through the discovery barrel", async () => {
-    const { EpistemologyFrameworkPlugin: directEpistemologyFrameworkPlugin } =
+    const { GroundworkPlugin: directGroundworkPlugin } =
       await import("../index.ts");
-    const { EpistemologyFrameworkPlugin } = await import("../../epistemology-framework.ts");
+    const { GroundworkPlugin } = await import("../../groundwork.ts");
 
-    expect(EpistemologyFrameworkPlugin).toBe(directEpistemologyFrameworkPlugin);
+    expect(GroundworkPlugin).toBe(directGroundworkPlugin);
   });
 });
 
 async function createFrameworkPluginHarness(options: { policyToml?: string } = {}) {
-  const { EpistemologyFrameworkPlugin } = await import("../../epistemology-framework.ts");
+  const { GroundworkPlugin } = await import("../../groundwork.ts");
   const globalConfig = path.join(
     os.tmpdir(),
-    `epistemology-framework-global-${Date.now()}-${Math.random().toString(16).slice(2)}.toml`,
+    `groundwork-global-${Date.now()}-${Math.random().toString(16).slice(2)}.toml`,
   );
 
   return createFrameworkHookHarness({
@@ -220,7 +220,7 @@ async function createFrameworkPluginHarness(options: { policyToml?: string } = {
       process.env.OPENCODE_POLICY_GUARDRAIL_GLOBAL_CONFIG = globalConfig;
 
       try {
-        return await EpistemologyFrameworkPlugin(context);
+        return await GroundworkPlugin(context);
       } finally {
         if (previousGlobalConfig === undefined) {
           delete process.env.OPENCODE_POLICY_GUARDRAIL_GLOBAL_CONFIG;

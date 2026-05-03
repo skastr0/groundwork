@@ -20,6 +20,6 @@
     "noPropertyAccessFromIndexSignature": false,
     "types": ["bun", "node"]
   },
-  "include": ["src/**/*.ts", "shared/**/*.ts", "review/**/*.ts", "epistemology-framework.ts", "epistemology-framework/**/*.ts"],
+  "include": ["src/**/*.ts", "shared/**/*.ts", "review/**/*.ts", "groundwork.ts", "groundwork/**/*.ts"],
   "exclude": ["node_modules"]
 }

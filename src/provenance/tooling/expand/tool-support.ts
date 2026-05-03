@@ -7,19 +7,19 @@ import { logger } from "../utils/logger.ts";
 import type { ProvCommitExpandData, ProvDiffExpandData } from "./schemas.ts";
 import { createUnsupportedModeFailure, dedupeWarnings, getLowestConfidence } from "./shared.ts";
 import {
-  PROV_COMMIT_EXPAND_TOOL,
-  PROV_COMMIT_MATERIALIZE_TOOL,
-  PROV_DIFF_EXPAND_TOOL,
-  PROV_TREE_EXPAND_TOOL,
-  PROV_WORKTREE_OVERVIEW_TOOL,
+  GW_COMMIT_EXPAND_TOOL,
+  GW_COMMIT_MATERIALIZE_TOOL,
+  GW_DIFF_EXPAND_TOOL,
+  GW_TREE_EXPAND_TOOL,
+  GW_WORKTREE_OVERVIEW_TOOL,
 } from "./schemas.ts";
 
 export type ExpandToolName =
-  | typeof PROV_DIFF_EXPAND_TOOL
-  | typeof PROV_COMMIT_MATERIALIZE_TOOL
-  | typeof PROV_COMMIT_EXPAND_TOOL
-  | typeof PROV_TREE_EXPAND_TOOL
-  | typeof PROV_WORKTREE_OVERVIEW_TOOL;
+  | typeof GW_DIFF_EXPAND_TOOL
+  | typeof GW_COMMIT_MATERIALIZE_TOOL
+  | typeof GW_COMMIT_EXPAND_TOOL
+  | typeof GW_TREE_EXPAND_TOOL
+  | typeof GW_WORKTREE_OVERVIEW_TOOL;
 
 export function createToolFailure(options: {
   tool: ExpandToolName;

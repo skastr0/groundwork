@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   DEFAULT_GUARD_CONFIG,
   evaluateBashCommand,
-} from "../../epistemology-framework/mutation-risk/index.ts";
+} from "../../groundwork/risk/index.ts";
 
 describe("evaluateBashCommand", () => {
   const config = {

@@ -1484,7 +1484,7 @@ async function runSemgrepMatcherBatchRegions(params: {
 }
 
 function astGrepBatchRuleId(index: number): string {
-  return `epistemology-framework-policy-ast-${index}`;
+  return `groundwork-policy-ast-${index}`;
 }
 
 function buildAstGrepInlineRule(
@@ -2140,7 +2140,7 @@ async function runMatcherCliAgainstSource(params: {
   }
 
   const tempDir = await fs.mkdtemp(
-    path.join(os.tmpdir(), "epistemology-framework-policy-snippet-"),
+    path.join(os.tmpdir(), "groundwork-policy-snippet-"),
   );
   const tempFilePath = path.join(tempDir, path.basename(filePath));
 

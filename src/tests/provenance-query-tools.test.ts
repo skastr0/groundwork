@@ -22,7 +22,7 @@ vi.mock("@opencode-ai/plugin", () => {
 });
 
 const HEAD_HASH = "abcdef1234567890abcdef1234567890abcdef12";
-const QUERY_TOOL_PATH = "plugin/epistemology-framework/provenance/tooling/query/index.ts";
+const QUERY_TOOL_PATH = "plugin/groundwork/provenance/tooling/query/index.ts";
 
 function makeShellStub(responses: Array<[pattern: string, output: string]>) {
   const executeCommand = (command: string): Promise<string> => {
@@ -79,7 +79,7 @@ describe("query provenance tools", () => {
 
   it("reads staged-only new files when matching message summaries are structured objects", async () => {
     await fs.mkdir(
-      path.join(tempRoot, "plugin", "epistemology-framework", "provenance", "tooling", "query"),
+      path.join(tempRoot, "plugin", "groundwork", "provenance", "tooling", "query"),
       {
         recursive: true,
       },
@@ -90,7 +90,7 @@ describe("query provenance tools", () => {
       path.join(
         tempRoot,
         "plugin",
-        "epistemology-framework",
+        "groundwork",
         "provenance",
         "tooling",
         "query",
@@ -149,9 +149,9 @@ describe("query provenance tools", () => {
       shell,
       rootDir: tempRoot,
     });
-    const provReadTool = tools.prov_read;
+    const provReadTool = tools.gw_read;
     if (!provReadTool) {
-      throw new Error("expected prov_read tool to be defined");
+      throw new Error("expected gw_read tool to be defined");
     }
 
     const raw = await provReadTool.execute(

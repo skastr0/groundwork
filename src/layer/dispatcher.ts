@@ -1,7 +1,7 @@
 import type { Hooks } from "@opencode-ai/plugin";
 import { logger } from "../logger/index.ts";
 
-export const EPISTEMOLOGY_FRAMEWORK_HOOK_SURFACE = [
+export const GROUNDWORK_HOOK_SURFACE = [
   "chat.message",
   "tool.execute.before",
   "tool.execute.after",
@@ -11,81 +11,81 @@ export const EPISTEMOLOGY_FRAMEWORK_HOOK_SURFACE = [
   "experimental.session.compacting",
 ] as const;
 
-export const EPISTEMOLOGY_FRAMEWORK_LAYER_ORDER = [
+export const GROUNDWORK_LAYER_ORDER = [
   "policy",
-  "worldview",
+  "context",
   "provenance",
-  "mutation-risk",
+  "risk",
 ] as const;
 
-export type EpistemologyFrameworkHookName = (typeof EPISTEMOLOGY_FRAMEWORK_HOOK_SURFACE)[number];
-export type EpistemologyFrameworkLayerSlot = (typeof EPISTEMOLOGY_FRAMEWORK_LAYER_ORDER)[number];
+export type GroundworkHookName = (typeof GROUNDWORK_HOOK_SURFACE)[number];
+export type GroundworkLayerSlot = (typeof GROUNDWORK_LAYER_ORDER)[number];
 
-export interface EpistemologyFrameworkToolDefinitionHookInput {
+export interface GroundworkToolDefinitionHookInput {
   toolID: string;
 }
 
-export interface EpistemologyFrameworkToolDefinitionHookOutput {
+export interface GroundworkToolDefinitionHookOutput {
   description: string;
   parameters: unknown;
 }
 
-export type EpistemologyFrameworkToolDefinitionHook = (
-  input: EpistemologyFrameworkToolDefinitionHookInput,
-  output: EpistemologyFrameworkToolDefinitionHookOutput,
+export type GroundworkToolDefinitionHook = (
+  input: GroundworkToolDefinitionHookInput,
+  output: GroundworkToolDefinitionHookOutput,
 ) => Promise<void>;
 
-export type EpistemologyFrameworkToolDefinitions = NonNullable<Hooks["tool"]>;
+export type GroundworkToolDefinitions = NonNullable<Hooks["tool"]>;
 
-export interface EpistemologyFrameworkDispatcher {
-  tool: EpistemologyFrameworkToolDefinitions;
+export interface GroundworkDispatcher {
+  tool: GroundworkToolDefinitions;
   "chat.message"?: Hooks["chat.message"];
   "tool.execute.before"?: Hooks["tool.execute.before"];
   "tool.execute.after"?: Hooks["tool.execute.after"];
-  "tool.definition": EpistemologyFrameworkToolDefinitionHook;
+  "tool.definition": GroundworkToolDefinitionHook;
   event?: Hooks["event"];
   "experimental.chat.system.transform"?: Hooks["experimental.chat.system.transform"];
   "experimental.session.compacting"?: Hooks["experimental.session.compacting"];
 }
 
-export interface EpistemologyFrameworkLayerHooks {
+export interface GroundworkLayerHooks {
   "chat.message"?: Hooks["chat.message"];
   "tool.execute.before"?: Hooks["tool.execute.before"];
   "tool.execute.after"?: Hooks["tool.execute.after"];
-  "tool.definition"?: EpistemologyFrameworkToolDefinitionHook;
+  "tool.definition"?: GroundworkToolDefinitionHook;
   event?: Hooks["event"];
   "experimental.chat.system.transform"?: Hooks["experimental.chat.system.transform"];
   "experimental.session.compacting"?: Hooks["experimental.session.compacting"];
 }
 
-export interface EpistemologyFrameworkLayerRegistration {
+export interface GroundworkLayerRegistration {
   active?: boolean;
-  hooks?: EpistemologyFrameworkLayerHooks;
-  toolDefinitions?: EpistemologyFrameworkToolDefinitions;
+  hooks?: GroundworkLayerHooks;
+  toolDefinitions?: GroundworkToolDefinitions;
 }
 
-export type EpistemologyFrameworkLayerRegistry = Partial<
-  Record<EpistemologyFrameworkLayerSlot, EpistemologyFrameworkLayerRegistration | null>
+export type GroundworkLayerRegistry = Partial<
+  Record<GroundworkLayerSlot, GroundworkLayerRegistration | null>
 >;
 
-export interface MaterializedEpistemologyFrameworkLayer {
-  slot: EpistemologyFrameworkLayerSlot;
+export interface MaterializedGroundworkLayer {
+  slot: GroundworkLayerSlot;
   active: boolean;
-  hooks: EpistemologyFrameworkLayerHooks;
-  toolDefinitions: EpistemologyFrameworkToolDefinitions;
+  hooks: GroundworkLayerHooks;
+  toolDefinitions: GroundworkToolDefinitions;
 }
 
-const EMPTY_LAYER_HOOKS = Object.freeze({}) as EpistemologyFrameworkLayerHooks;
-const EMPTY_TOOL_DEFINITIONS = Object.freeze({}) as EpistemologyFrameworkToolDefinitions;
+const EMPTY_LAYER_HOOKS = Object.freeze({}) as GroundworkLayerHooks;
+const EMPTY_TOOL_DEFINITIONS = Object.freeze({}) as GroundworkToolDefinitions;
 
 function hasEntries(value: object | null | undefined): boolean {
   return value !== undefined && value !== null && Object.keys(value).length > 0;
 }
 
-export function materializeEpistemologyFrameworkLayers(
-  registry: EpistemologyFrameworkLayerRegistry = {},
-): MaterializedEpistemologyFrameworkLayer[] {
-  return EPISTEMOLOGY_FRAMEWORK_LAYER_ORDER.map((slot) => {
+export function materializeGroundworkLayers(
+  registry: GroundworkLayerRegistry = {},
+): MaterializedGroundworkLayer[] {
+  return GROUNDWORK_LAYER_ORDER.map((slot) => {
     const registration = registry[slot] ?? null;
     const hooks = registration?.hooks ?? EMPTY_LAYER_HOOKS;
     const toolDefinitions = registration?.toolDefinitions ?? EMPTY_TOOL_DEFINITIONS;
@@ -100,9 +100,9 @@ export function materializeEpistemologyFrameworkLayers(
 }
 
 function mergeToolDefinitions(
-  layers: readonly MaterializedEpistemologyFrameworkLayer[],
-): EpistemologyFrameworkToolDefinitions {
-  const toolDefinitions: EpistemologyFrameworkToolDefinitions = {};
+  layers: readonly MaterializedGroundworkLayer[],
+): GroundworkToolDefinitions {
+  const toolDefinitions: GroundworkToolDefinitions = {};
 
   for (const layer of layers) {
     if (!layer.active) continue;
@@ -133,8 +133,8 @@ export function isFrameworkEnforcementError(error: unknown): error is FrameworkE
 }
 
 async function invokeLayerHook(options: {
-  layer: MaterializedEpistemologyFrameworkLayer;
-  hookName: EpistemologyFrameworkHookName;
+  layer: MaterializedGroundworkLayer;
+  hookName: GroundworkHookName;
   invoke: () => Promise<void>;
 }): Promise<void> {
   try {
@@ -152,11 +152,11 @@ async function invokeLayerHook(options: {
   }
 }
 
-export function createEpistemologyFrameworkHookDispatcher(
-  registry: EpistemologyFrameworkLayerRegistry = {},
-): EpistemologyFrameworkDispatcher {
-  const layers = materializeEpistemologyFrameworkLayers(registry);
-  const dispatcher: EpistemologyFrameworkDispatcher = {
+export function createGroundworkHookDispatcher(
+  registry: GroundworkLayerRegistry = {},
+): GroundworkDispatcher {
+  const layers = materializeGroundworkLayers(registry);
+  const dispatcher: GroundworkDispatcher = {
     tool: mergeToolDefinitions(layers),
     "chat.message": async (input, output) => {
       for (const layer of layers) {

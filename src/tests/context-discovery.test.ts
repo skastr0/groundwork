@@ -2,7 +2,7 @@ import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { discoverFrameworkWorldviewFiles } from "../index.ts";
+import { discoverFrameworkContextFiles } from "../index.ts";
 
 const cleanupDirs: string[] = [];
 
@@ -18,10 +18,10 @@ afterEach(async () => {
 });
 
 async function createFixture(): Promise<{ rootDir: string; directory: string }> {
-  const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "framework-worldview-"));
+  const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "framework-context-"));
   cleanupDirs.push(rootDir);
 
-  const directory = path.join(rootDir, "plugin", "epistemology-framework");
+  const directory = path.join(rootDir, "plugin", "groundwork");
   await fs.mkdir(directory, { recursive: true });
 
   return { rootDir, directory };
@@ -32,8 +32,8 @@ async function writeText(filePath: string, text: string): Promise<void> {
   await fs.writeFile(filePath, text, "utf8");
 }
 
-describe("framework worldview discovery", () => {
-  it("finds parent worldview files first and deeper files last", async () => {
+describe("framework context discovery", () => {
+  it("finds parent context files first and deeper files last", async () => {
     const { rootDir, directory } = await createFixture();
     const targetFile = path.join(rootDir, "plugin", "feature", "src", "index.ts");
 
@@ -42,7 +42,7 @@ describe("framework worldview discovery", () => {
     await writeText(path.join(rootDir, "plugin", "feature", "CLAUDE.md"), "feature claude");
     await writeText(path.join(rootDir, "plugin", "feature", "src", "AGENTS.md"), "src agents");
 
-    const result = await discoverFrameworkWorldviewFiles({
+    const result = await discoverFrameworkContextFiles({
       targetPath: path.relative(directory, targetFile),
       directory,
       rootDir,
@@ -74,7 +74,7 @@ describe("framework worldview discovery", () => {
     await writeText(path.join(rootDir, "plugin", "AGENTS.md"), "plugin instructions");
 
     await expect(
-      discoverFrameworkWorldviewFiles({
+      discoverFrameworkContextFiles({
         targetPath: path.join(rootDir, "README.md"),
         directory,
         rootDir,
@@ -82,7 +82,7 @@ describe("framework worldview discovery", () => {
     ).resolves.toEqual([]);
 
     await expect(
-      discoverFrameworkWorldviewFiles({
+      discoverFrameworkContextFiles({
         targetPath: "../../../escape.ts",
         directory,
         rootDir,
@@ -90,7 +90,7 @@ describe("framework worldview discovery", () => {
     ).resolves.toEqual([]);
   });
 
-  it("keeps the first matching worldview file per directory, even when it is empty", async () => {
+  it("keeps the first matching context file per directory, even when it is empty", async () => {
     const { rootDir, directory } = await createFixture();
     const targetFile = path.join(rootDir, "plugin", "feature", "src", "index.ts");
 
@@ -101,7 +101,7 @@ describe("framework worldview discovery", () => {
       "feature claude should be ignored",
     );
 
-    const result = await discoverFrameworkWorldviewFiles({
+    const result = await discoverFrameworkContextFiles({
       targetPath: targetFile,
       directory,
       rootDir,

@@ -1,1 +1,1 @@
-export { EpistemologyFrameworkPlugin as default, EpistemologyFrameworkPlugin } from "./index.ts";
+export { GroundworkPlugin as default, GroundworkPlugin } from "./index.ts";

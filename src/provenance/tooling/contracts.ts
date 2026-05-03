@@ -1,8 +1,8 @@
 import { z, type ZodTypeAny } from "zod";
 
-export const PROVENANCE_TOOL_PREFIX = "prov_";
+export const PROVENANCE_TOOL_PREFIX = "gw_";
 
-export type ProvenanceToolName = `prov_${string}`;
+export type ProvenanceToolName = `gw_${string}`;
 
 export const PROVENANCE_MODE_VALUES = ["local", "remote", "hybrid"] as const;
 export const ProvenanceModeSchema = z.enum(PROVENANCE_MODE_VALUES);
@@ -54,7 +54,7 @@ export const ProvenanceBoundsSchema = z.object({
 export type ProvenanceBounds = z.infer<typeof ProvenanceBoundsSchema>;
 
 export const ProvenanceMetaSchema = z.object({
-  tool: z.string().regex(/^prov_[a-z0-9_]+$/),
+  tool: z.string().regex(/^gw_[a-z0-9_]+$/),
   mode: ProvenanceModeSchema,
   confidence: ProvenanceConfidenceSchema,
   ambiguity: ProvenanceAmbiguitySchema,

@@ -26,9 +26,9 @@ describe("session kernel state", () => {
           mutatingTools: {
             scope: "mutating-tools" as const,
             reason: "Need human override before continuing.",
-            source: "epistemology-framework-policy",
+            source: "groundwork-policy",
             createdAt: "2026-05-30T05:00:01.000Z",
-            paths: ["plugin/epistemology-framework/policy/runtime.ts"],
+            paths: ["plugin/groundwork/policy/runtime.ts"],
             metadata: {
               ruleId: "policy.override",
             },
@@ -36,7 +36,7 @@ describe("session kernel state", () => {
           termination: {
             scope: "session" as const,
             reason: "Terminal violation locked the session.",
-            source: "epistemology-framework-policy",
+            source: "groundwork-policy",
             createdAt: "2026-05-30T05:00:02.000Z",
           },
         },
@@ -107,7 +107,7 @@ describe("session kernel state", () => {
               },
             ],
             data: {
-              source: "epistemology-framework-provenance",
+              source: "groundwork-provenance",
             },
           },
         },
@@ -137,7 +137,7 @@ describe("session kernel state", () => {
 
     source.promptContext.tools.read = false;
     source.locks.active.mutatingTools.paths?.push(
-      "plugin/epistemology-framework/provenance/runtime.ts",
+      "plugin/groundwork/provenance/runtime.ts",
     );
     source.pendingTools.calls["call-1"]?.targets[0]?.changedLineRanges?.push({
       startLine: 8,
@@ -146,7 +146,7 @@ describe("session kernel state", () => {
 
     expect(state.promptContext?.tools?.read).toBe(true);
     expect(state.locks.active.mutatingTools?.paths).toEqual([
-      "plugin/epistemology-framework/policy/runtime.ts",
+      "plugin/groundwork/policy/runtime.ts",
     ]);
     expect(state.pendingTools.calls["call-1"]?.targets[0]?.changedLineRanges).toEqual([
       { startLine: 1, endLine: 3 },
@@ -213,7 +213,7 @@ describe("session kernel state", () => {
             toolName: "apply_patch",
             phase: "before",
             capturedAt: "2026-05-30T06:00:01.250Z",
-            targets: [{ path: "plugin/epistemology-framework/index.ts" }],
+            targets: [{ path: "plugin/groundwork/index.ts" }],
           },
         },
       },

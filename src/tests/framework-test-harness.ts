@@ -130,7 +130,7 @@ export async function createFrameworkHookHarness(
   const rootDir =
     options.directory ??
     (await fs.mkdtemp(
-      path.join(os.tmpdir(), options.tempDirPrefix ?? "epistemology-framework-test-"),
+      path.join(os.tmpdir(), options.tempDirPrefix ?? "groundwork-test-"),
     ));
   const worktree = options.worktree ?? rootDir;
   const client = options.client ?? createFrameworkMockClient(options.clientOptions);

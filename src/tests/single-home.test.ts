@@ -14,16 +14,16 @@ async function pathExists(targetPath: string): Promise<boolean> {
   }
 }
 
-describe("epistemology framework single home", () => {
+describe("groundwork single home", () => {
   it("keeps the framework discovery barrel and consolidated home in place", async () => {
-    await expect(pathExists(path.join(pluginRoot, "epistemology-framework.ts"))).resolves.toBe(
+    await expect(pathExists(path.join(pluginRoot, "groundwork.ts"))).resolves.toBe(
       true,
     );
     await expect(pathExists(path.join(pluginRoot, "src", "policy", "config.ts"))).resolves.toBe(
       true,
     );
     await expect(
-      pathExists(path.join(pluginRoot, "src", "mutation-risk", "rules.ts")),
+      pathExists(path.join(pluginRoot, "src", "risk", "rules.ts")),
     ).resolves.toBe(true);
     await expect(
       pathExists(

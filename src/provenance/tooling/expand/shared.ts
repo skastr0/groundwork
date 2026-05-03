@@ -169,7 +169,7 @@ export function dedupeWarnings(warnings: readonly ProvenanceWarning[]): Provenan
   return output;
 }
 
-export function createUnsupportedModeFailure(toolName: `prov_${string}`, mode: string): string {
+export function createUnsupportedModeFailure(toolName: `gw_${string}`, mode: string): string {
   return JSON.stringify(
     createProvenanceFailure({
       tool: toolName,

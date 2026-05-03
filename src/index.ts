@@ -1,14 +1,14 @@
 import type { Plugin } from "@opencode-ai/plugin";
 import { createSessionKernelStore } from "./kernel/index.ts";
 import {
-  createEpistemologyFrameworkLayer,
-  EPISTEMOLOGY_FRAMEWORK_LAYER_META,
+  createGroundworkLayer,
+  GROUNDWORK_LAYER_META,
 } from "./layer/index.ts";
 import { initLogger, logger } from "./logger/index.ts";
-import { createFrameworkMutationRiskLayer } from "./mutation-risk/index.ts";
+import { createFrameworkRiskLayer } from "./risk/index.ts";
 import { createFrameworkPolicyLayer } from "./policy/index.ts";
 import { createFrameworkProvenanceLayer } from "./provenance/index.ts";
-import { createFrameworkWorldviewLayer } from "./worldview/index.ts";
+import { createFrameworkContextLayer } from "./context/index.ts";
 
 export {
   applyFrameworkCollectionBudget,
@@ -64,17 +64,17 @@ export {
 export {
   DEFAULT_GUARD_CONFIG,
   configFromEnv,
-  createFrameworkMutationRiskLayer,
-  createMutationRiskToolBeforeHook,
+  createFrameworkRiskLayer,
+  createRiskToolBeforeHook,
   evaluateBashCommand,
-} from "./mutation-risk/index.ts";
+} from "./risk/index.ts";
 export {
-  createFrameworkWorldviewLayer,
-  discoverFrameworkWorldviewFiles,
-  FRAMEWORK_WORLDVIEW_INJECTION_MAX_BYTES,
-  FRAMEWORK_WORLDVIEW_INJECTION_MAX_ITEMS,
-  FRAMEWORK_WORLDVIEW_RULE_FILES,
-} from "./worldview/index.ts";
+  createFrameworkContextLayer,
+  discoverFrameworkContextFiles,
+  FRAMEWORK_CONTEXT_INJECTION_MAX_BYTES,
+  FRAMEWORK_CONTEXT_INJECTION_MAX_ITEMS,
+  FRAMEWORK_CONTEXT_RULE_FILES,
+} from "./context/index.ts";
 export type {
   ApplyFrameworkBudgetOptions,
   CreateSessionKernelStateOptions,
@@ -133,13 +133,13 @@ export type {
   SemgrepSeverity,
 } from "./policy/index.ts";
 export type {
-  CreateFrameworkMutationRiskLayerOptions,
+  CreateFrameworkRiskLayerOptions,
   GuardConfig,
   GuardDecision,
   GuardMode,
   GuardSeverity,
   GuardViolation,
-} from "./mutation-risk/index.ts";
+} from "./risk/index.ts";
 export type { CreateFrameworkProvenanceLayerOptions } from "./provenance/index.ts";
 export type {
   ApplyFrameworkAmbientBudgetOptions,
@@ -156,42 +156,42 @@ export type {
   FrameworkUnsupportedAmbientToolClassification,
 } from "./provenance/index.ts";
 export type {
-  CreateFrameworkWorldviewLayerOptions,
-  DiscoverFrameworkWorldviewFilesOptions,
-  FrameworkDiscoveredWorldviewFile,
-  FrameworkWorldviewRuleFileName,
-} from "./worldview/index.ts";
+  CreateFrameworkContextLayerOptions,
+  DiscoverFrameworkContextFilesOptions,
+  FrameworkDiscoveredContextFile,
+  FrameworkContextRuleFileName,
+} from "./context/index.ts";
 export { initLogger, logger } from "./logger/index.ts";
 export {
-  createEpistemologyFrameworkHookDispatcher,
-  createEpistemologyFrameworkLayer,
-  EPISTEMOLOGY_FRAMEWORK_HOOK_SURFACE,
-  EPISTEMOLOGY_FRAMEWORK_LAYER_META,
-  EPISTEMOLOGY_FRAMEWORK_LAYER_ORDER,
-  EMPTY_EPISTEMOLOGY_FRAMEWORK_LAYER,
+  createGroundworkHookDispatcher,
+  createGroundworkLayer,
+  GROUNDWORK_HOOK_SURFACE,
+  GROUNDWORK_LAYER_META,
+  GROUNDWORK_LAYER_ORDER,
+  EMPTY_GROUNDWORK_LAYER,
   FrameworkEnforcementError,
   isFrameworkEnforcementError,
-  materializeEpistemologyFrameworkLayers,
+  materializeGroundworkLayers,
 } from "./layer/index.ts";
 export type {
-  EpistemologyFrameworkDispatcher,
-  EpistemologyFrameworkHookName,
-  EpistemologyFrameworkLayerHooks,
-  EpistemologyFrameworkLayerRegistration,
-  EpistemologyFrameworkLayerRegistry,
-  EpistemologyFrameworkLayerSlot,
-  EpistemologyFrameworkToolDefinitionHook,
-  EpistemologyFrameworkToolDefinitionHookInput,
-  EpistemologyFrameworkToolDefinitionHookOutput,
-  EpistemologyFrameworkToolDefinitions,
-  MaterializedEpistemologyFrameworkLayer,
+  GroundworkDispatcher,
+  GroundworkHookName,
+  GroundworkLayerHooks,
+  GroundworkLayerRegistration,
+  GroundworkLayerRegistry,
+  GroundworkLayerSlot,
+  GroundworkToolDefinitionHook,
+  GroundworkToolDefinitionHookInput,
+  GroundworkToolDefinitionHookOutput,
+  GroundworkToolDefinitions,
+  MaterializedGroundworkLayer,
 } from "./layer/index.ts";
 
-export const EpistemologyFrameworkPlugin: Plugin = async ({ $, client, directory, worktree }) => {
+export const GroundworkPlugin: Plugin = async ({ $, client, directory, worktree }) => {
   initLogger(client);
   logger.info(
-    "Epistemology framework composition root initialized",
-    EPISTEMOLOGY_FRAMEWORK_LAYER_META,
+    "Groundwork composition root initialized",
+    GROUNDWORK_LAYER_META,
   );
 
   const sessionStore = createSessionKernelStore();
@@ -202,7 +202,7 @@ export const EpistemologyFrameworkPlugin: Plugin = async ({ $, client, directory
     sessionStore,
     worktree,
   });
-  const worldview = await createFrameworkWorldviewLayer({
+  const context = await createFrameworkContextLayer({
     client,
     directory,
     sessionStore,
@@ -214,14 +214,14 @@ export const EpistemologyFrameworkPlugin: Plugin = async ({ $, client, directory
     shell: $,
     rootDir: worktree,
   });
-  const mutationRisk = await createFrameworkMutationRiskLayer({ client });
+  const mutationRisk = await createFrameworkRiskLayer({ client });
 
-  return createEpistemologyFrameworkLayer({
+  return createGroundworkLayer({
     policy,
-    worldview,
+    context,
     provenance,
-    "mutation-risk": mutationRisk,
+    "risk": mutationRisk,
   });
 };
 
-export default EpistemologyFrameworkPlugin;
+export default GroundworkPlugin;

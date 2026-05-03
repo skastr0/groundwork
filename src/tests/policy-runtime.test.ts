@@ -49,7 +49,7 @@ text = "load the right skill"
           parts: [
             {
               type: "text",
-              text: "[epistemology-framework:policy] load the right skill",
+              text: "[groundwork:policy] load the right skill",
               synthetic: false,
             },
           ],
@@ -107,7 +107,7 @@ type = "require_human_override"
           parts: [
             {
               type: "text",
-              text: "[epistemology-framework:policy] Override accepted: human-reviewed",
+              text: "[groundwork:policy] Override accepted: human-reviewed",
               synthetic: false,
             },
           ],
@@ -188,7 +188,7 @@ message = "blocked by policy"
 
       const artifactFiles = await fs.readdir(path.join(harness.rootDir, ".agents", "messages"));
       const firstArtifact = artifactFiles.find((name) =>
-        name.includes("epistemology-framework-policy-block-src"),
+        name.includes("groundwork-policy-block-src"),
       );
       expect(firstArtifact).toBeTruthy();
 
@@ -225,7 +225,7 @@ message = "blocked by policy"
       };
 
       expect(packet).toMatchObject({
-        from: "epistemology-framework-policy",
+        from: "groundwork-policy",
         to: "all",
         phase: "review",
         type: "artifact",
@@ -240,7 +240,7 @@ message = "blocked by policy"
           },
         },
         metadata: {
-          schema_id: "epistemology-framework/policy-violation/v1",
+          schema_id: "groundwork/policy-violation/v1",
           parent_packet: null,
           blocking: true,
         },
@@ -335,10 +335,10 @@ async function createPolicyRuntimeHarness(options: {
   policyToml?: string;
   sessionMessages?: NonNullable<Parameters<typeof createFrameworkMockClient>[0]>["sessionMessages"];
 }) {
-  const { EpistemologyFrameworkPlugin } = await import("../index.ts");
+  const { GroundworkPlugin } = await import("../index.ts");
   const globalConfig = path.join(
     os.tmpdir(),
-    `epistemology-framework-global-${Date.now()}-${Math.random().toString(16).slice(2)}.toml`,
+    `groundwork-global-${Date.now()}-${Math.random().toString(16).slice(2)}.toml`,
   );
   tempGlobals.push(globalConfig);
 
@@ -355,7 +355,7 @@ async function createPolicyRuntimeHarness(options: {
       process.env.OPENCODE_POLICY_GUARDRAIL_GLOBAL_CONFIG = globalConfig;
 
       try {
-        return await EpistemologyFrameworkPlugin(context);
+        return await GroundworkPlugin(context);
       } finally {
         if (previousGlobalConfig === undefined) {
           delete process.env.OPENCODE_POLICY_GUARDRAIL_GLOBAL_CONFIG;

@@ -1,26 +1,26 @@
 import type { Event } from "@opencode-ai/sdk";
 import { describe, expect, it } from "vitest";
-import type { EpistemologyFrameworkToolDefinitions } from "../index.ts";
+import type { GroundworkToolDefinitions } from "../index.ts";
 import {
-  createEpistemologyFrameworkLayer,
-  EPISTEMOLOGY_FRAMEWORK_LAYER_ORDER,
+  createGroundworkLayer,
+  GROUNDWORK_LAYER_ORDER,
   FrameworkEnforcementError,
-  materializeEpistemologyFrameworkLayers,
+  materializeGroundworkLayers,
 } from "../index.ts";
 import { createFrameworkHookHarness } from "./framework-test-harness.ts";
 
-function createTestToolDefinitions(name: string): EpistemologyFrameworkToolDefinitions {
+function createTestToolDefinitions(name: string): GroundworkToolDefinitions {
   return {
     [name]: {
       description: `${name} test tool`,
     },
-  } as unknown as EpistemologyFrameworkToolDefinitions;
+  } as unknown as GroundworkToolDefinitions;
 }
 
 describe("framework hook dispatcher", () => {
   it("dispatches active layer hooks and tool definitions in explicit framework order", async () => {
     const seen: string[] = [];
-    const hooks = createEpistemologyFrameworkLayer({
+    const hooks = createGroundworkLayer({
       provenance: {
         active: true,
         toolDefinitions: createTestToolDefinitions("provenance-tool"),
@@ -81,33 +81,33 @@ describe("framework hook dispatcher", () => {
           },
         },
       },
-      worldview: {
+      context: {
         active: true,
-        toolDefinitions: createTestToolDefinitions("worldview-tool"),
+        toolDefinitions: createTestToolDefinitions("context-tool"),
         hooks: {
           "chat.message": async () => {
-            seen.push("worldview:chat");
+            seen.push("context:chat");
           },
           "tool.execute.before": async () => {
-            seen.push("worldview:before");
+            seen.push("context:before");
           },
           "tool.execute.after": async () => {
-            seen.push("worldview:after");
+            seen.push("context:after");
           },
           "tool.definition": async (_input, output) => {
-            seen.push("worldview:tool-definition");
-            output.description = `${output.description} worldview`;
+            seen.push("context:tool-definition");
+            output.description = `${output.description} context`;
           },
           event: async () => {
-            seen.push("worldview:event");
+            seen.push("context:event");
           },
           "experimental.chat.system.transform": async (_input, output) => {
-            seen.push("worldview:system");
-            output.system.push("worldview");
+            seen.push("context:system");
+            output.system.push("context");
           },
           "experimental.session.compacting": async (_input, output) => {
-            seen.push("worldview:compaction");
-            output.context.push("worldview");
+            seen.push("context:compaction");
+            output.context.push("context");
           },
         },
       },
@@ -116,14 +116,14 @@ describe("framework hook dispatcher", () => {
 
     try {
       expect(
-        materializeEpistemologyFrameworkLayers({
-          worldview: { active: true },
+        materializeGroundworkLayers({
+          context: { active: true },
           policy: { active: true },
         }).map((layer) => layer.slot),
-      ).toEqual(EPISTEMOLOGY_FRAMEWORK_LAYER_ORDER);
+      ).toEqual(GROUNDWORK_LAYER_ORDER);
       expect(Object.keys(hooks.tool ?? {})).toEqual([
         "policy-tool",
-        "worldview-tool",
+        "context-tool",
         "provenance-tool",
       ]);
 
@@ -178,30 +178,30 @@ describe("framework hook dispatcher", () => {
 
       expect(seen).toEqual([
         "policy:chat",
-        "worldview:chat",
+        "context:chat",
         "provenance:chat",
         "policy:before",
-        "worldview:before",
+        "context:before",
         "provenance:before",
         "policy:after",
-        "worldview:after",
+        "context:after",
         "provenance:after",
         "policy:event",
-        "worldview:event",
+        "context:event",
         "provenance:event",
         "policy:system",
-        "worldview:system",
+        "context:system",
         "provenance:system",
         "policy:compaction",
-        "worldview:compaction",
+        "context:compaction",
         "provenance:compaction",
         "policy:tool-definition",
-        "worldview:tool-definition",
+        "context:tool-definition",
         "provenance:tool-definition",
       ]);
-      expect(systemOutput.system).toEqual(["policy", "worldview", "provenance"]);
-      expect(compactionOutput.context).toEqual(["policy", "worldview", "provenance"]);
-      expect(toolDefinitionOutput.description).toBe("read tool policy worldview provenance");
+      expect(systemOutput.system).toEqual(["policy", "context", "provenance"]);
+      expect(compactionOutput.context).toEqual(["policy", "context", "provenance"]);
+      expect(toolDefinitionOutput.description).toBe("read tool policy context provenance");
       expect(toolDefinitionOutput.parameters).toEqual({ type: "object" });
     } finally {
       await harness.cleanup();
@@ -210,23 +210,23 @@ describe("framework hook dispatcher", () => {
 
   it("keeps inactive and no-op layers safe across the dispatcher hook surface", async () => {
     const seen: string[] = [];
-    const hooks = createEpistemologyFrameworkLayer({
+    const hooks = createGroundworkLayer({
       policy: {
         active: true,
       },
-      worldview: {
+      context: {
         active: false,
-        toolDefinitions: createTestToolDefinitions("worldview-tool"),
+        toolDefinitions: createTestToolDefinitions("context-tool"),
         hooks: {
           "chat.message": async () => {
-            seen.push("worldview:chat");
+            seen.push("context:chat");
           },
           event: async () => {
-            seen.push("worldview:event");
+            seen.push("context:event");
           },
           "experimental.chat.system.transform": async (_input, output) => {
-            seen.push("worldview:system");
-            output.system.push("worldview");
+            seen.push("context:system");
+            output.system.push("context");
           },
         },
       },
@@ -298,7 +298,7 @@ describe("framework hook dispatcher", () => {
 
   it("swallows unexpected layer hook failures and continues dispatching later layers", async () => {
     const seen: string[] = [];
-    const hooks = createEpistemologyFrameworkLayer({
+    const hooks = createGroundworkLayer({
       policy: {
         active: true,
         hooks: {
@@ -308,11 +308,11 @@ describe("framework hook dispatcher", () => {
           },
         },
       },
-      worldview: {
+      context: {
         active: true,
         hooks: {
           "tool.execute.before": async () => {
-            seen.push("worldview:before");
+            seen.push("context:before");
           },
         },
       },
@@ -329,7 +329,7 @@ describe("framework hook dispatcher", () => {
         { filePath: "plugin/example.ts" },
       );
 
-      expect(seen).toEqual(["policy:before", "worldview:before"]);
+      expect(seen).toEqual(["policy:before", "context:before"]);
     } finally {
       await harness.cleanup();
     }
@@ -337,7 +337,7 @@ describe("framework hook dispatcher", () => {
 
   it("preserves intentional enforcement failures and stops later layers", async () => {
     const seen: string[] = [];
-    const hooks = createEpistemologyFrameworkLayer({
+    const hooks = createGroundworkLayer({
       policy: {
         active: true,
         hooks: {
@@ -345,17 +345,17 @@ describe("framework hook dispatcher", () => {
             seen.push("policy:before");
             throw new FrameworkEnforcementError({
               message: "blocked by framework policy",
-              source: "epistemology-framework-policy",
+              source: "groundwork-policy",
               code: "block_tool",
             });
           },
         },
       },
-      worldview: {
+      context: {
         active: true,
         hooks: {
           "tool.execute.before": async () => {
-            seen.push("worldview:before");
+            seen.push("context:before");
           },
         },
       },

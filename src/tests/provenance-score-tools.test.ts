@@ -239,9 +239,9 @@ describe("provenance score tools", () => {
     ]);
 
     const { createScoreTools } = await import("../provenance/tooling/score/index.ts");
-    const toolDef = createScoreTools({ shell, rootDir: tempRoot }).prov_hotspots;
+    const toolDef = createScoreTools({ shell, rootDir: tempRoot }).gw_hotspots;
     if (!toolDef) {
-      throw new Error("expected prov_hotspots tool");
+      throw new Error("expected gw_hotspots tool");
     }
     const raw = await toolDef.execute(
       {
@@ -287,9 +287,9 @@ describe("provenance score tools", () => {
     ]);
 
     const { createScoreTools } = await import("../provenance/tooling/score/index.ts");
-    const toolDef = createScoreTools({ shell, rootDir: tempRoot }).prov_authority;
+    const toolDef = createScoreTools({ shell, rootDir: tempRoot }).gw_authority;
     if (!toolDef) {
-      throw new Error("expected prov_authority tool");
+      throw new Error("expected gw_authority tool");
     }
     const raw = await toolDef.execute(
       {
@@ -328,9 +328,9 @@ describe("provenance score tools", () => {
     ]);
 
     const { createScoreTools } = await import("../provenance/tooling/score/index.ts");
-    const toolDef = createScoreTools({ shell, rootDir: tempRoot }).prov_stability_report;
+    const toolDef = createScoreTools({ shell, rootDir: tempRoot }).gw_stability_report;
     if (!toolDef) {
-      throw new Error("expected prov_stability_report tool");
+      throw new Error("expected gw_stability_report tool");
     }
     const raw = await toolDef.execute(
       {

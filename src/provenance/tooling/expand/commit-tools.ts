@@ -26,8 +26,8 @@ import {
 } from "./commit-expand.ts";
 import { buildLinkedEvidence } from "./evidence.ts";
 import {
-  PROV_COMMIT_EXPAND_TOOL,
-  PROV_COMMIT_MATERIALIZE_TOOL,
+  GW_COMMIT_EXPAND_TOOL,
+  GW_COMMIT_MATERIALIZE_TOOL,
   diffSummaryLimitArg,
   includePatchArg,
   type CommitMaterializedData,
@@ -50,7 +50,7 @@ function buildCommitMaterializeResponse(
   warnings: ProvenanceWarning[],
 ) {
   return createProvenanceSuccess({
-    tool: PROV_COMMIT_MATERIALIZE_TOOL,
+    tool: GW_COMMIT_MATERIALIZE_TOOL,
     mode: "local",
     confidence: data.patches.length > 0 ? "high" : "medium",
     ambiguity: getHighestAmbiguity(warnings.map((warning) => warning.ambiguity ?? "low")),
@@ -124,13 +124,13 @@ export function createCommitMaterializeTool(options: CreateStateToolsOptions): T
       include_patch: includePatchArg,
     },
     async execute(args) {
-      const unsupported = resolveLocalMode(PROV_COMMIT_MATERIALIZE_TOOL, args.mode);
+      const unsupported = resolveLocalMode(GW_COMMIT_MATERIALIZE_TOOL, args.mode);
       if (unsupported) {
         return unsupported;
       }
 
-      logger.info("prov_commit_materialize start", {
-        tool: PROV_COMMIT_MATERIALIZE_TOOL,
+      logger.info("gw_commit_materialize start", {
+        tool: GW_COMMIT_MATERIALIZE_TOOL,
         commit: args.commit,
         limit: args.limit,
         maxBytes: args.max_bytes,
@@ -150,8 +150,8 @@ export function createCommitMaterializeTool(options: CreateStateToolsOptions): T
           dedupeWarnings(materialized.warnings),
         );
 
-        logger.info("prov_commit_materialize end", {
-          tool: PROV_COMMIT_MATERIALIZE_TOOL,
+        logger.info("gw_commit_materialize end", {
+          tool: GW_COMMIT_MATERIALIZE_TOOL,
           commit: materialized.data.commit.shortCommit,
           touchedFiles: materialized.data.touchedFiles.length,
         });
@@ -159,13 +159,13 @@ export function createCommitMaterializeTool(options: CreateStateToolsOptions): T
         return JSON.stringify(response, null, 2);
       } catch (error) {
         const message = toErrorMessage(error);
-        logger.error("prov_commit_materialize failed", {
-          tool: PROV_COMMIT_MATERIALIZE_TOOL,
+        logger.error("gw_commit_materialize failed", {
+          tool: GW_COMMIT_MATERIALIZE_TOOL,
           commit: args.commit,
           error: message,
         });
         return createToolFailure({
-          tool: PROV_COMMIT_MATERIALIZE_TOOL,
+          tool: GW_COMMIT_MATERIALIZE_TOOL,
           summary: `Failed to materialize commit '${args.commit}'.`,
           code: "COMMIT_MATERIALIZE_FAILED",
           message,
@@ -191,13 +191,13 @@ export function createCommitExpandTool(options: CreateStateToolsOptions): ToolDe
       include_patch: includePatchArg,
     },
     async execute(args) {
-      const unsupported = resolveLocalMode(PROV_COMMIT_EXPAND_TOOL, args.mode);
+      const unsupported = resolveLocalMode(GW_COMMIT_EXPAND_TOOL, args.mode);
       if (unsupported) {
         return unsupported;
       }
 
-      logger.info("prov_commit_expand start", {
-        tool: PROV_COMMIT_EXPAND_TOOL,
+      logger.info("gw_commit_expand start", {
+        tool: GW_COMMIT_EXPAND_TOOL,
         commit: args.commit,
         base: args.base,
         limit: args.limit,
@@ -209,7 +209,7 @@ export function createCommitExpandTool(options: CreateStateToolsOptions): ToolDe
       try {
         const expanded = await executeCommitExpandCore(runtimeOptions, args);
         const response = createProvenanceSuccess({
-          tool: PROV_COMMIT_EXPAND_TOOL,
+          tool: GW_COMMIT_EXPAND_TOOL,
           mode: "local",
           confidence: getLowestConfidence([
             expanded.repoConfidence,
@@ -224,8 +224,8 @@ export function createCommitExpandTool(options: CreateStateToolsOptions): ToolDe
           data: expanded.data,
         });
 
-        logger.info("prov_commit_expand end", {
-          tool: PROV_COMMIT_EXPAND_TOOL,
+        logger.info("gw_commit_expand end", {
+          tool: GW_COMMIT_EXPAND_TOOL,
           commit: expanded.data.materialized.commit.shortCommit,
           touchedFiles: expanded.data.materialized.touchedFiles.length,
           evidence: expanded.data.evidence.items.length,
@@ -234,13 +234,13 @@ export function createCommitExpandTool(options: CreateStateToolsOptions): ToolDe
         return JSON.stringify(response, null, 2);
       } catch (error) {
         const message = toErrorMessage(error);
-        logger.error("prov_commit_expand failed", {
-          tool: PROV_COMMIT_EXPAND_TOOL,
+        logger.error("gw_commit_expand failed", {
+          tool: GW_COMMIT_EXPAND_TOOL,
           commit: args.commit,
           error: message,
         });
         return createToolFailure({
-          tool: PROV_COMMIT_EXPAND_TOOL,
+          tool: GW_COMMIT_EXPAND_TOOL,
           summary: `Failed to expand commit '${args.commit}'.`,
           code: "COMMIT_EXPAND_FAILED",
           message,

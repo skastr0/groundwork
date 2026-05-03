@@ -12,7 +12,7 @@ import {
 const longSummary = "Evidence ".repeat(60);
 const repoRoot = fileURLToPath(new URL("../..", import.meta.url));
 const repoMessagesDir = path.join(repoRoot, ".agents", "messages");
-const PROVENANCE_REGISTRY_PATH = "plugin/epistemology-framework/provenance/registry.ts";
+const PROVENANCE_REGISTRY_PATH = "plugin/groundwork/provenance/registry.ts";
 const HISTORICAL_EVIDENCE_PATH = "plugin/provenance-tools/evidence/index.ts";
 const HISTORICAL_EXPAND_PATH = "plugin/provenance-tools/expand/index.ts";
 
@@ -441,7 +441,7 @@ describe("loadLocalPathEvidence", () => {
     );
     await copyRepoMessageFixture(
       tempRoot,
-      "2026-03-18T05-16-00Z-review-epi-14-mutation-risk-bash-adapter-security-reviewer.json",
+      "2026-03-18T05-16-00Z-review-epi-14-risk-bash-adapter-security-reviewer.json",
     );
     await copyRepoMessageFixture(
       tempRoot,
@@ -471,13 +471,13 @@ describe("loadLocalPathEvidence", () => {
 
     const objectSummary = await loadMessageSource(
       tempRoot,
-      "plugin/epistemology-framework/mutation-risk/runtime.ts",
+      "plugin/groundwork/risk/runtime.ts",
     );
     expect(objectSummary.items[0]).toMatchObject({
       phase: "unknown",
       type: "unknown",
       summary:
-        "Packet artifact: 2026-03-18T05-16-00Z-review-epi-14-mutation-risk-bash-adapter-security-reviewer.json",
+        "Packet artifact: 2026-03-18T05-16-00Z-review-epi-14-risk-bash-adapter-security-reviewer.json",
     });
     expect(objectSummary.warnings).toContainEqual(
       expect.objectContaining({ code: "packet_envelope_noncanonical" }),
@@ -485,7 +485,7 @@ describe("loadLocalPathEvidence", () => {
 
     const inferredSummary = await loadMessageSource(
       tempRoot,
-      "plugin/epistemology-framework/provenance/runtime.ts",
+      "plugin/groundwork/provenance/runtime.ts",
     );
     expect(inferredSummary.items[0]).toMatchObject({
       phase: "unknown",

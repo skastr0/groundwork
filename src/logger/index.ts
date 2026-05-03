@@ -1,7 +1,7 @@
 import type { OpencodeClient } from "@opencode-ai/sdk";
 
 let client: OpencodeClient | null = null;
-const SERVICE_NAME = "epistemology-framework";
+const SERVICE_NAME = "groundwork";
 
 export function initLogger(sdkClient: OpencodeClient): void {
   client = sdkClient;

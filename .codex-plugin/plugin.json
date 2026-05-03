@@ -1,0 +1,22 @@
+{
+  "name": "groundwork",
+  "version": "0.1.0",
+  "description": "Groundwork policy, provenance, context, and risk foundations for Codex.",
+  "license": "MIT",
+  "keywords": ["codex", "groundwork", "policy", "provenance", "risk", "context"],
+  "skills": "./skills/",
+  "hooks": "./hooks/hooks.json",
+  "interface": {
+    "displayName": "Groundwork",
+    "shortDescription": "Policy, provenance, context, and risk guardrails.",
+    "longDescription": "Groundwork provides a JSON-first CLI plus Codex skills and hooks for best-effort policy, provenance, context, and risk foundations.",
+    "developerName": "Groundwork",
+    "category": "Productivity",
+    "capabilities": ["Read", "Write"],
+    "defaultPrompt": [
+      "Use Groundwork to inspect local repository state before risky edits.",
+      "Use Groundwork to evaluate destructive shell commands before running them."
+    ],
+    "brandColor": "#2563EB"
+  }
+}

@@ -1,51 +1,51 @@
 import {
-  createEpistemologyFrameworkHookDispatcher,
-  EPISTEMOLOGY_FRAMEWORK_HOOK_SURFACE,
-  EPISTEMOLOGY_FRAMEWORK_LAYER_ORDER,
-  type EpistemologyFrameworkLayerRegistry,
+  createGroundworkHookDispatcher,
+  GROUNDWORK_HOOK_SURFACE,
+  GROUNDWORK_LAYER_ORDER,
+  type GroundworkLayerRegistry,
 } from "./dispatcher.ts";
 
 export {
-  createEpistemologyFrameworkHookDispatcher,
-  EPISTEMOLOGY_FRAMEWORK_HOOK_SURFACE,
-  EPISTEMOLOGY_FRAMEWORK_LAYER_ORDER,
+  createGroundworkHookDispatcher,
+  GROUNDWORK_HOOK_SURFACE,
+  GROUNDWORK_LAYER_ORDER,
   FrameworkEnforcementError,
   isFrameworkEnforcementError,
-  materializeEpistemologyFrameworkLayers,
+  materializeGroundworkLayers,
 } from "./dispatcher.ts";
 export type {
-  EpistemologyFrameworkDispatcher,
-  EpistemologyFrameworkHookName,
-  EpistemologyFrameworkLayerHooks,
-  EpistemologyFrameworkLayerRegistration,
-  EpistemologyFrameworkLayerRegistry,
-  EpistemologyFrameworkLayerSlot,
-  EpistemologyFrameworkToolDefinitionHook,
-  EpistemologyFrameworkToolDefinitionHookInput,
-  EpistemologyFrameworkToolDefinitionHookOutput,
-  EpistemologyFrameworkToolDefinitions,
-  MaterializedEpistemologyFrameworkLayer,
+  GroundworkDispatcher,
+  GroundworkHookName,
+  GroundworkLayerHooks,
+  GroundworkLayerRegistration,
+  GroundworkLayerRegistry,
+  GroundworkLayerSlot,
+  GroundworkToolDefinitionHook,
+  GroundworkToolDefinitionHookInput,
+  GroundworkToolDefinitionHookOutput,
+  GroundworkToolDefinitions,
+  MaterializedGroundworkLayer,
 } from "./dispatcher.ts";
 
-export const EPISTEMOLOGY_FRAMEWORK_LAYER_META = {
-  pluginId: "epistemology-framework",
+export const GROUNDWORK_LAYER_META = {
+  pluginId: "groundwork",
   activeDiscoveryBarrel: true,
   migrationStatus: "single-home",
-  hookSurface: EPISTEMOLOGY_FRAMEWORK_HOOK_SURFACE,
+  hookSurface: GROUNDWORK_HOOK_SURFACE,
   // Ordering is intentional: policy can block or inject before any prompt/context work,
-  // worldview adds inherited instructions before provenance hints are rendered, provenance
-  // enriches the default tool path, and mutation-risk stays last as the final destructive stop.
-  layerOrder: EPISTEMOLOGY_FRAMEWORK_LAYER_ORDER,
+  // context adds inherited instructions before provenance hints are rendered, provenance
+  // enriches the default tool path, and risk stays last as the final destructive stop.
+  layerOrder: GROUNDWORK_LAYER_ORDER,
 } as const;
 
-export const EMPTY_EPISTEMOLOGY_FRAMEWORK_LAYER = createEpistemologyFrameworkHookDispatcher();
+export const EMPTY_GROUNDWORK_LAYER = createGroundworkHookDispatcher();
 
-export function createEpistemologyFrameworkLayer(
-  registry: EpistemologyFrameworkLayerRegistry = {},
+export function createGroundworkLayer(
+  registry: GroundworkLayerRegistry = {},
 ) {
   if (Object.keys(registry).length === 0) {
-    return EMPTY_EPISTEMOLOGY_FRAMEWORK_LAYER;
+    return EMPTY_GROUNDWORK_LAYER;
   }
 
-  return createEpistemologyFrameworkHookDispatcher(registry);
+  return createGroundworkHookDispatcher(registry);
 }

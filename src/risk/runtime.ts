@@ -2,28 +2,28 @@ import type { PluginInput } from "@opencode-ai/plugin";
 import { configFromEnv, evaluateBashCommand, type GuardConfig } from "./rules.ts";
 import {
   FrameworkEnforcementError,
-  type EpistemologyFrameworkLayerHooks,
-  type EpistemologyFrameworkLayerRegistration,
+  type GroundworkLayerHooks,
+  type GroundworkLayerRegistration,
 } from "../layer/index.ts";
 
-const SERVICE = "epistemology-framework-mutation-risk";
+const SERVICE = "groundwork-risk";
 
-interface FrameworkMutationRiskClient {
+interface FrameworkRiskClient {
   app: PluginInput["client"]["app"];
 }
 
-type MutationRiskToolBeforeHook = NonNullable<
-  EpistemologyFrameworkLayerHooks["tool.execute.before"]
+type RiskToolBeforeHook = NonNullable<
+  GroundworkLayerHooks["tool.execute.before"]
 >;
 
-export interface CreateFrameworkMutationRiskLayerOptions {
-  client: FrameworkMutationRiskClient;
+export interface CreateFrameworkRiskLayerOptions {
+  client: FrameworkRiskClient;
   env?: NodeJS.ProcessEnv;
 }
 
-export async function createFrameworkMutationRiskLayer(
-  options: CreateFrameworkMutationRiskLayerOptions,
-): Promise<EpistemologyFrameworkLayerRegistration> {
+export async function createFrameworkRiskLayer(
+  options: CreateFrameworkRiskLayerOptions,
+): Promise<GroundworkLayerRegistration> {
   const config = configFromEnv(options.env);
 
   await log(options.client, "info", "Plugin initialized", {
@@ -35,7 +35,7 @@ export async function createFrameworkMutationRiskLayer(
   return {
     active: true,
     hooks: {
-      "tool.execute.before": createMutationRiskToolBeforeHook({
+      "tool.execute.before": createRiskToolBeforeHook({
         client: options.client,
         config,
       }),
@@ -43,10 +43,10 @@ export async function createFrameworkMutationRiskLayer(
   };
 }
 
-export function createMutationRiskToolBeforeHook(params: {
-  client: FrameworkMutationRiskClient;
+export function createRiskToolBeforeHook(params: {
+  client: FrameworkRiskClient;
   config: GuardConfig;
-}): MutationRiskToolBeforeHook {
+}): RiskToolBeforeHook {
   const { client, config } = params;
 
   return async ({ tool, callID, sessionID }, { args }) => {
@@ -71,7 +71,7 @@ export function createMutationRiskToolBeforeHook(params: {
     if (config.mode === "warn") return;
 
     throw new FrameworkEnforcementError({
-      message: `[epistemology-framework:mutation-risk] ${decision.violation.reason} (rule: ${decision.violation.ruleId})`,
+      message: `[groundwork:risk] ${decision.violation.reason} (rule: ${decision.violation.ruleId})`,
       source: SERVICE,
       code: decision.violation.ruleId,
     });
@@ -79,7 +79,7 @@ export function createMutationRiskToolBeforeHook(params: {
 }
 
 async function log(
-  client: FrameworkMutationRiskClient,
+  client: FrameworkRiskClient,
   level: "debug" | "info" | "warn" | "error",
   message: string,
   extra?: Record<string, unknown>,

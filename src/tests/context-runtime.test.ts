@@ -3,18 +3,18 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
-  FRAMEWORK_WORLDVIEW_INJECTION_MAX_BYTES,
-  FRAMEWORK_WORLDVIEW_INJECTION_MAX_ITEMS,
+  FRAMEWORK_CONTEXT_INJECTION_MAX_BYTES,
+  FRAMEWORK_CONTEXT_INJECTION_MAX_ITEMS,
 } from "../index.ts";
 import { createFrameworkHookHarness, createFrameworkMockClient } from "./framework-test-harness.ts";
 
-describe("framework worldview runtime", () => {
+describe("framework context runtime", () => {
   afterEach(() => {
     vi.restoreAllMocks();
   });
 
-  it("injects parent-first worldview reminders with preserved subagent context", async () => {
-    const harness = await createWorldviewPluginHarness({
+  it("injects parent-first context reminders with preserved subagent context", async () => {
+    const harness = await createContextPluginHarness({
       sessionMessages: {
         data: [
           {
@@ -32,7 +32,7 @@ describe("framework worldview runtime", () => {
               role: "user",
               agent: "explorer",
               model: { providerID: "openai", modelID: "gpt-4.1" },
-              system: "preserve worldview context",
+              system: "preserve context guidance",
               tools: { read: true, edit: false, task: true },
               variant: "deliberate",
             },
@@ -45,25 +45,25 @@ describe("framework worldview runtime", () => {
       const parentPath = path.join(harness.rootDir, "packages", "AGENTS.md");
       const childPath = path.join(harness.rootDir, "packages", "feature", "CLAUDE.md");
 
-      await writeText(parentPath, "Parent worldview guidance");
-      await writeText(childPath, "Child worldview guidance");
+      await writeText(parentPath, "Parent context guidance");
+      await writeText(childPath, "Child context guidance");
 
-      await invokeRead(harness, "session-worldview-1", "packages/feature/src/index.ts");
+      await invokeRead(harness, "session-context-1", "packages/feature/src/index.ts");
 
       expect(harness.client.session.prompt).toHaveBeenCalledTimes(1);
       expect(harness.client.session.prompt).toHaveBeenCalledWith({
-        path: { id: "session-worldview-1" },
+        path: { id: "session-context-1" },
         body: {
           agent: "explorer",
           model: { providerID: "openai", modelID: "gpt-4.1" },
           noReply: true,
-          system: "preserve worldview context",
+          system: "preserve context guidance",
           tools: { read: true, edit: false, task: true },
           variant: "deliberate",
           parts: [
             {
               type: "text",
-              text: `<system-reminder>\nInstructions from: ${parentPath}\nParent worldview guidance\n\nInstructions from: ${childPath}\nChild worldview guidance\n</system-reminder>`,
+              text: `<system-reminder>\nInstructions from: ${parentPath}\nParent context guidance\n\nInstructions from: ${childPath}\nChild context guidance\n</system-reminder>`,
               synthetic: true,
             },
           ],
@@ -75,9 +75,9 @@ describe("framework worldview runtime", () => {
     }
   });
 
-  it("reinjects nested worldview instructions after session cleanup without changing prompt context", async () => {
-    const sessionID = "session-worldview-cleanup";
-    const harness = await createWorldviewPluginHarness({
+  it("reinjects nested context instructions after session cleanup without changing prompt context", async () => {
+    const sessionID = "session-context-cleanup";
+    const harness = await createContextPluginHarness({
       sessionMessages: {
         data: [
           {
@@ -95,7 +95,7 @@ describe("framework worldview runtime", () => {
               role: "user",
               agent: "explorer",
               model: { providerID: "openai", modelID: "gpt-4.1" },
-              system: "preserve worldview context",
+              system: "preserve context guidance",
               tools: { read: true, edit: false, task: true },
               variant: "deliberate",
             },
@@ -117,10 +117,10 @@ describe("framework worldview runtime", () => {
     try {
       const parentPath = path.join(harness.rootDir, "packages", "AGENTS.md");
       const childPath = path.join(harness.rootDir, "packages", "feature", "CLAUDE.md");
-      const expectedReminder = `<system-reminder>\nInstructions from: ${parentPath}\nParent worldview guidance\n\nInstructions from: ${childPath}\nChild worldview guidance\n</system-reminder>`;
+      const expectedReminder = `<system-reminder>\nInstructions from: ${parentPath}\nParent context guidance\n\nInstructions from: ${childPath}\nChild context guidance\n</system-reminder>`;
 
-      await writeText(parentPath, "Parent worldview guidance");
-      await writeText(childPath, "Child worldview guidance");
+      await writeText(parentPath, "Parent context guidance");
+      await writeText(childPath, "Child context guidance");
 
       await invokeRead(harness, sessionID, "packages/feature/src/index.ts");
       await harness.cleanupSession(sessionID, "session.deleted");
@@ -133,7 +133,7 @@ describe("framework worldview runtime", () => {
           agent: "explorer",
           model: { providerID: "openai", modelID: "gpt-4.1" },
           noReply: true,
-          system: "preserve worldview context",
+          system: "preserve context guidance",
           tools: { read: true, edit: false, task: true },
           variant: "deliberate",
           parts: [
@@ -151,7 +151,7 @@ describe("framework worldview runtime", () => {
           agent: "explorer",
           model: { providerID: "openai", modelID: "gpt-4.1" },
           noReply: true,
-          system: "preserve worldview context",
+          system: "preserve context guidance",
           tools: { read: true, edit: false, task: true },
           variant: "deliberate",
           parts: [
@@ -170,31 +170,31 @@ describe("framework worldview runtime", () => {
   });
 
   it("dedupes reminders by session and discovered path while allowing deeper new reminders later", async () => {
-    const harness = await createWorldviewPluginHarness();
+    const harness = await createContextPluginHarness();
 
     try {
       const parentPath = path.join(harness.rootDir, "packages", "AGENTS.md");
       const childPath = path.join(harness.rootDir, "packages", "feature", "CLAUDE.md");
       const deepPath = path.join(harness.rootDir, "packages", "feature", "src", "AGENTS.md");
 
-      await writeText(parentPath, "Parent worldview guidance");
-      await writeText(childPath, "Child worldview guidance");
-      await writeText(deepPath, "Deep worldview guidance");
+      await writeText(parentPath, "Parent context guidance");
+      await writeText(childPath, "Child context guidance");
+      await writeText(deepPath, "Deep context guidance");
 
-      await invokeRead(harness, "session-worldview-2", "packages/feature/index.ts");
-      await invokeRead(harness, "session-worldview-2", "packages/feature/other.ts");
-      await invokeRead(harness, "session-worldview-2", "packages/feature/src/index.ts");
+      await invokeRead(harness, "session-context-2", "packages/feature/index.ts");
+      await invokeRead(harness, "session-context-2", "packages/feature/other.ts");
+      await invokeRead(harness, "session-context-2", "packages/feature/src/index.ts");
 
       expect(harness.client.session.prompt).toHaveBeenCalledTimes(2);
       expect(harness.client.session.prompt).toHaveBeenNthCalledWith(
         1,
         expect.objectContaining({
-          path: { id: "session-worldview-2" },
+          path: { id: "session-context-2" },
           body: expect.objectContaining({
             parts: [
               {
                 type: "text",
-                text: `<system-reminder>\nInstructions from: ${parentPath}\nParent worldview guidance\n\nInstructions from: ${childPath}\nChild worldview guidance\n</system-reminder>`,
+                text: `<system-reminder>\nInstructions from: ${parentPath}\nParent context guidance\n\nInstructions from: ${childPath}\nChild context guidance\n</system-reminder>`,
                 synthetic: true,
               },
             ],
@@ -204,12 +204,12 @@ describe("framework worldview runtime", () => {
       expect(harness.client.session.prompt).toHaveBeenNthCalledWith(
         2,
         expect.objectContaining({
-          path: { id: "session-worldview-2" },
+          path: { id: "session-context-2" },
           body: expect.objectContaining({
             parts: [
               {
                 type: "text",
-                text: `<system-reminder>\nInstructions from: ${deepPath}\nDeep worldview guidance\n</system-reminder>`,
+                text: `<system-reminder>\nInstructions from: ${deepPath}\nDeep context guidance\n</system-reminder>`,
                 synthetic: true,
               },
             ],
@@ -222,11 +222,11 @@ describe("framework worldview runtime", () => {
     }
   });
 
-  it("bounds worldview reminder text so it stays within the shared prompt budget", async () => {
-    const harness = await createWorldviewPluginHarness();
+  it("bounds context reminder text so it stays within the shared prompt budget", async () => {
+    const harness = await createContextPluginHarness();
 
     try {
-      const longContent = "Worldview ".repeat(800);
+      const longContent = "Context ".repeat(800);
 
       for (const relativePath of [
         "apps/AGENTS.md",
@@ -238,7 +238,7 @@ describe("framework worldview runtime", () => {
         await writeText(path.join(harness.rootDir, relativePath), longContent);
       }
 
-      await invokeRead(harness, "session-worldview-3", "apps/one/two/three/four/src/index.ts");
+      await invokeRead(harness, "session-context-3", "apps/one/two/three/four/src/index.ts");
 
       const injectedPrompt = harness.client.session.prompt.mock.calls[0]?.[0] as
         | {
@@ -251,10 +251,10 @@ describe("framework worldview runtime", () => {
 
       expect(text).toEqual(expect.any(String));
       expect(Buffer.byteLength(text ?? "", "utf8")).toBeLessThanOrEqual(
-        FRAMEWORK_WORLDVIEW_INJECTION_MAX_BYTES,
+        FRAMEWORK_CONTEXT_INJECTION_MAX_BYTES,
       );
       expect(text?.match(/Instructions from:/g)?.length ?? 0).toBeLessThanOrEqual(
-        FRAMEWORK_WORLDVIEW_INJECTION_MAX_ITEMS,
+        FRAMEWORK_CONTEXT_INJECTION_MAX_ITEMS,
       );
       expect(text).toContain("...");
     } finally {
@@ -263,17 +263,17 @@ describe("framework worldview runtime", () => {
   });
 });
 
-async function createWorldviewPluginHarness(
+async function createContextPluginHarness(
   options: {
     sessionMessages?: NonNullable<
       Parameters<typeof createFrameworkMockClient>[0]
     >["sessionMessages"];
   } = {},
 ) {
-  const { EpistemologyFrameworkPlugin } = await import("../index.ts");
+  const { GroundworkPlugin } = await import("../index.ts");
   const globalConfig = path.join(
     os.tmpdir(),
-    `epistemology-framework-global-${Date.now()}-${Math.random().toString(16).slice(2)}.toml`,
+    `groundwork-global-${Date.now()}-${Math.random().toString(16).slice(2)}.toml`,
   );
 
   return createFrameworkHookHarness({
@@ -285,7 +285,7 @@ async function createWorldviewPluginHarness(
       process.env.OPENCODE_POLICY_GUARDRAIL_GLOBAL_CONFIG = globalConfig;
 
       try {
-        return await EpistemologyFrameworkPlugin(context);
+        return await GroundworkPlugin(context);
       } finally {
         if (previousGlobalConfig === undefined) {
           delete process.env.OPENCODE_POLICY_GUARDRAIL_GLOBAL_CONFIG;
@@ -298,7 +298,7 @@ async function createWorldviewPluginHarness(
 }
 
 async function invokeRead(
-  harness: Awaited<ReturnType<typeof createWorldviewPluginHarness>>,
+  harness: Awaited<ReturnType<typeof createContextPluginHarness>>,
   sessionID: string,
   filePath: string,
 ): Promise<void> {

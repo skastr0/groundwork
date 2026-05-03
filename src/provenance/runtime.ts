@@ -3,8 +3,8 @@ import path from "node:path";
 import { appendTraceRecords } from "./trace/storage.ts";
 import type { TraceObservedTool, TraceRecord } from "./trace/types.ts";
 import type {
-  EpistemologyFrameworkLayerHooks,
-  EpistemologyFrameworkLayerRegistration,
+  GroundworkLayerHooks,
+  GroundworkLayerRegistration,
 } from "../layer/index.ts";
 import {
   createSessionKernelStore,
@@ -27,32 +27,32 @@ import {
 import type { CreateFrameworkProvenanceToolsOptions } from "./registry.ts";
 
 const FRAMEWORK_SYSTEM_TRANSFORM_LINES = [
-  "Epistemology framework reminders:",
-  "- worldview: honor inherited `AGENTS.md`/`CLAUDE.md` reminders; deeper files override parents.",
+  "Groundwork reminders:",
+  "- context: honor inherited `AGENTS.md`/`CLAUDE.md` reminders; deeper files override parents.",
   "- policy: treat guardrails and tool blocks as binding, not puzzles to route around.",
-  "- provenance: use `prov_*` tools when history or trust matters, and separate observed evidence from inference.",
+  "- provenance: use `gw_*` tools when history or trust matters, and separate observed evidence from inference.",
 ] as const;
 
 const FRAMEWORK_POLICY_RUNTIME_METADATA_KEY = "policyRuntime";
-const FRAMEWORK_COMPACTION_HEADER = "Epistemology framework context:";
-const FRAMEWORK_COMPACTION_WORLDVIEW_PATH_LIMIT = 4;
+const FRAMEWORK_COMPACTION_HEADER = "Groundwork context:";
+const FRAMEWORK_COMPACTION_CONTEXT_PATH_LIMIT = 4;
 const FRAMEWORK_COMPACTION_POLICY_ITEM_LIMIT = 4;
 const FRAMEWORK_COMPACTION_PENDING_TOOL_LIMIT = 3;
 const FRAMEWORK_COMPACTION_TARGET_LIMIT = 3;
-const FRAMEWORK_PROVENANCE_CAPTURE_SERVICE = "epistemology-framework-provenance";
+const FRAMEWORK_PROVENANCE_CAPTURE_SERVICE = "groundwork-provenance";
 const FRAMEWORK_PROVENANCE_THIN_SLICE_TOOLS = new Set(["read"]);
 const FRAMEWORK_PROVENANCE_AWARE_TOOL_IDS = new Set(["read", "grep", "edit", "task", "bash"]);
 const FRAMEWORK_TOOL_DEFINITION_GUIDANCE_BY_QUERY_STRATEGY = Object.freeze({
   "file-evidence":
-    "Provenance: if lineage matters, prefer `prov_read`, `prov_file_state`, or `prov_span_history`.",
+    "Provenance: if lineage matters, prefer `gw_read`, `gw_file_state`, or `gw_span_history`.",
   "workspace-evidence":
-    "Provenance: if match clusters matter, prefer `prov_tree_expand` or `prov_worktree_overview`.",
+    "Provenance: if match clusters matter, prefer `gw_tree_expand` or `gw_worktree_overview`.",
   "span-history":
-    "Provenance: if recent edits are unclear, inspect `prov_span_history` or `prov_file_state` first.",
+    "Provenance: if recent edits are unclear, inspect `gw_span_history` or `gw_file_state` first.",
   "session-evidence":
-    "Provenance: if delegated work needs verification, ask for cited files or commits and confirm with `prov_pr_expand` or `prov_worktree_overview`.",
+    "Provenance: if delegated work needs verification, ask for cited files or commits and confirm with `gw_pr_expand` or `gw_worktree_overview`.",
   "repo-evidence":
-    "Provenance: for repo state or recent history, prefer `prov_repo_state`, `prov_worktree_overview`, or `prov_commit_expand`.",
+    "Provenance: for repo state or recent history, prefer `gw_repo_state`, `gw_worktree_overview`, or `gw_commit_expand`.",
 }) satisfies Record<FrameworkAmbientQueryStrategyName, string>;
 
 export const FRAMEWORK_COMPACTION_CONTEXT_MAX_BYTES = 1024;
@@ -64,17 +64,17 @@ interface FrameworkSessionStoreReader {
 }
 
 type FrameworkCompactionHook = NonNullable<
-  EpistemologyFrameworkLayerHooks["experimental.session.compacting"]
+  GroundworkLayerHooks["experimental.session.compacting"]
 >;
 type FrameworkToolExecuteBeforeHook = NonNullable<
-  EpistemologyFrameworkLayerHooks["tool.execute.before"]
+  GroundworkLayerHooks["tool.execute.before"]
 >;
 type FrameworkToolExecuteAfterHook = NonNullable<
-  EpistemologyFrameworkLayerHooks["tool.execute.after"]
+  GroundworkLayerHooks["tool.execute.after"]
 >;
-type FrameworkToolDefinitionHook = NonNullable<EpistemologyFrameworkLayerHooks["tool.definition"]>;
+type FrameworkToolDefinitionHook = NonNullable<GroundworkLayerHooks["tool.definition"]>;
 type FrameworkSystemTransformHook = NonNullable<
-  EpistemologyFrameworkLayerHooks["experimental.chat.system.transform"]
+  GroundworkLayerHooks["experimental.chat.system.transform"]
 >;
 
 export interface CreateFrameworkProvenanceLayerOptions {
@@ -87,7 +87,7 @@ export interface CreateFrameworkProvenanceLayerOptions {
 
 export async function createFrameworkProvenanceLayer(
   options: CreateFrameworkProvenanceLayerOptions = {},
-): Promise<EpistemologyFrameworkLayerRegistration> {
+): Promise<GroundworkLayerRegistration> {
   const directory = path.resolve(options.directory ?? options.rootDir ?? process.cwd());
   const rootDir = path.resolve(options.rootDir ?? options.directory ?? process.cwd());
   const now = options.now ?? (() => new Date().toISOString());
@@ -210,7 +210,7 @@ export function renderFrameworkCompactionContext(
 ): string {
   const lines = [
     FRAMEWORK_COMPACTION_HEADER,
-    renderWorldviewCompactionLine(state),
+    renderContextCompactionLine(state),
     renderPolicyCompactionLine(state),
     renderProvenanceCompactionLine(state),
   ].filter((line): line is string => Boolean(line));
@@ -222,16 +222,16 @@ export function renderFrameworkCompactionContext(
   return renderBoundedLines(lines, maxBytes);
 }
 
-function renderWorldviewCompactionLine(state: FrameworkSessionKernelState): string | null {
-  const worldviewPaths = collectWorldviewPaths(state);
-  if (worldviewPaths.length === 0) {
+function renderContextCompactionLine(state: FrameworkSessionKernelState): string | null {
+  const contextPaths = collectContextPaths(state);
+  if (contextPaths.length === 0) {
     return null;
   }
 
-  return `- worldview: injected files ${formatLimitedList(worldviewPaths, FRAMEWORK_COMPACTION_WORLDVIEW_PATH_LIMIT)}`;
+  return `- context: injected files ${formatLimitedList(contextPaths, FRAMEWORK_COMPACTION_CONTEXT_PATH_LIMIT)}`;
 }
 
-function collectWorldviewPaths(state: FrameworkSessionKernelState): string[] {
+function collectContextPaths(state: FrameworkSessionKernelState): string[] {
   const entries = Object.values(
     state.caches.buckets[FRAMEWORK_KERNEL_DEDUPE_CACHE_BUCKETS.frameworkActions]?.entries ?? {},
   );
@@ -244,7 +244,7 @@ function collectWorldviewPaths(state: FrameworkSessionKernelState): string[] {
     const action = typeof metadata?.action === "string" ? metadata.action : undefined;
     const path = typeof context?.path === "string" ? context.path : undefined;
 
-    if (source === "worldview" && action === "inject-file" && path) {
+    if (source === "context" && action === "inject-file" && path) {
       paths.add(path);
     }
   }

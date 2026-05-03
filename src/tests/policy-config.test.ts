@@ -1233,7 +1233,7 @@ describe("work item requirement", () => {
 });
 
 async function createTempRoot(): Promise<string> {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), "epistemology-framework-policy-test-"));
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "groundwork-policy-test-"));
   tempRoots.push(root);
   return root;
 }

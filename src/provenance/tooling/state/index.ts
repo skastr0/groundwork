@@ -34,8 +34,8 @@ import {
 
 export * from "./local-state.ts";
 
-const PROV_REPO_STATE_TOOL = "prov_repo_state" as const;
-const PROV_FILE_STATE_TOOL = "prov_file_state" as const;
+const GW_REPO_STATE_TOOL = "gw_repo_state" as const;
+const GW_FILE_STATE_TOOL = "gw_file_state" as const;
 
 const repoStateLimitArg = createBoundedNumberArg({
   ...DEFAULT_PROVENANCE_ITEM_LIMIT,
@@ -416,7 +416,7 @@ function createFileStateSummary(data: ProvFileStateData): string {
 }
 
 function createUnsupportedModeFailure(
-  toolName: typeof PROV_REPO_STATE_TOOL | typeof PROV_FILE_STATE_TOOL,
+  toolName: typeof GW_REPO_STATE_TOOL | typeof GW_FILE_STATE_TOOL,
   mode: string,
 ): string {
   return JSON.stringify(
@@ -499,7 +499,7 @@ export function createStateTools(options: CreateStateToolsOptions): Record<strin
   const runtimeOptions = normalizeCreateStateToolsOptions(options);
 
   return {
-    [PROV_REPO_STATE_TOOL]: tool({
+    [GW_REPO_STATE_TOOL]: tool({
       description:
         "Report local repository branch, base, HEAD, staged, unstaged, and untracked summaries with confidence and detection methods.",
       args: {
@@ -511,15 +511,15 @@ export function createStateTools(options: CreateStateToolsOptions): Record<strin
         const resolvedMode = mode ?? "local";
 
         if (resolvedMode !== "local") {
-          logger.warn("prov_repo_state unsupported mode", {
-            tool: PROV_REPO_STATE_TOOL,
+          logger.warn("gw_repo_state unsupported mode", {
+            tool: GW_REPO_STATE_TOOL,
             mode: resolvedMode,
           });
-          return createUnsupportedModeFailure(PROV_REPO_STATE_TOOL, resolvedMode);
+          return createUnsupportedModeFailure(GW_REPO_STATE_TOOL, resolvedMode);
         }
 
-        logger.info("prov_repo_state start", {
-          tool: PROV_REPO_STATE_TOOL,
+        logger.info("gw_repo_state start", {
+          tool: GW_REPO_STATE_TOOL,
           mode: resolvedMode,
           base,
           limit,
@@ -532,7 +532,7 @@ export function createStateTools(options: CreateStateToolsOptions): Record<strin
           });
           const data = toProvRepoStateData(state, limit);
           const response = createProvenanceSuccess({
-            tool: PROV_REPO_STATE_TOOL,
+            tool: GW_REPO_STATE_TOOL,
             mode: "local",
             confidence: state.confidence,
             ambiguity: state.ambiguity.level,
@@ -542,8 +542,8 @@ export function createStateTools(options: CreateStateToolsOptions): Record<strin
             data,
           });
 
-          logger.info("prov_repo_state end", {
-            tool: PROV_REPO_STATE_TOOL,
+          logger.info("gw_repo_state end", {
+            tool: GW_REPO_STATE_TOOL,
             confidence: response.meta.confidence,
             ambiguity: response.meta.ambiguity,
             branch: data.branch.name,
@@ -556,8 +556,8 @@ export function createStateTools(options: CreateStateToolsOptions): Record<strin
           return JSON.stringify(response, null, 2);
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : String(error);
-          logger.error("prov_repo_state failed", {
-            tool: PROV_REPO_STATE_TOOL,
+          logger.error("gw_repo_state failed", {
+            tool: GW_REPO_STATE_TOOL,
             mode: resolvedMode,
             base,
             error: errorMessage,
@@ -565,7 +565,7 @@ export function createStateTools(options: CreateStateToolsOptions): Record<strin
 
           return JSON.stringify(
             createProvenanceFailure({
-              tool: PROV_REPO_STATE_TOOL,
+              tool: GW_REPO_STATE_TOOL,
               mode: "local",
               confidence: "unknown",
               ambiguity: "high",
@@ -581,7 +581,7 @@ export function createStateTools(options: CreateStateToolsOptions): Record<strin
         }
       },
     }),
-    [PROV_FILE_STATE_TOOL]: tool({
+    [GW_FILE_STATE_TOOL]: tool({
       description:
         "Report one path's existence and change status across base, HEAD, index, and worktree, including rename metadata when detectable.",
       args: {
@@ -593,11 +593,11 @@ export function createStateTools(options: CreateStateToolsOptions): Record<strin
         const resolvedMode = mode ?? "local";
 
         if (resolvedMode !== "local") {
-          logger.warn("prov_file_state unsupported mode", {
-            tool: PROV_FILE_STATE_TOOL,
+          logger.warn("gw_file_state unsupported mode", {
+            tool: GW_FILE_STATE_TOOL,
             mode: resolvedMode,
           });
-          return createUnsupportedModeFailure(PROV_FILE_STATE_TOOL, resolvedMode);
+          return createUnsupportedModeFailure(GW_FILE_STATE_TOOL, resolvedMode);
         }
 
         let normalizedPath: string;
@@ -605,15 +605,15 @@ export function createStateTools(options: CreateStateToolsOptions): Record<strin
           normalizedPath = normalizeRequestedPath(requestedPath, runtimeOptions.rootDir);
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : String(error);
-          logger.error("prov_file_state invalid path", {
-            tool: PROV_FILE_STATE_TOOL,
+          logger.error("gw_file_state invalid path", {
+            tool: GW_FILE_STATE_TOOL,
             path: requestedPath,
             error: errorMessage,
           });
 
           return JSON.stringify(
             createProvenanceFailure({
-              tool: PROV_FILE_STATE_TOOL,
+              tool: GW_FILE_STATE_TOOL,
               mode: "local",
               confidence: "unknown",
               ambiguity: "high",
@@ -628,8 +628,8 @@ export function createStateTools(options: CreateStateToolsOptions): Record<strin
           );
         }
 
-        logger.info("prov_file_state start", {
-          tool: PROV_FILE_STATE_TOOL,
+        logger.info("gw_file_state start", {
+          tool: GW_FILE_STATE_TOOL,
           mode: resolvedMode,
           base,
           path: normalizedPath,
@@ -643,7 +643,7 @@ export function createStateTools(options: CreateStateToolsOptions): Record<strin
           });
           const data = toProvFileStateData(state);
           const response = createProvenanceSuccess({
-            tool: PROV_FILE_STATE_TOOL,
+            tool: GW_FILE_STATE_TOOL,
             mode: "local",
             confidence: state.confidence,
             ambiguity: state.ambiguity.level,
@@ -653,8 +653,8 @@ export function createStateTools(options: CreateStateToolsOptions): Record<strin
             data,
           });
 
-          logger.info("prov_file_state end", {
-            tool: PROV_FILE_STATE_TOOL,
+          logger.info("gw_file_state end", {
+            tool: GW_FILE_STATE_TOOL,
             confidence: response.meta.confidence,
             ambiguity: response.meta.ambiguity,
             path: data.requestedPath,
@@ -668,8 +668,8 @@ export function createStateTools(options: CreateStateToolsOptions): Record<strin
           return JSON.stringify(response, null, 2);
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : String(error);
-          logger.error("prov_file_state failed", {
-            tool: PROV_FILE_STATE_TOOL,
+          logger.error("gw_file_state failed", {
+            tool: GW_FILE_STATE_TOOL,
             mode: resolvedMode,
             base,
             path: normalizedPath,
@@ -678,7 +678,7 @@ export function createStateTools(options: CreateStateToolsOptions): Record<strin
 
           return JSON.stringify(
             createProvenanceFailure({
-              tool: PROV_FILE_STATE_TOOL,
+              tool: GW_FILE_STATE_TOOL,
               mode: "local",
               confidence: "unknown",
               ambiguity: "high",

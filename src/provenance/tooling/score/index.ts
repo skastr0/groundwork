@@ -36,9 +36,9 @@ import {
 } from "../state/index.ts";
 import { logger } from "../utils/logger.ts";
 
-const PROV_HOTSPOTS_TOOL = "prov_hotspots" as const;
-const PROV_AUTHORITY_TOOL = "prov_authority" as const;
-const PROV_STABILITY_REPORT_TOOL = "prov_stability_report" as const;
+const GW_HOTSPOTS_TOOL = "gw_hotspots" as const;
+const GW_AUTHORITY_TOOL = "gw_authority" as const;
+const GW_STABILITY_REPORT_TOOL = "gw_stability_report" as const;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const MAX_WINDOW_COUNT = 6;
@@ -508,9 +508,9 @@ function dedupeSignals(signals: readonly ProvenanceSignal[]): ProvenanceSignal[]
 
 function createUnsupportedModeFailure(
   toolName:
-    | typeof PROV_HOTSPOTS_TOOL
-    | typeof PROV_AUTHORITY_TOOL
-    | typeof PROV_STABILITY_REPORT_TOOL,
+    | typeof GW_HOTSPOTS_TOOL
+    | typeof GW_AUTHORITY_TOOL
+    | typeof GW_STABILITY_REPORT_TOOL,
   mode: string,
 ): string {
   return JSON.stringify(
@@ -532,9 +532,9 @@ function createUnsupportedModeFailure(
 
 function createToolFailure(
   toolName:
-    | typeof PROV_HOTSPOTS_TOOL
-    | typeof PROV_AUTHORITY_TOOL
-    | typeof PROV_STABILITY_REPORT_TOOL,
+    | typeof GW_HOTSPOTS_TOOL
+    | typeof GW_AUTHORITY_TOOL
+    | typeof GW_STABILITY_REPORT_TOOL,
   summary: string,
   code: string,
   message: string,
@@ -1997,7 +1997,7 @@ export function createScoreTools(options: CreateStateToolsOptions): Record<strin
   const runtimeOptions = normalizeCreateStateToolsOptions(options);
 
   return {
-    [PROV_HOTSPOTS_TOOL]: tool({
+    [GW_HOTSPOTS_TOOL]: tool({
       description:
         "Rank the highest-churn and most-active files or directory paths over deterministic history windows anchored to HEAD.",
       args: {
@@ -2012,12 +2012,12 @@ export function createScoreTools(options: CreateStateToolsOptions): Record<strin
       async execute(args) {
         const mode = args.mode ?? "local";
         if (mode !== "local") {
-          logger.warn("prov_hotspots unsupported mode", { tool: PROV_HOTSPOTS_TOOL, mode });
-          return createUnsupportedModeFailure(PROV_HOTSPOTS_TOOL, mode);
+          logger.warn("gw_hotspots unsupported mode", { tool: GW_HOTSPOTS_TOOL, mode });
+          return createUnsupportedModeFailure(GW_HOTSPOTS_TOOL, mode);
         }
 
-        logger.info("prov_hotspots start", {
-          tool: PROV_HOTSPOTS_TOOL,
+        logger.info("gw_hotspots start", {
+          tool: GW_HOTSPOTS_TOOL,
           path: args.path ?? ".",
           windows: args.windows,
           groupBy: args.group_by ?? "file",
@@ -2080,7 +2080,7 @@ export function createScoreTools(options: CreateStateToolsOptions): Record<strin
             }),
           ]);
           const response = createProvenanceSuccess({
-            tool: PROV_HOTSPOTS_TOOL,
+            tool: GW_HOTSPOTS_TOOL,
             mode: "local",
             confidence: getLowestConfidence([data.repo.branch.confidence, historyConfidence]),
             ambiguity: getHighestAmbiguity([
@@ -2093,8 +2093,8 @@ export function createScoreTools(options: CreateStateToolsOptions): Record<strin
             data,
           });
 
-          logger.info("prov_hotspots end", {
-            tool: PROV_HOTSPOTS_TOOL,
+          logger.info("gw_hotspots end", {
+            tool: GW_HOTSPOTS_TOOL,
             path: data.anchor.resolvedPath,
             windows: data.windows.length,
             totalCommits: data.history.totalCommits,
@@ -2103,13 +2103,13 @@ export function createScoreTools(options: CreateStateToolsOptions): Record<strin
           return JSON.stringify(response, null, 2);
         } catch (error) {
           const message = toErrorMessage(error);
-          logger.error("prov_hotspots failed", {
-            tool: PROV_HOTSPOTS_TOOL,
+          logger.error("gw_hotspots failed", {
+            tool: GW_HOTSPOTS_TOOL,
             path: args.path ?? ".",
             error: message,
           });
           return createToolFailure(
-            PROV_HOTSPOTS_TOOL,
+            GW_HOTSPOTS_TOOL,
             `Failed to resolve hotspots for '${args.path ?? "."}'.`,
             "HOTSPOTS_UNAVAILABLE",
             message,
@@ -2117,7 +2117,7 @@ export function createScoreTools(options: CreateStateToolsOptions): Record<strin
         }
       },
     }),
-    [PROV_AUTHORITY_TOOL]: tool({
+    [GW_AUTHORITY_TOOL]: tool({
       description:
         "Rank recent author authority for one path using explicit commit, churn, and touched-path shares with cited signals.",
       args: {
@@ -2130,12 +2130,12 @@ export function createScoreTools(options: CreateStateToolsOptions): Record<strin
       async execute(args) {
         const mode = args.mode ?? "local";
         if (mode !== "local") {
-          logger.warn("prov_authority unsupported mode", { tool: PROV_AUTHORITY_TOOL, mode });
-          return createUnsupportedModeFailure(PROV_AUTHORITY_TOOL, mode);
+          logger.warn("gw_authority unsupported mode", { tool: GW_AUTHORITY_TOOL, mode });
+          return createUnsupportedModeFailure(GW_AUTHORITY_TOOL, mode);
         }
 
-        logger.info("prov_authority start", {
-          tool: PROV_AUTHORITY_TOOL,
+        logger.info("gw_authority start", {
+          tool: GW_AUTHORITY_TOOL,
           path: args.path ?? ".",
           windowDays: args.window_days,
           limit: args.limit,
@@ -2185,7 +2185,7 @@ export function createScoreTools(options: CreateStateToolsOptions): Record<strin
             }),
           ]);
           const response = createProvenanceSuccess({
-            tool: PROV_AUTHORITY_TOOL,
+            tool: GW_AUTHORITY_TOOL,
             mode: "local",
             confidence: getLowestConfidence([
               data.repo.branch.confidence,
@@ -2201,8 +2201,8 @@ export function createScoreTools(options: CreateStateToolsOptions): Record<strin
             data,
           });
 
-          logger.info("prov_authority end", {
-            tool: PROV_AUTHORITY_TOOL,
+          logger.info("gw_authority end", {
+            tool: GW_AUTHORITY_TOOL,
             path: data.anchor.resolvedPath,
             leaders: data.leaders.length,
             commits: data.totals.commits,
@@ -2211,13 +2211,13 @@ export function createScoreTools(options: CreateStateToolsOptions): Record<strin
           return JSON.stringify(response, null, 2);
         } catch (error) {
           const message = toErrorMessage(error);
-          logger.error("prov_authority failed", {
-            tool: PROV_AUTHORITY_TOOL,
+          logger.error("gw_authority failed", {
+            tool: GW_AUTHORITY_TOOL,
             path: args.path ?? ".",
             error: message,
           });
           return createToolFailure(
-            PROV_AUTHORITY_TOOL,
+            GW_AUTHORITY_TOOL,
             `Failed to resolve authority for '${args.path ?? "."}'.`,
             "AUTHORITY_UNAVAILABLE",
             message,
@@ -2225,7 +2225,7 @@ export function createScoreTools(options: CreateStateToolsOptions): Record<strin
         }
       },
     }),
-    [PROV_STABILITY_REPORT_TOOL]: tool({
+    [GW_STABILITY_REPORT_TOOL]: tool({
       description:
         "Report recent path stability with explicit component scores, factor breakdowns, pending-change pressure, and linked evidence coverage.",
       args: {
@@ -2239,15 +2239,15 @@ export function createScoreTools(options: CreateStateToolsOptions): Record<strin
       async execute(args) {
         const mode = args.mode ?? "local";
         if (mode !== "local") {
-          logger.warn("prov_stability_report unsupported mode", {
-            tool: PROV_STABILITY_REPORT_TOOL,
+          logger.warn("gw_stability_report unsupported mode", {
+            tool: GW_STABILITY_REPORT_TOOL,
             mode,
           });
-          return createUnsupportedModeFailure(PROV_STABILITY_REPORT_TOOL, mode);
+          return createUnsupportedModeFailure(GW_STABILITY_REPORT_TOOL, mode);
         }
 
-        logger.info("prov_stability_report start", {
-          tool: PROV_STABILITY_REPORT_TOOL,
+        logger.info("gw_stability_report start", {
+          tool: GW_STABILITY_REPORT_TOOL,
           path: args.path ?? ".",
           recentWindowDays: args.recent_window_days,
           baselineWindowDays: args.baseline_window_days,
@@ -2310,7 +2310,7 @@ export function createScoreTools(options: CreateStateToolsOptions): Record<strin
             ...toProvenanceEvidenceSources(evidenceResult.ranked.items),
           ]);
           const response = createProvenanceSuccess({
-            tool: PROV_STABILITY_REPORT_TOOL,
+            tool: GW_STABILITY_REPORT_TOOL,
             mode: "local",
             confidence: getLowestConfidence([
               data.repo.branch.confidence,
@@ -2336,8 +2336,8 @@ export function createScoreTools(options: CreateStateToolsOptions): Record<strin
             data,
           });
 
-          logger.info("prov_stability_report end", {
-            tool: PROV_STABILITY_REPORT_TOOL,
+          logger.info("gw_stability_report end", {
+            tool: GW_STABILITY_REPORT_TOOL,
             path: data.anchor.resolvedPath,
             stability: data.scores.stability.value,
             assessment: data.assessment.label,
@@ -2346,13 +2346,13 @@ export function createScoreTools(options: CreateStateToolsOptions): Record<strin
           return JSON.stringify(response, null, 2);
         } catch (error) {
           const message = toErrorMessage(error);
-          logger.error("prov_stability_report failed", {
-            tool: PROV_STABILITY_REPORT_TOOL,
+          logger.error("gw_stability_report failed", {
+            tool: GW_STABILITY_REPORT_TOOL,
             path: args.path ?? ".",
             error: message,
           });
           return createToolFailure(
-            PROV_STABILITY_REPORT_TOOL,
+            GW_STABILITY_REPORT_TOOL,
             `Failed to build a stability report for '${args.path ?? "."}'.`,
             "STABILITY_REPORT_UNAVAILABLE",
             message,

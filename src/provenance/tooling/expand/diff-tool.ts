@@ -17,7 +17,7 @@ import {
   resolveFileAnchorDiff,
 } from "./diff-expand.ts";
 import {
-  PROV_DIFF_EXPAND_TOOL,
+  GW_DIFF_EXPAND_TOOL,
   diffSummaryLimitArg,
   includePatchArg,
   type ProvDiffExpandData,
@@ -90,13 +90,13 @@ export function createDiffExpandTool(options: CreateStateToolsOptions): ToolDefi
       include_patch: includePatchArg,
     },
     async execute(args) {
-      const unsupported = resolveLocalMode(PROV_DIFF_EXPAND_TOOL, args.mode);
+      const unsupported = resolveLocalMode(GW_DIFF_EXPAND_TOOL, args.mode);
       if (unsupported) {
         return unsupported;
       }
 
-      logger.info("prov_diff_expand start", {
-        tool: PROV_DIFF_EXPAND_TOOL,
+      logger.info("gw_diff_expand start", {
+        tool: GW_DIFF_EXPAND_TOOL,
         path: args.path,
         base: args.base,
         limit: args.limit,
@@ -109,7 +109,7 @@ export function createDiffExpandTool(options: CreateStateToolsOptions): ToolDefi
         const data = await executeDiffExpandCore(runtimeOptions, args);
         const warnings = dedupeWarnings(collectDiffWarnings(data));
         const response = createProvenanceSuccess({
-          tool: PROV_DIFF_EXPAND_TOOL,
+          tool: GW_DIFF_EXPAND_TOOL,
           mode: "local",
           confidence: inferDiffExpandConfidence(data),
           ambiguity: getHighestAmbiguity(warnings.map((warning) => warning.ambiguity ?? "low")),
@@ -119,8 +119,8 @@ export function createDiffExpandTool(options: CreateStateToolsOptions): ToolDefi
           data,
         });
 
-        logger.info("prov_diff_expand end", {
-          tool: PROV_DIFF_EXPAND_TOOL,
+        logger.info("gw_diff_expand end", {
+          tool: GW_DIFF_EXPAND_TOOL,
           anchorKind: data.anchor.kind,
           changes: data.changeSummaries.length,
           nearby: data.nearbyFiles.length,
@@ -130,13 +130,13 @@ export function createDiffExpandTool(options: CreateStateToolsOptions): ToolDefi
         return JSON.stringify(response, null, 2);
       } catch (error) {
         const message = toErrorMessage(error);
-        logger.error("prov_diff_expand failed", {
-          tool: PROV_DIFF_EXPAND_TOOL,
+        logger.error("gw_diff_expand failed", {
+          tool: GW_DIFF_EXPAND_TOOL,
           path: args.path,
           error: message,
         });
         return createToolFailure({
-          tool: PROV_DIFF_EXPAND_TOOL,
+          tool: GW_DIFF_EXPAND_TOOL,
           summary: `Failed to expand diff anchor '${args.path}'.`,
           code: "DIFF_EXPAND_FAILED",
           message,

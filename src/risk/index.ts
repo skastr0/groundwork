@@ -6,5 +6,5 @@ export type {
   GuardSeverity,
   GuardViolation,
 } from "./rules.ts";
-export { createFrameworkMutationRiskLayer, createMutationRiskToolBeforeHook } from "./runtime.ts";
-export type { CreateFrameworkMutationRiskLayerOptions } from "./runtime.ts";
+export { createFrameworkRiskLayer, createRiskToolBeforeHook } from "./runtime.ts";
+export type { CreateFrameworkRiskLayerOptions } from "./runtime.ts";

@@ -36,8 +36,8 @@ import { toNearbyFileSummary } from "./change-summaries.ts";
 import { parseUnifiedDiff } from "./diff-parser.ts";
 import { buildLinkedEvidence } from "./evidence.ts";
 import {
-  PROV_PR_EXPAND_TOOL,
-  PROV_PR_MATERIALIZE_TOOL,
+  GW_PR_EXPAND_TOOL,
+  GW_PR_MATERIALIZE_TOOL,
   type BoundedText,
   type PrChangedFile,
   type PrLocalBranchContext,
@@ -74,7 +74,7 @@ const provenancePrNumberArg = tool.schema
   .optional()
   .describe("Pull request number to inspect (detect current branch PR when omitted)");
 
-type PrToolName = typeof PROV_PR_MATERIALIZE_TOOL | typeof PROV_PR_EXPAND_TOOL;
+type PrToolName = typeof GW_PR_MATERIALIZE_TOOL | typeof GW_PR_EXPAND_TOOL;
 
 type GhFailure = {
   code: string;
@@ -1068,8 +1068,8 @@ export function createPrMaterializeTool(options: CreateStateToolsOptions): ToolD
     async execute(args) {
       const mode = args.mode ?? "hybrid";
 
-      logger.info("prov_pr_materialize start", {
-        tool: PROV_PR_MATERIALIZE_TOOL,
+      logger.info("gw_pr_materialize start", {
+        tool: GW_PR_MATERIALIZE_TOOL,
         pr: args.pr,
         base: args.base,
         mode,
@@ -1078,7 +1078,7 @@ export function createPrMaterializeTool(options: CreateStateToolsOptions): ToolD
       });
 
       try {
-        const data = await materializePrContext(runtimeOptions, PROV_PR_MATERIALIZE_TOOL, {
+        const data = await materializePrContext(runtimeOptions, GW_PR_MATERIALIZE_TOOL, {
           pr: args.pr,
           base: args.base,
           mode,
@@ -1088,7 +1088,7 @@ export function createPrMaterializeTool(options: CreateStateToolsOptions): ToolD
 
         if (mode === "remote" && data.remote.status === "unavailable") {
           return materializeFailure(
-            PROV_PR_MATERIALIZE_TOOL,
+            GW_PR_MATERIALIZE_TOOL,
             mode,
             `Failed to materialize remote PR context${args.pr ? ` for #${args.pr}` : ""}.`,
             {
@@ -1102,7 +1102,7 @@ export function createPrMaterializeTool(options: CreateStateToolsOptions): ToolD
 
         const warnings = collectMaterializeWarnings(data);
         const response = createProvenanceSuccess({
-          tool: PROV_PR_MATERIALIZE_TOOL,
+          tool: GW_PR_MATERIALIZE_TOOL,
           mode,
           confidence: inferMaterializeConfidence(data),
           ambiguity: getHighestAmbiguity(warnings.map((warning) => warning.ambiguity ?? "low")),
@@ -1112,8 +1112,8 @@ export function createPrMaterializeTool(options: CreateStateToolsOptions): ToolD
           data,
         });
 
-        logger.info("prov_pr_materialize end", {
-          tool: PROV_PR_MATERIALIZE_TOOL,
+        logger.info("gw_pr_materialize end", {
+          tool: GW_PR_MATERIALIZE_TOOL,
           mode,
           remoteStatus: data.remote.status,
           fallback: data.fallback.used,
@@ -1122,14 +1122,14 @@ export function createPrMaterializeTool(options: CreateStateToolsOptions): ToolD
         return JSON.stringify(response, null, 2);
       } catch (error) {
         const message = toErrorMessage(error);
-        logger.error("prov_pr_materialize failed", {
-          tool: PROV_PR_MATERIALIZE_TOOL,
+        logger.error("gw_pr_materialize failed", {
+          tool: GW_PR_MATERIALIZE_TOOL,
           pr: args.pr,
           mode,
           error: message,
         });
         return materializeFailure(
-          PROV_PR_MATERIALIZE_TOOL,
+          GW_PR_MATERIALIZE_TOOL,
           mode,
           `Failed to materialize PR context${args.pr ? ` for #${args.pr}` : ""}.`,
           {
@@ -1161,8 +1161,8 @@ export function createPrExpandTool(options: CreateStateToolsOptions): ToolDefini
     async execute(args) {
       const mode = args.mode ?? "hybrid";
 
-      logger.info("prov_pr_expand start", {
-        tool: PROV_PR_EXPAND_TOOL,
+      logger.info("gw_pr_expand start", {
+        tool: GW_PR_EXPAND_TOOL,
         pr: args.pr,
         base: args.base,
         mode,
@@ -1172,7 +1172,7 @@ export function createPrExpandTool(options: CreateStateToolsOptions): ToolDefini
       });
 
       try {
-        const materialized = await materializePrContext(runtimeOptions, PROV_PR_EXPAND_TOOL, {
+        const materialized = await materializePrContext(runtimeOptions, GW_PR_EXPAND_TOOL, {
           pr: args.pr,
           base: args.base,
           mode,
@@ -1182,7 +1182,7 @@ export function createPrExpandTool(options: CreateStateToolsOptions): ToolDefini
 
         if (mode === "remote" && materialized.remote.status === "unavailable") {
           return materializeFailure(
-            PROV_PR_EXPAND_TOOL,
+            GW_PR_EXPAND_TOOL,
             mode,
             `Failed to expand remote PR context${args.pr ? ` for #${args.pr}` : ""}.`,
             {
@@ -1209,7 +1209,7 @@ export function createPrExpandTool(options: CreateStateToolsOptions): ToolDefini
 
         const warnings = collectExpandWarnings(data);
         const response = createProvenanceSuccess({
-          tool: PROV_PR_EXPAND_TOOL,
+          tool: GW_PR_EXPAND_TOOL,
           mode,
           confidence: inferExpandConfidence(data),
           ambiguity: getHighestAmbiguity(warnings.map((warning) => warning.ambiguity ?? "low")),
@@ -1219,8 +1219,8 @@ export function createPrExpandTool(options: CreateStateToolsOptions): ToolDefini
           data,
         });
 
-        logger.info("prov_pr_expand end", {
-          tool: PROV_PR_EXPAND_TOOL,
+        logger.info("gw_pr_expand end", {
+          tool: GW_PR_EXPAND_TOOL,
           mode,
           remoteStatus: materialized.remote.status,
           evidence: evidence.items.length,
@@ -1230,14 +1230,14 @@ export function createPrExpandTool(options: CreateStateToolsOptions): ToolDefini
         return JSON.stringify(response, null, 2);
       } catch (error) {
         const message = toErrorMessage(error);
-        logger.error("prov_pr_expand failed", {
-          tool: PROV_PR_EXPAND_TOOL,
+        logger.error("gw_pr_expand failed", {
+          tool: GW_PR_EXPAND_TOOL,
           pr: args.pr,
           mode,
           error: message,
         });
         return materializeFailure(
-          PROV_PR_EXPAND_TOOL,
+          GW_PR_EXPAND_TOOL,
           mode,
           `Failed to expand PR context${args.pr ? ` for #${args.pr}` : ""}.`,
           {

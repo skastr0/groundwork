@@ -6,21 +6,21 @@ import { createScoreTools } from "./tooling/score/index.ts";
 import { createStateTools, type CreateStateToolsOptions } from "./tooling/state/index.ts";
 
 export const FRAMEWORK_PROVENANCE_TOOL_IDS = [
-  "prov_repo_state",
-  "prov_file_state",
-  "prov_span_history",
-  "prov_diff_expand",
-  "prov_commit_materialize",
-  "prov_commit_expand",
-  "prov_pr_materialize",
-  "prov_pr_expand",
-  "prov_tree_expand",
-  "prov_worktree_overview",
-  "prov_hotspots",
-  "prov_authority",
-  "prov_stability_report",
-  "prov_read",
-  "prov_block_read",
+  "gw_repo_state",
+  "gw_file_state",
+  "gw_span_history",
+  "gw_diff_expand",
+  "gw_commit_materialize",
+  "gw_commit_expand",
+  "gw_pr_materialize",
+  "gw_pr_expand",
+  "gw_tree_expand",
+  "gw_worktree_overview",
+  "gw_hotspots",
+  "gw_authority",
+  "gw_stability_report",
+  "gw_read",
+  "gw_block_read",
 ] as const;
 
 export type FrameworkProvenanceToolID = (typeof FRAMEWORK_PROVENANCE_TOOL_IDS)[number];

@@ -1,0 +1,20 @@
+{
+  "name": "groundwork-local-plugins",
+  "interface": {
+    "displayName": "Groundwork Local Plugins"
+  },
+  "plugins": [
+    {
+      "name": "groundwork",
+      "source": {
+        "source": "local",
+        "path": "."
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

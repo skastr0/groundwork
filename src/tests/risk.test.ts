@@ -1,24 +1,24 @@
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createEpistemologyFrameworkLayer } from "../index.ts";
-import { createFrameworkMutationRiskLayer } from "../mutation-risk/index.ts";
+import { createGroundworkLayer } from "../index.ts";
+import { createFrameworkRiskLayer } from "../risk/index.ts";
 import { createFrameworkHookHarness } from "./framework-test-harness.ts";
 
 afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe("framework mutation-risk layer", () => {
+describe("framework risk layer", () => {
   it("blocks destructive bash commands through the framework plugin without standalone activation", async () => {
-    const { EpistemologyFrameworkPlugin } = await import("../index.ts");
+    const { GroundworkPlugin } = await import("../index.ts");
     const previousGlobalConfig = process.env.OPENCODE_POLICY_GUARDRAIL_GLOBAL_CONFIG;
     process.env.OPENCODE_POLICY_GUARDRAIL_GLOBAL_CONFIG = path.join(
       os.tmpdir(),
-      "epistemology-framework.global.none.toml",
+      "groundwork.global.none.toml",
     );
 
-    const harness = await createFrameworkHookHarness({ plugin: EpistemologyFrameworkPlugin });
+    const harness = await createFrameworkHookHarness({ plugin: GroundworkPlugin });
 
     try {
       await expect(
@@ -31,13 +31,13 @@ describe("framework mutation-risk layer", () => {
           { command: "git checkout -- README.md" },
         ),
       ).rejects.toThrow(
-        "[epistemology-framework:mutation-risk] git checkout -- discards local file changes (rule: git.checkout-discard)",
+        "[groundwork:risk] git checkout -- discards local file changes (rule: git.checkout-discard)",
       );
 
       expect(harness.client.app.log).toHaveBeenCalledWith(
         expect.objectContaining({
           body: expect.objectContaining({
-            service: "epistemology-framework-mutation-risk",
+            service: "groundwork-risk",
             level: "warn",
             message: "Blocked potentially destructive command",
             extra: expect.objectContaining({
@@ -60,8 +60,8 @@ describe("framework mutation-risk layer", () => {
   it("preserves warn mode behavior under the framework layer", async () => {
     const harness = await createFrameworkHookHarness({
       createHooks: async (context) =>
-        createEpistemologyFrameworkLayer({
-          "mutation-risk": await createFrameworkMutationRiskLayer({
+        createGroundworkLayer({
+          "risk": await createFrameworkRiskLayer({
             client: context.client,
             env: {
               OPENCODE_DESTRUCTIVE_GUARD_MODE: "warn",
@@ -85,7 +85,7 @@ describe("framework mutation-risk layer", () => {
       expect(harness.client.app.log).toHaveBeenCalledWith(
         expect.objectContaining({
           body: expect.objectContaining({
-            service: "epistemology-framework-mutation-risk",
+            service: "groundwork-risk",
             level: "warn",
             message: "Blocked potentially destructive command",
             extra: expect.objectContaining({

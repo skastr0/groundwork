@@ -3,7 +3,7 @@ import path from "node:path";
 import type { PluginInput } from "@opencode-ai/plugin";
 import {
   FrameworkEnforcementError,
-  type EpistemologyFrameworkLayerRegistration,
+  type GroundworkLayerRegistration,
 } from "../layer/index.ts";
 import {
   clearFrameworkCacheEntry,
@@ -38,8 +38,8 @@ import {
   type GuardrailSeverity,
 } from "./config.ts";
 
-const SERVICE = "epistemology-framework-policy";
-const POLICY_PACKET_SCHEMA_ID = "epistemology-framework/policy-violation/v1";
+const SERVICE = "groundwork-policy";
+const POLICY_PACKET_SCHEMA_ID = "groundwork/policy-violation/v1";
 const MUTATING_TOOLS = new Set<string>(DEFAULT_EDIT_FOCUSED_TOOLS);
 const POLICY_RUNTIME_METADATA_KEY = "policyRuntime";
 const POLICY_CONTENT_MATCH_CACHE_BUCKET = "policy-content-matches";
@@ -96,7 +96,7 @@ export interface CreateFrameworkPolicyLayerOptions {
 
 export async function createFrameworkPolicyLayer(
   options: CreateFrameworkPolicyLayerOptions,
-): Promise<EpistemologyFrameworkLayerRegistration> {
+): Promise<GroundworkLayerRegistration> {
   const directory = path.resolve(options.directory);
   const rootDir = path.resolve(options.worktree ?? options.directory);
   const { config, projectPath, globalPath, sourceCount } = await loadMergedPolicyConfig(
@@ -399,7 +399,7 @@ function enforceSessionStateGuards(state: FrameworkSessionKernelState, tool: str
   const termination = getTerminationLock(state);
   if (termination) {
     throw new FrameworkEnforcementError({
-      message: `[epistemology-framework:policy] Session is terminated by rule '${termination.ruleId}'. Start a new session to continue.`,
+      message: `[groundwork:policy] Session is terminated by rule '${termination.ruleId}'. Start a new session to continue.`,
       source: SERVICE,
       code: termination.ruleId,
     });
@@ -408,7 +408,7 @@ function enforceSessionStateGuards(state: FrameworkSessionKernelState, tool: str
   const pendingHumanOverride = getPendingHumanOverrideLock(state);
   if (pendingHumanOverride && MUTATING_TOOLS.has(tool)) {
     throw new FrameworkEnforcementError({
-      message: `[epistemology-framework:policy] Mutating tools are locked by rule '${pendingHumanOverride.ruleId}'. Provide human override via '/policy override <reason>' to continue.`,
+      message: `[groundwork:policy] Mutating tools are locked by rule '${pendingHumanOverride.ruleId}'. Provide human override via '/policy override <reason>' to continue.`,
       source: SERVICE,
       code: pendingHumanOverride.ruleId,
     });
@@ -715,7 +715,7 @@ async function executeAction(params: {
     const mode = action.mode ?? "prompt";
     const message =
       action.message ??
-      `[epistemology-framework:policy] Required skills missing for rule '${rule.id}': ${missingSkills.join(", ")}. Confirm with '/policy skill-loaded ${missingSkills.join(" ")}'.`;
+      `[groundwork:policy] Required skills missing for rule '${rule.id}': ${missingSkills.join(", ")}. Confirm with '/policy skill-loaded ${missingSkills.join(" ")}'.`;
 
     const guidanceHit = rememberFrameworkAction(state, {
       source: SERVICE,
@@ -774,7 +774,7 @@ async function executeAction(params: {
         severity: ruleSeverity,
         message:
           action.message ??
-          `[epistemology-framework:policy] Path '${normalizedPath}' requires a matching active work item before tool execution (rule: ${rule.id})`,
+          `[groundwork:policy] Path '${normalizedPath}' requires a matching active work item before tool execution (rule: ${rule.id})`,
         normalizedPaths: [normalizedPath],
         rootDir,
         client,
@@ -800,7 +800,7 @@ async function executeAction(params: {
       severity: ruleSeverity,
       message:
         action.message ??
-        `[epistemology-framework:policy] Tool execution blocked by policy rule '${rule.id}' for paths: ${normalizedPaths.join(", ")}`,
+        `[groundwork:policy] Tool execution blocked by policy rule '${rule.id}' for paths: ${normalizedPaths.join(", ")}`,
       normalizedPaths,
       rootDir,
       client,
@@ -834,7 +834,7 @@ async function executeAction(params: {
       severity: ruleSeverity,
       message:
         action.message ??
-        `[epistemology-framework:policy] Rule '${rule.id}' requires explicit human override. Use '/policy override <reason>' to continue.`,
+        `[groundwork:policy] Rule '${rule.id}' requires explicit human override. Use '/policy override <reason>' to continue.`,
       normalizedPaths,
       rootDir,
       client,
@@ -857,7 +857,7 @@ async function executeAction(params: {
       severity: "terminate",
       message:
         action.message ??
-        `[epistemology-framework:policy] Session terminated due to critical policy violation in rule '${rule.id}'.`,
+        `[groundwork:policy] Session terminated due to critical policy violation in rule '${rule.id}'.`,
       normalizedPaths,
       rootDir,
       client,
@@ -989,7 +989,7 @@ async function writeViolationArtifact(params: {
 
   const timestamp = new Date().toISOString();
   const messagesDir = path.join(rootDir, ".agents", "messages");
-  const fileName = `${timestamp.replace(/[:.]/g, "-")}-epistemology-framework-policy-${sanitizeFilePart(ruleId)}.json`;
+  const fileName = `${timestamp.replace(/[:.]/g, "-")}-groundwork-policy-${sanitizeFilePart(ruleId)}.json`;
   const filePath = path.join(messagesDir, fileName);
   const data = {
     kind: "policy_violation",
@@ -1225,7 +1225,7 @@ async function injectPolicyPrompt(
       parts: [
         {
           type: "text",
-          text: `[epistemology-framework:policy] ${text}`,
+          text: `[groundwork:policy] ${text}`,
           synthetic: false,
         },
       ],

@@ -1,20 +1,20 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 
-export const FRAMEWORK_WORLDVIEW_RULE_FILES: readonly ["AGENTS.md", "CLAUDE.md"] = [
+export const FRAMEWORK_CONTEXT_RULE_FILES: readonly ["AGENTS.md", "CLAUDE.md"] = [
   "AGENTS.md",
   "CLAUDE.md",
 ];
 
-export type FrameworkWorldviewRuleFileName = (typeof FRAMEWORK_WORLDVIEW_RULE_FILES)[number];
+export type FrameworkContextRuleFileName = (typeof FRAMEWORK_CONTEXT_RULE_FILES)[number];
 
-export interface FrameworkDiscoveredWorldviewFile {
+export interface FrameworkDiscoveredContextFile {
   path: string;
   content: string;
-  fileName: FrameworkWorldviewRuleFileName;
+  fileName: FrameworkContextRuleFileName;
 }
 
-export interface DiscoverFrameworkWorldviewFilesOptions {
+export interface DiscoverFrameworkContextFilesOptions {
   targetPath: string;
   directory: string;
   rootDir: string;
@@ -39,9 +39,9 @@ function isOutsideRoot(relativePath: string): boolean {
   return relativePath.startsWith("..") || path.isAbsolute(relativePath);
 }
 
-export async function discoverFrameworkWorldviewFiles(
-  options: DiscoverFrameworkWorldviewFilesOptions,
-): Promise<FrameworkDiscoveredWorldviewFile[]> {
+export async function discoverFrameworkContextFiles(
+  options: DiscoverFrameworkContextFilesOptions,
+): Promise<FrameworkDiscoveredContextFile[]> {
   const directory = path.resolve(options.directory);
   const rootDir = path.resolve(options.rootDir);
   const targetPath = path.isAbsolute(options.targetPath)
@@ -56,11 +56,11 @@ export async function discoverFrameworkWorldviewFiles(
     return [];
   }
 
-  const results: FrameworkDiscoveredWorldviewFile[] = [];
+  const results: FrameworkDiscoveredContextFile[] = [];
   let currentDir = startDir;
 
   while (currentDir !== rootDir && currentDir !== path.dirname(currentDir)) {
-    for (const fileName of FRAMEWORK_WORLDVIEW_RULE_FILES) {
+    for (const fileName of FRAMEWORK_CONTEXT_RULE_FILES) {
       const candidatePath = path.join(currentDir, fileName);
       if (!(await fileExists(candidatePath))) {
         continue;

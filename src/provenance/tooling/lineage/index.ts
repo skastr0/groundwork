@@ -33,7 +33,7 @@ import {
 } from "../state/index.ts";
 import { logger } from "../utils/logger.ts";
 
-const PROV_SPAN_HISTORY_TOOL = "prov_span_history" as const;
+const GW_SPAN_HISTORY_TOOL = "gw_span_history" as const;
 const TRACE_MATCH_MODE_VALUES = ["exact", "heuristic", "none"] as const;
 const TRACE_MATCH_KIND_VALUES = ["exact_span", "path_only"] as const;
 const LINEAGE_ENTRY_KIND_VALUES = ["trace", "commit"] as const;
@@ -632,14 +632,14 @@ function createSpanHistorySummary(data: ProvSpanHistoryData): string {
 function createUnsupportedModeFailure(mode: string): string {
   return JSON.stringify(
     createProvenanceFailure({
-      tool: PROV_SPAN_HISTORY_TOOL,
+      tool: GW_SPAN_HISTORY_TOOL,
       mode: mode as "remote" | "hybrid",
       confidence: "unknown",
       ambiguity: "high",
-      summary: `Unsupported provenance mode '${mode}' for ${PROV_SPAN_HISTORY_TOOL}.`,
+      summary: `Unsupported provenance mode '${mode}' for ${GW_SPAN_HISTORY_TOOL}.`,
       error: {
         code: "MODE_NOT_SUPPORTED",
-        message: `${PROV_SPAN_HISTORY_TOOL} currently supports only local mode.`,
+        message: `${GW_SPAN_HISTORY_TOOL} currently supports only local mode.`,
       },
     }),
     null,
@@ -759,7 +759,7 @@ export function createLineageTools(
   const runtimeOptions = normalizeCreateStateToolsOptions(options);
 
   return {
-    [PROV_SPAN_HISTORY_TOOL]: tool({
+    [GW_SPAN_HISTORY_TOOL]: tool({
       description:
         "Return bounded span-level lineage from local traces and git range history for one file plus line range, with contributor summaries and heuristic confidence downgrades.",
       args: {
@@ -779,8 +779,8 @@ export function createLineageTools(
         const resolvedMode = mode ?? "local";
 
         if (resolvedMode !== "local") {
-          logger.warn("prov_span_history unsupported mode", {
-            tool: PROV_SPAN_HISTORY_TOOL,
+          logger.warn("gw_span_history unsupported mode", {
+            tool: GW_SPAN_HISTORY_TOOL,
             mode: resolvedMode,
           });
           return createUnsupportedModeFailure(resolvedMode);
@@ -789,7 +789,7 @@ export function createLineageTools(
         if (endLine < startLine) {
           return JSON.stringify(
             createProvenanceFailure({
-              tool: PROV_SPAN_HISTORY_TOOL,
+              tool: GW_SPAN_HISTORY_TOOL,
               mode: "local",
               confidence: "unknown",
               ambiguity: "high",
@@ -810,7 +810,7 @@ export function createLineageTools(
         } catch (error) {
           return JSON.stringify(
             createProvenanceFailure({
-              tool: PROV_SPAN_HISTORY_TOOL,
+              tool: GW_SPAN_HISTORY_TOOL,
               mode: "local",
               confidence: "unknown",
               ambiguity: "high",
@@ -825,8 +825,8 @@ export function createLineageTools(
           );
         }
 
-        logger.info("prov_span_history start", {
-          tool: PROV_SPAN_HISTORY_TOOL,
+        logger.info("gw_span_history start", {
+          tool: GW_SPAN_HISTORY_TOOL,
           mode: resolvedMode,
           path: normalizedPath,
           startLine,
@@ -845,7 +845,7 @@ export function createLineageTools(
             limit,
           });
           const response = createProvenanceSuccess({
-            tool: PROV_SPAN_HISTORY_TOOL,
+            tool: GW_SPAN_HISTORY_TOOL,
             mode: "local",
             confidence: lineageResolution.confidence,
             ambiguity: lineageResolution.ambiguity,
@@ -856,8 +856,8 @@ export function createLineageTools(
             data: lineageResolution.data,
           });
 
-          logger.info("prov_span_history end", {
-            tool: PROV_SPAN_HISTORY_TOOL,
+          logger.info("gw_span_history end", {
+            tool: GW_SPAN_HISTORY_TOOL,
             confidence: response.meta.confidence,
             ambiguity: response.meta.ambiguity,
             path: normalizedPath,
@@ -872,8 +872,8 @@ export function createLineageTools(
           return JSON.stringify(response, null, 2);
         } catch (error) {
           const errorMessage = toErrorMessage(error);
-          logger.error("prov_span_history failed", {
-            tool: PROV_SPAN_HISTORY_TOOL,
+          logger.error("gw_span_history failed", {
+            tool: GW_SPAN_HISTORY_TOOL,
             mode: resolvedMode,
             path: normalizedPath,
             startLine,
@@ -883,7 +883,7 @@ export function createLineageTools(
 
           return JSON.stringify(
             createProvenanceFailure({
-              tool: PROV_SPAN_HISTORY_TOOL,
+              tool: GW_SPAN_HISTORY_TOOL,
               mode: "local",
               confidence: "unknown",
               ambiguity: "high",

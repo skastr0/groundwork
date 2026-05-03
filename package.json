@@ -1,28 +1,42 @@
 {
-  "name": "epistemology-framework",
+  "name": "groundwork",
   "version": "0.1.0",
-  "description": "OpenCode epistemology framework plugin",
+  "description": "Groundwork policy, provenance, context, and risk foundations for agentic development tools",
   "type": "module",
   "main": "./dist/server.js",
+  "bin": {
+    "groundwork": "./dist/cli.js"
+  },
   "exports": {
     ".": "./dist/server.js",
-    "./server": "./dist/server.js"
+    "./server": "./dist/server.js",
+    "./cli": "./dist/cli.js"
   },
   "files": [
+    ".codex-plugin",
+    "docs",
     "dist",
+    "hooks",
+    "skills",
     "README.md"
   ],
   "scripts": {
-    "build": "bun build ./src/server.ts --outdir ./dist --target bun --format esm --external @opencode-ai/plugin",
+    "build": "bun build ./src/server.ts ./src/cli.ts --outdir ./dist --target bun --format esm --external @opencode-ai/plugin",
     "check:imports": "bun -e \"await import('./dist/server.js')\"",
+    "check:cli": "bun ./src/cli.ts doctor",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "verify": "bun run typecheck && bun run test && bun run build && bun run check:imports"
+    "verify": "bun run typecheck && bun run test && bun run build && bun run check:imports && bun run check:cli"
   },
   "keywords": [
     "opencode",
     "opencode-plugin",
-    "epistemology",
+    "codex",
+    "codex-plugin",
+    "groundwork",
+    "context",
+    "risk",
+    "framework",
     "provenance",
     "policy"
   ],
@@ -30,6 +44,8 @@
     "@opencode-ai/plugin": ">=1.3.17"
   },
   "dependencies": {
+    "@effect/cli": "^0.75.1",
+    "@effect/platform-bun": "^0.89.0",
     "@iarna/toml": "^2.2.5",
     "effect": "^3.19.19",
     "gray-matter": "^4.0.3",

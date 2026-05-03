@@ -41,7 +41,7 @@ describe("framework kernel helpers", () => {
 
     const firstInjection = rememberFrameworkSyntheticInjection(state, {
       now: "2026-05-30T07:00:02.000Z",
-      source: "epistemology-framework-policy",
+      source: "groundwork-policy",
       text: "Keep synthetic guidance bounded.",
       metadata: {
         channel: "system",
@@ -49,7 +49,7 @@ describe("framework kernel helpers", () => {
     });
     const secondInjection = rememberFrameworkSyntheticInjection(state, {
       now: "2026-05-30T07:00:03.000Z",
-      source: "epistemology-framework-policy",
+      source: "groundwork-policy",
       text: "  Keep synthetic guidance bounded.  ",
       metadata: {
         channel: "system",
@@ -58,7 +58,7 @@ describe("framework kernel helpers", () => {
 
     expect(firstInjection.key).toBe(
       createFrameworkSyntheticInjectionDedupeKey({
-        source: "epistemology-framework-policy",
+        source: "groundwork-policy",
         text: "Keep synthetic guidance bounded.",
       }),
     );
@@ -81,7 +81,7 @@ describe("framework kernel helpers", () => {
       updatedAt: "2026-05-30T07:00:03.000Z",
       expiresAt: undefined,
       metadata: {
-        source: "epistemology-framework-policy",
+        source: "groundwork-policy",
         variant: undefined,
         context: {
           channel: "system",
@@ -91,20 +91,20 @@ describe("framework kernel helpers", () => {
 
     const firstAction = rememberFrameworkAction(state, {
       now: "2026-05-30T07:00:04.000Z",
-      source: "epistemology-framework-policy",
+      source: "groundwork-policy",
       action: "ensure-skill-loaded",
       parts: [{ skills: ["ddd", "effect"], mode: "strict" }],
     });
     const secondAction = rememberFrameworkAction(state, {
       now: "2026-05-30T07:00:05.000Z",
-      source: "epistemology-framework-policy",
+      source: "groundwork-policy",
       action: "ensure-skill-loaded",
       parts: [{ mode: "strict", skills: ["ddd", "effect"] }],
     });
 
     expect(firstAction.key).toBe(
       createFrameworkActionDedupeKey({
-        source: "epistemology-framework-policy",
+        source: "groundwork-policy",
         action: "ensure-skill-loaded",
         parts: [{ mode: "strict", skills: ["ddd", "effect"] }],
       }),
@@ -128,7 +128,7 @@ describe("framework kernel helpers", () => {
       updatedAt: "2026-05-30T07:00:05.000Z",
       expiresAt: undefined,
       metadata: {
-        source: "epistemology-framework-policy",
+        source: "groundwork-policy",
         action: "ensure-skill-loaded",
       },
     });
@@ -146,7 +146,7 @@ describe("framework kernel helpers", () => {
       getSize: (item) => Buffer.byteLength(item, "utf8"),
       truncateItem: (item, maxBytes) => truncateFrameworkTextByBytes(item, maxBytes),
       metadata: {
-        purpose: "worldview",
+        purpose: "context",
       },
     });
 
@@ -176,7 +176,7 @@ describe("framework kernel helpers", () => {
         itemTruncated: true,
         byteTruncated: true,
         context: {
-          purpose: "worldview",
+          purpose: "context",
         },
       },
     });
@@ -191,7 +191,7 @@ describe("framework kernel helpers", () => {
         itemTruncated: true,
         byteTruncated: true,
         context: {
-          purpose: "worldview",
+          purpose: "context",
         },
       },
     });

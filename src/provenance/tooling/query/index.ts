@@ -60,8 +60,8 @@ import {
 } from "../state/index.ts";
 import { logger } from "../utils/logger.ts";
 
-const PROV_READ_TOOL = "prov_read" as const;
-const PROV_BLOCK_READ_TOOL = "prov_block_read" as const;
+const GW_READ_TOOL = "gw_read" as const;
+const GW_BLOCK_READ_TOOL = "gw_block_read" as const;
 
 const EVIDENCE_ITEM_KIND_VALUES = ["message", "work_item", "trace"] as const;
 const BLOCK_WINDOW_SOURCE_VALUES = ["focus", "radius", "explicit"] as const;
@@ -277,7 +277,7 @@ function toAmbiguityWarnings(ambiguity: LocalRepoAmbiguityState): ProvenanceWarn
 }
 
 function createUnsupportedModeFailure(
-  toolName: typeof PROV_READ_TOOL | typeof PROV_BLOCK_READ_TOOL,
+  toolName: typeof GW_READ_TOOL | typeof GW_BLOCK_READ_TOOL,
   mode: string,
 ): string {
   return JSON.stringify(
@@ -435,7 +435,7 @@ function normalizeTextLines(value: string): string[] {
 }
 
 function createBlockValidationFailure(options: {
-  tool: typeof PROV_BLOCK_READ_TOOL;
+  tool: typeof GW_BLOCK_READ_TOOL;
   requestedPath: string;
   summary: string;
   code: string;
@@ -1041,7 +1041,7 @@ export function createQueryTools(options: CreateStateToolsOptions): Record<strin
   const runtimeOptions = normalizeCreateStateToolsOptions(options);
 
   return {
-    [PROV_READ_TOOL]: tool({
+    [GW_READ_TOOL]: tool({
       description:
         "Read one file layer with bounded content plus compact repo, file, and linked evidence provenance summaries.",
       args: {
@@ -1057,11 +1057,11 @@ export function createQueryTools(options: CreateStateToolsOptions): Record<strin
         const resolvedMode = mode ?? "local";
 
         if (resolvedMode !== "local") {
-          logger.warn("prov_read unsupported mode", {
-            tool: PROV_READ_TOOL,
+          logger.warn("gw_read unsupported mode", {
+            tool: GW_READ_TOOL,
             mode: resolvedMode,
           });
-          return createUnsupportedModeFailure(PROV_READ_TOOL, resolvedMode);
+          return createUnsupportedModeFailure(GW_READ_TOOL, resolvedMode);
         }
 
         const selectedLayerName = layer ?? "worktree";
@@ -1071,13 +1071,13 @@ export function createQueryTools(options: CreateStateToolsOptions): Record<strin
         } catch (error) {
           return JSON.stringify(
             createProvenanceFailure({
-              tool: PROV_READ_TOOL,
+              tool: GW_READ_TOOL,
               mode: "local",
               confidence: "unknown",
               ambiguity: "high",
               summary: `Failed to normalize path '${requestedPath}'.`,
               error: {
-                code: "PROV_READ_PATH_INVALID",
+                code: "GW_READ_PATH_INVALID",
                 message: toErrorMessage(error),
               },
             }),
@@ -1086,8 +1086,8 @@ export function createQueryTools(options: CreateStateToolsOptions): Record<strin
           );
         }
 
-        logger.info("prov_read start", {
-          tool: PROV_READ_TOOL,
+        logger.info("gw_read start", {
+          tool: GW_READ_TOOL,
           mode: resolvedMode,
           path: normalizedPath,
           layer: selectedLayerName,
@@ -1169,7 +1169,7 @@ export function createQueryTools(options: CreateStateToolsOptions): Record<strin
             ...createEvidenceWarnings(evidence),
           ]);
           const response = createProvenanceSuccess({
-            tool: PROV_READ_TOOL,
+            tool: GW_READ_TOOL,
             mode: "local",
             confidence: getLowestConfidence([
               repoState.confidence,
@@ -1191,8 +1191,8 @@ export function createQueryTools(options: CreateStateToolsOptions): Record<strin
             data,
           });
 
-          logger.info("prov_read end", {
-            tool: PROV_READ_TOOL,
+          logger.info("gw_read end", {
+            tool: GW_READ_TOOL,
             confidence: response.meta.confidence,
             ambiguity: response.meta.ambiguity,
             path: normalizedPath,
@@ -1206,8 +1206,8 @@ export function createQueryTools(options: CreateStateToolsOptions): Record<strin
           return JSON.stringify(response, null, 2);
         } catch (error) {
           const errorMessage = toErrorMessage(error);
-          logger.error("prov_read failed", {
-            tool: PROV_READ_TOOL,
+          logger.error("gw_read failed", {
+            tool: GW_READ_TOOL,
             mode: resolvedMode,
             path: normalizedPath,
             layer: selectedLayerName,
@@ -1216,13 +1216,13 @@ export function createQueryTools(options: CreateStateToolsOptions): Record<strin
 
           return JSON.stringify(
             createProvenanceFailure({
-              tool: PROV_READ_TOOL,
+              tool: GW_READ_TOOL,
               mode: "local",
               confidence: "unknown",
               ambiguity: "high",
               summary: `Failed to read provenance for '${normalizedPath}'.`,
               error: {
-                code: "PROV_READ_UNAVAILABLE",
+                code: "GW_READ_UNAVAILABLE",
                 message: errorMessage,
               },
             }),
@@ -1232,7 +1232,7 @@ export function createQueryTools(options: CreateStateToolsOptions): Record<strin
         }
       },
     }),
-    [PROV_BLOCK_READ_TOOL]: tool({
+    [GW_BLOCK_READ_TOOL]: tool({
       description:
         "Read one bounded line window from a file layer with nearby lineage, local diff context, and linked evidence summaries.",
       args: {
@@ -1266,11 +1266,11 @@ export function createQueryTools(options: CreateStateToolsOptions): Record<strin
         const resolvedMode = mode ?? "local";
 
         if (resolvedMode !== "local") {
-          logger.warn("prov_block_read unsupported mode", {
-            tool: PROV_BLOCK_READ_TOOL,
+          logger.warn("gw_block_read unsupported mode", {
+            tool: GW_BLOCK_READ_TOOL,
             mode: resolvedMode,
           });
-          return createUnsupportedModeFailure(PROV_BLOCK_READ_TOOL, resolvedMode);
+          return createUnsupportedModeFailure(GW_BLOCK_READ_TOOL, resolvedMode);
         }
 
         const selectedLayerName = layer ?? "worktree";
@@ -1280,13 +1280,13 @@ export function createQueryTools(options: CreateStateToolsOptions): Record<strin
         } catch (error) {
           return JSON.stringify(
             createProvenanceFailure({
-              tool: PROV_BLOCK_READ_TOOL,
+              tool: GW_BLOCK_READ_TOOL,
               mode: "local",
               confidence: "unknown",
               ambiguity: "high",
               summary: `Failed to normalize path '${requestedPath}'.`,
               error: {
-                code: "PROV_BLOCK_READ_PATH_INVALID",
+                code: "GW_BLOCK_READ_PATH_INVALID",
                 message: toErrorMessage(error),
               },
             }),
@@ -1295,8 +1295,8 @@ export function createQueryTools(options: CreateStateToolsOptions): Record<strin
           );
         }
 
-        logger.info("prov_block_read start", {
-          tool: PROV_BLOCK_READ_TOOL,
+        logger.info("gw_block_read start", {
+          tool: GW_BLOCK_READ_TOOL,
           mode: resolvedMode,
           path: normalizedPath,
           layer: selectedLayerName,
@@ -1340,7 +1340,7 @@ export function createQueryTools(options: CreateStateToolsOptions): Record<strin
             (totalLines === 0 || startLine > totalLines || endLine > totalLines)
           ) {
             return createBlockValidationFailure({
-              tool: PROV_BLOCK_READ_TOOL,
+              tool: GW_BLOCK_READ_TOOL,
               requestedPath,
               summary: `Requested block '${requestedPath}:${startLine}-${endLine}' is outside the selected layer.`,
               code: "BLOCK_RANGE_OUT_OF_BOUNDS",
@@ -1360,7 +1360,7 @@ export function createQueryTools(options: CreateStateToolsOptions): Record<strin
             });
           } catch (error) {
             return createBlockValidationFailure({
-              tool: PROV_BLOCK_READ_TOOL,
+              tool: GW_BLOCK_READ_TOOL,
               requestedPath,
               summary: `Invalid block window for '${requestedPath}:${startLine}-${endLine}'.`,
               code: "BLOCK_WINDOW_INVALID",
@@ -1464,7 +1464,7 @@ export function createQueryTools(options: CreateStateToolsOptions): Record<strin
             ...createEvidenceWarnings(evidence),
           ]);
           const response = createProvenanceSuccess({
-            tool: PROV_BLOCK_READ_TOOL,
+            tool: GW_BLOCK_READ_TOOL,
             mode: "local",
             confidence: getLowestConfidence([
               repoState.confidence,
@@ -1488,8 +1488,8 @@ export function createQueryTools(options: CreateStateToolsOptions): Record<strin
             data,
           });
 
-          logger.info("prov_block_read end", {
-            tool: PROV_BLOCK_READ_TOOL,
+          logger.info("gw_block_read end", {
+            tool: GW_BLOCK_READ_TOOL,
             confidence: response.meta.confidence,
             ambiguity: response.meta.ambiguity,
             path: normalizedPath,
@@ -1506,8 +1506,8 @@ export function createQueryTools(options: CreateStateToolsOptions): Record<strin
           return JSON.stringify(response, null, 2);
         } catch (error) {
           const errorMessage = toErrorMessage(error);
-          logger.error("prov_block_read failed", {
-            tool: PROV_BLOCK_READ_TOOL,
+          logger.error("gw_block_read failed", {
+            tool: GW_BLOCK_READ_TOOL,
             mode: resolvedMode,
             path: normalizedPath,
             layer: selectedLayerName,
@@ -1518,13 +1518,13 @@ export function createQueryTools(options: CreateStateToolsOptions): Record<strin
 
           return JSON.stringify(
             createProvenanceFailure({
-              tool: PROV_BLOCK_READ_TOOL,
+              tool: GW_BLOCK_READ_TOOL,
               mode: "local",
               confidence: "unknown",
               ambiguity: "high",
               summary: `Failed to read block provenance for '${normalizedPath}:${startLine}-${endLine}'.`,
               error: {
-                code: "PROV_BLOCK_READ_UNAVAILABLE",
+                code: "GW_BLOCK_READ_UNAVAILABLE",
                 message: errorMessage,
               },
             }),

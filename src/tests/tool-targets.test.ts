@@ -4,13 +4,13 @@ import { extractFrameworkToolTargets } from "../index.ts";
 
 describe("framework tool target extractor", () => {
   const rootDir = path.join(path.sep, "repo", "workspace");
-  const directory = path.join(rootDir, "plugin", "epistemology-framework");
+  const directory = path.join(rootDir, "plugin", "groundwork");
 
   it("normalizes top-level and nested path-bearing arguments", () => {
     const absolutePath = path.join(
       rootDir,
       "plugin",
-      "epistemology-framework",
+      "groundwork",
       "tests",
       "index.test.ts",
     );
@@ -34,9 +34,9 @@ describe("framework tool target extractor", () => {
       targets: [
         {
           path: "./kernel/index.ts",
-          normalizedPath: "plugin/epistemology-framework/kernel/index.ts",
-          beforePath: "plugin/epistemology-framework/kernel/index.ts",
-          afterPath: "plugin/epistemology-framework/kernel/index.ts",
+          normalizedPath: "plugin/groundwork/kernel/index.ts",
+          beforePath: "plugin/groundwork/kernel/index.ts",
+          afterPath: "plugin/groundwork/kernel/index.ts",
           source: {
             kind: "argument",
             key: "filePath",
@@ -45,9 +45,9 @@ describe("framework tool target extractor", () => {
         },
         {
           path: "tests/index.test.ts",
-          normalizedPath: "plugin/epistemology-framework/tests/index.test.ts",
-          beforePath: "plugin/epistemology-framework/tests/index.test.ts",
-          afterPath: "plugin/epistemology-framework/tests/index.test.ts",
+          normalizedPath: "plugin/groundwork/tests/index.test.ts",
+          beforePath: "plugin/groundwork/tests/index.test.ts",
+          afterPath: "plugin/groundwork/tests/index.test.ts",
           source: {
             kind: "argument",
             key: "path",
@@ -56,9 +56,9 @@ describe("framework tool target extractor", () => {
         },
         {
           path: absolutePath,
-          normalizedPath: "plugin/epistemology-framework/tests/index.test.ts",
-          beforePath: "plugin/epistemology-framework/tests/index.test.ts",
-          afterPath: "plugin/epistemology-framework/tests/index.test.ts",
+          normalizedPath: "plugin/groundwork/tests/index.test.ts",
+          beforePath: "plugin/groundwork/tests/index.test.ts",
+          afterPath: "plugin/groundwork/tests/index.test.ts",
           source: {
             kind: "argument",
             key: "filepath",
@@ -146,9 +146,9 @@ describe("framework tool target extractor", () => {
     expect(result.targets).toEqual([
       {
         path: "kernel/index.ts",
-        normalizedPath: "plugin/epistemology-framework/kernel/index.ts",
-        beforePath: "plugin/epistemology-framework/kernel/index.ts",
-        afterPath: "plugin/epistemology-framework/kernel/index.ts",
+        normalizedPath: "plugin/groundwork/kernel/index.ts",
+        beforePath: "plugin/groundwork/kernel/index.ts",
+        afterPath: "plugin/groundwork/kernel/index.ts",
         source: {
           kind: "patch",
           key: "patchText",
@@ -158,9 +158,9 @@ describe("framework tool target extractor", () => {
       },
       {
         path: "kernel/prompt-context-renamed.ts",
-        normalizedPath: "plugin/epistemology-framework/kernel/prompt-context-renamed.ts",
-        beforePath: "plugin/epistemology-framework/kernel/prompt-context.ts",
-        afterPath: "plugin/epistemology-framework/kernel/prompt-context-renamed.ts",
+        normalizedPath: "plugin/groundwork/kernel/prompt-context-renamed.ts",
+        beforePath: "plugin/groundwork/kernel/prompt-context.ts",
+        afterPath: "plugin/groundwork/kernel/prompt-context-renamed.ts",
         source: {
           kind: "patch",
           key: "patchText",
@@ -170,9 +170,9 @@ describe("framework tool target extractor", () => {
       },
       {
         path: "tests/tool-targets.generated.ts",
-        normalizedPath: "plugin/epistemology-framework/tests/tool-targets.generated.ts",
+        normalizedPath: "plugin/groundwork/tests/tool-targets.generated.ts",
         beforePath: undefined,
-        afterPath: "plugin/epistemology-framework/tests/tool-targets.generated.ts",
+        afterPath: "plugin/groundwork/tests/tool-targets.generated.ts",
         source: {
           kind: "patch",
           key: "patchText",
@@ -182,8 +182,8 @@ describe("framework tool target extractor", () => {
       },
       {
         path: "logger/index.ts",
-        normalizedPath: "plugin/epistemology-framework/logger/index.ts",
-        beforePath: "plugin/epistemology-framework/logger/index.ts",
+        normalizedPath: "plugin/groundwork/logger/index.ts",
+        beforePath: "plugin/groundwork/logger/index.ts",
         afterPath: undefined,
         source: {
           kind: "patch",

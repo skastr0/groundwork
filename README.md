@@ -1,11 +1,11 @@
-# Epistemology Framework
+# Groundwork
 
-Dedicated OpenCode plugin project for the epistemology framework.
+OpenCode plugin for policy, context, provenance, and risk foundations.
 
 This project is a behavior-preserving move of the previous local plugin from:
 
 ```text
-/Users/guilhermecastro/.config/opencode/plugin/epistemology-framework
+/Users/guilhermecastro/.config/opencode/plugin/groundwork
 ```
 
 ## Layout
