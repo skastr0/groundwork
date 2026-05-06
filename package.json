@@ -26,9 +26,10 @@
     "install:local": "bun scripts/install.ts",
     "check:imports": "bun -e \"await import('./dist/server.js')\"",
     "check:cli": "bun ./dist/cli.js doctor",
+    "check:local-install": "bun scripts/check-local-install.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "verify": "bun run typecheck && bun run test && bun run build && bun run check:imports && bun run check:cli"
+    "verify": "bun run typecheck && bun run test && bun run build && bun run check:imports && bun run check:cli && bun run check:local-install"
   },
   "keywords": [
     "opencode",

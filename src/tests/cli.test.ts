@@ -1015,6 +1015,13 @@ message = "console logging should be reviewed"
     expect(result.stdout).toContain("#compdef groundwork");
   });
 
+  it("passes root wizard help through to Effect CLI", async () => {
+    const result = await runGroundwork(["--wizard", "--help"]);
+    expect(result.exitCode).toBe(0);
+    expect(result.stderr).toBe("");
+    expect(result.stdout).toContain("groundwork 0.1.0");
+  });
+
   it("allows root log-level before JSON commands without weakening preflight", async () => {
     const success = await runGroundwork(["--log-level", "none", "doctor"]);
     expect(success.exitCode).toBe(0);
@@ -1031,6 +1038,20 @@ message = "console logging should be reviewed"
       error: {
         type: "CliInputError",
         message: "Missing required argument 'input'",
+      },
+    });
+
+    const invalidLogLevel = await runGroundwork(["--log-level", "doctor"]);
+    expectJsonOnlyFailure(invalidLogLevel);
+    expect(parseJson(invalidLogLevel.stderr)).toMatchObject({
+      ok: false,
+      error: {
+        type: "CliInputError",
+        message: "Invalid value for '--log-level'",
+        details: {
+          expected: expect.arrayContaining(["none"]),
+          received: "doctor",
+        },
       },
     });
   });

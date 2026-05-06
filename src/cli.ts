@@ -6,6 +6,17 @@ import { Effect } from "effect";
 import { rootCommand } from "./cli/commands.ts";
 import { CliInputError, renderFailure } from "./cli/protocol.ts";
 
+const ROOT_LOG_LEVELS = [
+  "all",
+  "trace",
+  "debug",
+  "info",
+  "warning",
+  "error",
+  "fatal",
+  "none",
+] as const;
+
 const cli = Command.run(rootCommand, {
   name: "groundwork",
   version: "0.1.0",
@@ -35,8 +46,13 @@ interface CommandShapeFailure {
   error: CliInputError;
 }
 
+interface RootExecutionOptionsResult {
+  args: string[];
+  failure?: CommandShapeFailure;
+}
+
 function validateCommandShape(args: string[]): CommandShapeFailure | undefined {
-  if (args.some((arg) => arg === "--help" || arg === "-h" || arg === "--version")) {
+  if (args.some(isRootParserOwnedOption)) {
     return undefined;
   }
 
@@ -44,7 +60,11 @@ function validateCommandShape(args: string[]): CommandShapeFailure | undefined {
     return undefined;
   }
 
-  const commandArgs = stripRootExecutionOptions(args);
+  const normalized = stripRootExecutionOptions(args);
+  if (normalized.failure) {
+    return normalized.failure;
+  }
+  const commandArgs = normalized.args;
 
   if (commandArgs.length === 0) {
     return shapeFailure(undefined, "Missing command", { expected: knownTopLevelCommands() });
@@ -113,11 +133,15 @@ function validateCommandShape(args: string[]): CommandShapeFailure | undefined {
   }
 }
 
+function isRootParserOwnedOption(arg: string): boolean {
+  return arg === "--help" || arg === "-h" || arg === "--version" || arg === "--wizard";
+}
+
 function hasRootCompletionOption(args: string[]): boolean {
   return args.some((arg) => arg === "--completions" || arg.startsWith("--completions="));
 }
 
-function stripRootExecutionOptions(args: string[]): string[] {
+function stripRootExecutionOptions(args: string[]): RootExecutionOptionsResult {
   const result: string[] = [];
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
@@ -125,15 +149,42 @@ function stripRootExecutionOptions(args: string[]): string[] {
       continue;
     }
     if (arg === "--log-level") {
+      const value = args[index + 1];
+      if (value === undefined || value.startsWith("-")) {
+        return { args: result, failure: invalidLogLevelFailure(undefined) };
+      }
+      const failure = validateLogLevelValue(value);
+      if (failure) {
+        return { args: result, failure };
+      }
       index += 1;
       continue;
     }
     if (arg.startsWith("--log-level=")) {
+      const value = arg.slice("--log-level=".length);
+      const failure = validateLogLevelValue(value);
+      if (failure) {
+        return { args: result, failure };
+      }
       continue;
     }
     result.push(arg);
   }
-  return result;
+  return { args: result };
+}
+
+function validateLogLevelValue(value: string): CommandShapeFailure | undefined {
+  if (!ROOT_LOG_LEVELS.includes(value as (typeof ROOT_LOG_LEVELS)[number])) {
+    return invalidLogLevelFailure(value);
+  }
+  return undefined;
+}
+
+function invalidLogLevelFailure(value: string | undefined): CommandShapeFailure {
+  return shapeFailure(undefined, value === undefined ? "Missing value for '--log-level'" : "Invalid value for '--log-level'", {
+    expected: [...ROOT_LOG_LEVELS],
+    ...(value === undefined ? {} : { received: value }),
+  });
 }
 
 function validateCodexCommand(

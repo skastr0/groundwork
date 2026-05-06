@@ -19,3 +19,4 @@ The CLI command-shape preflight preserves deterministic JSON failure envelopes f
 
 [2026-05-06]: Started while exercising the CLI feature surface. Manual repro: `bun ./src/cli.ts --completions zsh` and `bun ./src/cli.ts --log-level none doctor` both fail as unknown commands.
 [2026-05-06]: Fixed preflight by passing completion generation through and stripping supported root execution options before domain command-shape validation. Added CLI regression tests for completions, `--log-level`, and JSON-only missing-input failures. Validation: `bun run typecheck`, `bun run test src/tests/cli.test.ts --reporter=dot`, `groundwork --log-level none doctor`, and `groundwork --completions zsh`.
+[2026-05-06]: Review follow-up: `@effect/cli` root `--wizard` needed parser pass-through, and root `--log-level` values needed explicit validation so malformed options are not silently stripped. Added tests for wizard help and invalid log level values.
