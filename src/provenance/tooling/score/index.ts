@@ -1560,6 +1560,27 @@ function buildHistorySummary(history: LoadedHistory): HistorySummary {
   };
 }
 
+function buildAnalysisHistorySourceID(
+  analysis: "hotspots" | "authority" | "stability",
+  resolvedPath: string,
+): string {
+  return `${analysis}-history:${resolvedPath}`;
+}
+
+function toLoadedHistoryFromSummary(history: HistorySummary): LoadedHistory {
+  return {
+    headCommit: history.headCommit,
+    headAuthoredAt: history.headAuthoredAt,
+    headAuthoredAtMs: history.headAuthoredAtMs,
+    oldestSince: history.oldestSince,
+    totalCommits: history.totalCommits,
+    commits: [],
+    bounds: history.bounds,
+    detectionMethod: history.detectionMethod,
+    warnings: [],
+  };
+}
+
 function inferHistoryConfidence(history: LoadedHistory): ProvenanceConfidence {
   if (!history.headCommit || !history.headAuthoredAt) {
     return "unknown";
@@ -1603,7 +1624,7 @@ async function executeHotspots(
   ]);
 
   const repo = toProvRepoStateData(repoState, limit);
-  const historySourceID = `hotspots-history:${resolvedPath}`;
+  const historySourceID = buildAnalysisHistorySourceID("hotspots", resolvedPath);
 
   return {
     anchor: {
@@ -1653,7 +1674,7 @@ async function executeAuthority(
   ]);
 
   const repo = toProvRepoStateData(repoState, limit);
-  const historySourceID = `authority-history:${resolvedPath}`;
+  const historySourceID = buildAnalysisHistorySourceID("authority", resolvedPath);
   const anchorMs = history.headAuthoredAtMs ?? Date.now();
   const days = windowDays[0] ?? DEFAULT_AUTHORITY_WINDOW_DAYS;
   const since = new Date(anchorMs - days * DAY_MS).toISOString();
@@ -1750,7 +1771,7 @@ async function executeStabilityReport(
   ]);
 
   const repo = toProvRepoStateData(repoState, limit);
-  const historySourceID = `stability-history:${resolvedPath}`;
+  const historySourceID = buildAnalysisHistorySourceID("stability", resolvedPath);
   const evidenceSourceID = `evidence:${resolvedPath}`;
   const aggregates = buildStabilityWindowAggregates({ history, resolvedPath, windows });
   const pending = collectStabilityPendingPaths(repoState, resolvedPath);
@@ -2283,7 +2304,7 @@ function inferHotspotsConfidence(
 ): ProvenanceConfidence {
   return getLowestConfidence([
     data.repo.branch.confidence,
-    inferHistoryConfidence(toHotspotsHistory(data)),
+    inferHistoryConfidence(toLoadedHistoryFromSummary(data.history)),
   ]);
 }
 
@@ -2293,25 +2314,11 @@ function createHotspotsSources(
   return dedupeSources([
     ...buildRepoSources(data.repo),
     buildHistorySource({
-      id: `hotspots-history:${data.anchor.resolvedPath}`,
+      id: buildAnalysisHistorySourceID("hotspots", data.anchor.resolvedPath),
       resolvedPath: data.anchor.resolvedPath,
-      history: toHotspotsHistory(data),
+      history: toLoadedHistoryFromSummary(data.history),
     }),
   ]);
-}
-
-function toHotspotsHistory(data: z.infer<typeof ProvHotspotsDataSchema>): LoadedHistory {
-  return {
-    headCommit: data.history.headCommit,
-    headAuthoredAt: data.history.headAuthoredAt,
-    headAuthoredAtMs: parseTimestamp(data.history.headAuthoredAt ?? undefined),
-    oldestSince: data.history.oldestSince,
-    totalCommits: data.history.totalCommits,
-    commits: [],
-    bounds: data.history.bounds,
-    detectionMethod: data.history.detectionMethod,
-    warnings: [],
-  };
 }
 
 function logHotspotsEnd(data: z.infer<typeof ProvHotspotsDataSchema>): void {
@@ -2366,7 +2373,10 @@ function createAuthorityTool(runtimeOptions: CreateStateToolsOptions): ToolDefin
 
       try {
         const data = await executeAuthority(runtimeOptions, args);
-        const historySourceID = `authority-history:${data.anchor.resolvedPath}`;
+        const historySourceID = buildAnalysisHistorySourceID(
+          "authority",
+          data.anchor.resolvedPath,
+        );
         const warnings = dedupeWarnings([
           ...toRepoAmbiguityWarnings(data.repo),
           ...(data.history.bounds.truncated
@@ -2393,17 +2403,7 @@ function createAuthorityTool(runtimeOptions: CreateStateToolsOptions): ToolDefin
           buildHistorySource({
             id: historySourceID,
             resolvedPath: data.anchor.resolvedPath,
-            history: {
-              headCommit: data.history.headCommit,
-              headAuthoredAt: data.history.headAuthoredAt,
-              headAuthoredAtMs: parseTimestamp(data.history.headAuthoredAt ?? undefined),
-              oldestSince: data.history.oldestSince,
-              totalCommits: data.history.totalCommits,
-              commits: [],
-              bounds: data.history.bounds,
-              detectionMethod: data.history.detectionMethod,
-              warnings: [],
-            },
+            history: toLoadedHistoryFromSummary(data.history),
           }),
         ]);
         const response = createProvenanceSuccess({
@@ -2559,7 +2559,7 @@ function inferStabilityReportConfidence(
 ): ProvenanceConfidence {
   return getLowestConfidence([
     data.repo.branch.confidence,
-    inferHistoryConfidence(toStabilityReportHistory(data)),
+    inferHistoryConfidence(toLoadedHistoryFromSummary(data.history)),
   ]);
 }
 
@@ -2575,7 +2575,7 @@ function createStabilityReportSources(result: {
     buildHistorySource({
       id: result.historySourceID,
       resolvedPath: data.anchor.resolvedPath,
-      history: toStabilityReportHistory(data),
+      history: toLoadedHistoryFromSummary(data.history),
     }),
     {
       kind: "derived",
@@ -2586,22 +2586,6 @@ function createStabilityReportSources(result: {
     },
     ...toProvenanceEvidenceSources(result.evidenceResult.ranked.items),
   ]);
-}
-
-function toStabilityReportHistory(
-  data: z.infer<typeof ProvStabilityReportDataSchema>,
-): LoadedHistory {
-  return {
-    headCommit: data.history.headCommit,
-    headAuthoredAt: data.history.headAuthoredAt,
-    headAuthoredAtMs: parseTimestamp(data.history.headAuthoredAt ?? undefined),
-    oldestSince: data.history.oldestSince,
-    totalCommits: data.history.totalCommits,
-    commits: [],
-    bounds: data.history.bounds,
-    detectionMethod: data.history.detectionMethod,
-    warnings: [],
-  };
 }
 
 function logStabilityReportEnd(data: z.infer<typeof ProvStabilityReportDataSchema>): void {

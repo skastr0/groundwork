@@ -237,6 +237,7 @@ describe("provenance score tools", () => {
   });
 
   it("reports highest churn and most-active hotspots across deterministic windows", async () => {
+    const info = vi.spyOn(logger, "info");
     const shell = createShellStub([
       ...createRepoResponses(),
       ...createHistoryResponses("src", 3, createSrcHistoryLog()),
@@ -258,6 +259,13 @@ describe("provenance score tools", () => {
     const result = JSON.parse(raw);
 
     expect(result.ok).toBe(true);
+    expect(result.meta).toMatchObject({
+      tool: "gw_hotspots",
+      mode: "local",
+      confidence: expect.any(String),
+      ambiguity: "none",
+      warnings: [],
+    });
     expect(result.data.anchor).toMatchObject({
       requestedPath: "src",
       resolvedPath: "src",
@@ -282,6 +290,60 @@ describe("provenance score tools", () => {
     expect(result.sources).toEqual(
       expect.arrayContaining([expect.objectContaining({ id: "hotspots-history:src" })]),
     );
+    expect(info).toHaveBeenCalledWith(
+      "gw_hotspots start",
+      expect.objectContaining({ tool: "gw_hotspots", path: "src" }),
+    );
+    expect(info).toHaveBeenCalledWith(
+      "gw_hotspots end",
+      expect.objectContaining({
+        tool: "gw_hotspots",
+        path: "src",
+        windows: 2,
+        totalCommits: 3,
+      }),
+    );
+  });
+
+  it("reports empty hotspots history through meta warnings and confidence", async () => {
+    const shell = createShellStub([
+      ...createRepoResponses(),
+      ...createHistoryResponses("src/missing.ts", 0, ""),
+    ]);
+
+    const { createScoreTools } = await import("../provenance/tooling/score/index.ts");
+    const toolDef = createScoreTools({ shell, rootDir: tempRoot }).gw_hotspots;
+    if (!toolDef) {
+      throw new Error("expected gw_hotspots tool");
+    }
+    const raw = await toolDef.execute(
+      {
+        path: "src/missing.ts",
+        windows: [7],
+        limit: 2,
+      },
+      {} as never,
+    );
+    const result = JSON.parse(raw);
+
+    expect(result.ok).toBe(true);
+    expect(result.meta).toMatchObject({
+      tool: "gw_hotspots",
+      mode: "local",
+      confidence: "low",
+      warnings: [
+        expect.objectContaining({
+          code: "HISTORY_EMPTY",
+          message:
+            "No matching non-merge commits were found for 'src/missing.ts' in the requested window.",
+          ambiguity: "low",
+        }),
+      ],
+    });
+    expect(result.data.history).toMatchObject({
+      totalCommits: 0,
+      loadedCommits: 0,
+    });
   });
 
   it("reports unsupported hotspots modes and logs the mode rejection", async () => {
@@ -291,28 +353,38 @@ describe("provenance score tools", () => {
     if (!toolDef) {
       throw new Error("expected gw_hotspots tool");
     }
-    const raw = await toolDef.execute(
-      {
-        path: "src",
-        mode: "remote",
-      },
-      {} as never,
-    );
-    const result = JSON.parse(raw);
+    for (const mode of ["remote", "hybrid"] as const) {
+      const raw = await toolDef.execute(
+        {
+          path: "src",
+          mode,
+        },
+        {} as never,
+      );
+      const result = JSON.parse(raw);
 
-    expect(result.ok).toBe(false);
-    expect(result.error).toMatchObject({
-      code: "MODE_NOT_SUPPORTED",
-      message: "gw_hotspots currently supports only local mode.",
-    });
-    expect(warn).toHaveBeenCalledWith(
-      "gw_hotspots unsupported mode",
-      expect.objectContaining({ tool: "gw_hotspots", mode: "remote" }),
-    );
+      expect(result.ok).toBe(false);
+      expect(result.meta).toMatchObject({
+        tool: "gw_hotspots",
+        mode,
+        confidence: "unknown",
+        ambiguity: "high",
+        warnings: [],
+      });
+      expect(result.error).toMatchObject({
+        code: "MODE_NOT_SUPPORTED",
+        message: "gw_hotspots currently supports only local mode.",
+      });
+      expect(warn).toHaveBeenCalledWith(
+        "gw_hotspots unsupported mode",
+        expect.objectContaining({ tool: "gw_hotspots", mode }),
+      );
+    }
   });
 
   it("returns hotspots failure envelopes and logs execution failures", async () => {
     const error = vi.spyOn(logger, "error");
+    const info = vi.spyOn(logger, "info");
     const { createScoreTools } = await import("../provenance/tooling/score/index.ts");
     const toolDef = createScoreTools({
       shell: createShellStub([
@@ -338,6 +410,13 @@ describe("provenance score tools", () => {
 
     expect(result.ok).toBe(false);
     expect(result.summary).toBe("Failed to resolve hotspots for 'src'.");
+    expect(result.meta).toMatchObject({
+      tool: "gw_hotspots",
+      mode: "local",
+      confidence: "unknown",
+      ambiguity: "high",
+      warnings: [],
+    });
     expect(result.error).toMatchObject({
       code: "HOTSPOTS_UNAVAILABLE",
     });
@@ -349,6 +428,14 @@ describe("provenance score tools", () => {
         path: "src",
         error: expect.stringContaining("branch lookup failed"),
       }),
+    );
+    expect(info).toHaveBeenCalledWith(
+      "gw_hotspots start",
+      expect.objectContaining({ tool: "gw_hotspots", path: "src" }),
+    );
+    expect(info).not.toHaveBeenCalledWith(
+      "gw_hotspots end",
+      expect.objectContaining({ tool: "gw_hotspots" }),
     );
   });
 
