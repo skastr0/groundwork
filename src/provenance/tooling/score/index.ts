@@ -1997,368 +1997,380 @@ export function createScoreTools(options: CreateStateToolsOptions): Record<strin
   const runtimeOptions = normalizeCreateStateToolsOptions(options);
 
   return {
-    [GW_HOTSPOTS_TOOL]: tool({
-      description:
-        "Rank the highest-churn and most-active files or directory paths over deterministic history windows anchored to HEAD.",
-      args: {
-        path: optionalPathArg,
-        windows: hotspotWindowsArg,
-        group_by: hotspotGroupByArg,
-        directory_depth: directoryDepthArg,
-        limit: analysisLimitArg,
-        max_commits: historyMaxCommitsArg,
-        mode: provenanceModeArg,
-      },
-      async execute(args) {
-        const mode = args.mode ?? "local";
-        if (mode !== "local") {
-          logger.warn("gw_hotspots unsupported mode", { tool: GW_HOTSPOTS_TOOL, mode });
-          return createUnsupportedModeFailure(GW_HOTSPOTS_TOOL, mode);
-        }
+    [GW_HOTSPOTS_TOOL]: createHotspotsTool(runtimeOptions),
+    [GW_AUTHORITY_TOOL]: createAuthorityTool(runtimeOptions),
+    [GW_STABILITY_REPORT_TOOL]: createStabilityReportTool(runtimeOptions),
+  };
+}
 
-        logger.info("gw_hotspots start", {
+function createHotspotsTool(runtimeOptions: CreateStateToolsOptions): ToolDefinition {
+  return tool({
+    description:
+      "Rank the highest-churn and most-active files or directory paths over deterministic history windows anchored to HEAD.",
+    args: {
+      path: optionalPathArg,
+      windows: hotspotWindowsArg,
+      group_by: hotspotGroupByArg,
+      directory_depth: directoryDepthArg,
+      limit: analysisLimitArg,
+      max_commits: historyMaxCommitsArg,
+      mode: provenanceModeArg,
+    },
+    async execute(args) {
+      const mode = args.mode ?? "local";
+      if (mode !== "local") {
+        logger.warn("gw_hotspots unsupported mode", { tool: GW_HOTSPOTS_TOOL, mode });
+        return createUnsupportedModeFailure(GW_HOTSPOTS_TOOL, mode);
+      }
+
+      logger.info("gw_hotspots start", {
+        tool: GW_HOTSPOTS_TOOL,
+        path: args.path ?? ".",
+        windows: args.windows,
+        groupBy: args.group_by ?? "file",
+        directoryDepth: args.directory_depth,
+        limit: args.limit,
+        maxCommits: args.max_commits,
+      });
+
+      try {
+        const data = await executeHotspots(runtimeOptions, args);
+        const historySourceID = `hotspots-history:${data.anchor.resolvedPath}`;
+        const historyConfidence = inferHistoryConfidence({
+          headCommit: data.history.headCommit,
+          headAuthoredAt: data.history.headAuthoredAt,
+          headAuthoredAtMs: parseTimestamp(data.history.headAuthoredAt ?? undefined),
+          oldestSince: data.history.oldestSince,
+          totalCommits: data.history.totalCommits,
+          commits: [],
+          bounds: data.history.bounds,
+          detectionMethod: data.history.detectionMethod,
+          warnings: [],
+        });
+        const warnings = dedupeWarnings([
+          ...toRepoAmbiguityWarnings(data.repo),
+          ...(data.history.bounds.truncated
+            ? [
+                {
+                  code: "HISTORY_COMMITS_TRUNCATED",
+                  message: `History scan loaded ${data.history.loadedCommits}/${data.history.totalCommits} commit(s).`,
+                  ambiguity: "low" as const,
+                },
+              ]
+            : []),
+          ...(data.history.totalCommits === 0
+            ? [
+                {
+                  code: "HISTORY_EMPTY",
+                  message: `No matching non-merge commits were found for '${data.anchor.resolvedPath}' in the requested window.`,
+                  ambiguity: "low" as const,
+                },
+              ]
+            : []),
+        ]);
+        const sources = dedupeSources([
+          ...buildRepoSources(data.repo),
+          buildHistorySource({
+            id: historySourceID,
+            resolvedPath: data.anchor.resolvedPath,
+            history: {
+              headCommit: data.history.headCommit,
+              headAuthoredAt: data.history.headAuthoredAt,
+              headAuthoredAtMs: parseTimestamp(data.history.headAuthoredAt ?? undefined),
+              oldestSince: data.history.oldestSince,
+              totalCommits: data.history.totalCommits,
+              commits: [],
+              bounds: data.history.bounds,
+              detectionMethod: data.history.detectionMethod,
+              warnings: [],
+            },
+          }),
+        ]);
+        const response = createProvenanceSuccess({
+          tool: GW_HOTSPOTS_TOOL,
+          mode: "local",
+          confidence: getLowestConfidence([data.repo.branch.confidence, historyConfidence]),
+          ambiguity: getHighestAmbiguity([
+            data.repo.ambiguity.level,
+            ...warnings.map((warning) => warning.ambiguity ?? "low"),
+          ]),
+          summary: buildHotspotsSummary(data),
+          warnings,
+          sources,
+          data,
+        });
+
+        logger.info("gw_hotspots end", {
+          tool: GW_HOTSPOTS_TOOL,
+          path: data.anchor.resolvedPath,
+          windows: data.windows.length,
+          totalCommits: data.history.totalCommits,
+        });
+
+        return JSON.stringify(response, null, 2);
+      } catch (error) {
+        const message = toErrorMessage(error);
+        logger.error("gw_hotspots failed", {
           tool: GW_HOTSPOTS_TOOL,
           path: args.path ?? ".",
-          windows: args.windows,
-          groupBy: args.group_by ?? "file",
-          directoryDepth: args.directory_depth,
-          limit: args.limit,
-          maxCommits: args.max_commits,
+          error: message,
+        });
+        return createToolFailure(
+          GW_HOTSPOTS_TOOL,
+          `Failed to resolve hotspots for '${args.path ?? "."}'.`,
+          "HOTSPOTS_UNAVAILABLE",
+          message,
+        );
+      }
+    },
+  });
+}
+
+function createAuthorityTool(runtimeOptions: CreateStateToolsOptions): ToolDefinition {
+  return tool({
+    description:
+      "Rank recent author authority for one path using explicit commit, churn, and touched-path shares with cited signals.",
+    args: {
+      path: optionalPathArg,
+      window_days: authorityWindowArg,
+      limit: analysisLimitArg,
+      max_commits: historyMaxCommitsArg,
+      mode: provenanceModeArg,
+    },
+    async execute(args) {
+      const mode = args.mode ?? "local";
+      if (mode !== "local") {
+        logger.warn("gw_authority unsupported mode", { tool: GW_AUTHORITY_TOOL, mode });
+        return createUnsupportedModeFailure(GW_AUTHORITY_TOOL, mode);
+      }
+
+      logger.info("gw_authority start", {
+        tool: GW_AUTHORITY_TOOL,
+        path: args.path ?? ".",
+        windowDays: args.window_days,
+        limit: args.limit,
+        maxCommits: args.max_commits,
+      });
+
+      try {
+        const data = await executeAuthority(runtimeOptions, args);
+        const historySourceID = `authority-history:${data.anchor.resolvedPath}`;
+        const warnings = dedupeWarnings([
+          ...toRepoAmbiguityWarnings(data.repo),
+          ...(data.history.bounds.truncated
+            ? [
+                {
+                  code: "HISTORY_COMMITS_TRUNCATED",
+                  message: `Authority scan loaded ${data.history.loadedCommits}/${data.history.totalCommits} commit(s).`,
+                  ambiguity: "low" as const,
+                },
+              ]
+            : []),
+          ...(data.totals.commits === 0
+            ? [
+                {
+                  code: "AUTHORITY_EMPTY",
+                  message: `No recent authority signals were found for '${data.anchor.resolvedPath}'.`,
+                  ambiguity: "low" as const,
+                },
+              ]
+            : []),
+        ]);
+        const sources = dedupeSources([
+          ...buildRepoSources(data.repo),
+          buildHistorySource({
+            id: historySourceID,
+            resolvedPath: data.anchor.resolvedPath,
+            history: {
+              headCommit: data.history.headCommit,
+              headAuthoredAt: data.history.headAuthoredAt,
+              headAuthoredAtMs: parseTimestamp(data.history.headAuthoredAt ?? undefined),
+              oldestSince: data.history.oldestSince,
+              totalCommits: data.history.totalCommits,
+              commits: [],
+              bounds: data.history.bounds,
+              detectionMethod: data.history.detectionMethod,
+              warnings: [],
+            },
+          }),
+        ]);
+        const response = createProvenanceSuccess({
+          tool: GW_AUTHORITY_TOOL,
+          mode: "local",
+          confidence: getLowestConfidence([
+            data.repo.branch.confidence,
+            data.totals.commits > 0 ? (data.history.bounds.truncated ? "medium" : "high") : "low",
+          ]),
+          ambiguity: getHighestAmbiguity([
+            data.repo.ambiguity.level,
+            ...warnings.map((warning) => warning.ambiguity ?? "low"),
+          ]),
+          summary: buildAuthoritySummary(data),
+          warnings,
+          sources,
+          data,
         });
 
-        try {
-          const data = await executeHotspots(runtimeOptions, args);
-          const historySourceID = `hotspots-history:${data.anchor.resolvedPath}`;
-          const historyConfidence = inferHistoryConfidence({
-            headCommit: data.history.headCommit,
-            headAuthoredAt: data.history.headAuthoredAt,
-            headAuthoredAtMs: parseTimestamp(data.history.headAuthoredAt ?? undefined),
-            oldestSince: data.history.oldestSince,
-            totalCommits: data.history.totalCommits,
-            commits: [],
-            bounds: data.history.bounds,
-            detectionMethod: data.history.detectionMethod,
-            warnings: [],
-          });
-          const warnings = dedupeWarnings([
-            ...toRepoAmbiguityWarnings(data.repo),
-            ...(data.history.bounds.truncated
-              ? [
-                  {
-                    code: "HISTORY_COMMITS_TRUNCATED",
-                    message: `History scan loaded ${data.history.loadedCommits}/${data.history.totalCommits} commit(s).`,
-                    ambiguity: "low" as const,
-                  },
-                ]
-              : []),
-            ...(data.history.totalCommits === 0
-              ? [
-                  {
-                    code: "HISTORY_EMPTY",
-                    message: `No matching non-merge commits were found for '${data.anchor.resolvedPath}' in the requested window.`,
-                    ambiguity: "low" as const,
-                  },
-                ]
-              : []),
-          ]);
-          const sources = dedupeSources([
-            ...buildRepoSources(data.repo),
-            buildHistorySource({
-              id: historySourceID,
-              resolvedPath: data.anchor.resolvedPath,
-              history: {
-                headCommit: data.history.headCommit,
-                headAuthoredAt: data.history.headAuthoredAt,
-                headAuthoredAtMs: parseTimestamp(data.history.headAuthoredAt ?? undefined),
-                oldestSince: data.history.oldestSince,
-                totalCommits: data.history.totalCommits,
-                commits: [],
-                bounds: data.history.bounds,
-                detectionMethod: data.history.detectionMethod,
-                warnings: [],
-              },
-            }),
-          ]);
-          const response = createProvenanceSuccess({
-            tool: GW_HOTSPOTS_TOOL,
-            mode: "local",
-            confidence: getLowestConfidence([data.repo.branch.confidence, historyConfidence]),
-            ambiguity: getHighestAmbiguity([
-              data.repo.ambiguity.level,
-              ...warnings.map((warning) => warning.ambiguity ?? "low"),
-            ]),
-            summary: buildHotspotsSummary(data),
-            warnings,
-            sources,
-            data,
-          });
+        logger.info("gw_authority end", {
+          tool: GW_AUTHORITY_TOOL,
+          path: data.anchor.resolvedPath,
+          leaders: data.leaders.length,
+          commits: data.totals.commits,
+        });
 
-          logger.info("gw_hotspots end", {
-            tool: GW_HOTSPOTS_TOOL,
-            path: data.anchor.resolvedPath,
-            windows: data.windows.length,
-            totalCommits: data.history.totalCommits,
-          });
-
-          return JSON.stringify(response, null, 2);
-        } catch (error) {
-          const message = toErrorMessage(error);
-          logger.error("gw_hotspots failed", {
-            tool: GW_HOTSPOTS_TOOL,
-            path: args.path ?? ".",
-            error: message,
-          });
-          return createToolFailure(
-            GW_HOTSPOTS_TOOL,
-            `Failed to resolve hotspots for '${args.path ?? "."}'.`,
-            "HOTSPOTS_UNAVAILABLE",
-            message,
-          );
-        }
-      },
-    }),
-    [GW_AUTHORITY_TOOL]: tool({
-      description:
-        "Rank recent author authority for one path using explicit commit, churn, and touched-path shares with cited signals.",
-      args: {
-        path: optionalPathArg,
-        window_days: authorityWindowArg,
-        limit: analysisLimitArg,
-        max_commits: historyMaxCommitsArg,
-        mode: provenanceModeArg,
-      },
-      async execute(args) {
-        const mode = args.mode ?? "local";
-        if (mode !== "local") {
-          logger.warn("gw_authority unsupported mode", { tool: GW_AUTHORITY_TOOL, mode });
-          return createUnsupportedModeFailure(GW_AUTHORITY_TOOL, mode);
-        }
-
-        logger.info("gw_authority start", {
+        return JSON.stringify(response, null, 2);
+      } catch (error) {
+        const message = toErrorMessage(error);
+        logger.error("gw_authority failed", {
           tool: GW_AUTHORITY_TOOL,
           path: args.path ?? ".",
-          windowDays: args.window_days,
-          limit: args.limit,
-          maxCommits: args.max_commits,
+          error: message,
+        });
+        return createToolFailure(
+          GW_AUTHORITY_TOOL,
+          `Failed to resolve authority for '${args.path ?? "."}'.`,
+          "AUTHORITY_UNAVAILABLE",
+          message,
+        );
+      }
+    },
+  });
+}
+
+function createStabilityReportTool(runtimeOptions: CreateStateToolsOptions): ToolDefinition {
+  return tool({
+    description:
+      "Report recent path stability with explicit component scores, factor breakdowns, pending-change pressure, and linked evidence coverage.",
+    args: {
+      path: optionalPathArg,
+      recent_window_days: recentWindowArg,
+      baseline_window_days: baselineWindowArg,
+      limit: analysisLimitArg,
+      max_commits: historyMaxCommitsArg,
+      mode: provenanceModeArg,
+    },
+    async execute(args) {
+      const mode = args.mode ?? "local";
+      if (mode !== "local") {
+        logger.warn("gw_stability_report unsupported mode", {
+          tool: GW_STABILITY_REPORT_TOOL,
+          mode,
+        });
+        return createUnsupportedModeFailure(GW_STABILITY_REPORT_TOOL, mode);
+      }
+
+      logger.info("gw_stability_report start", {
+        tool: GW_STABILITY_REPORT_TOOL,
+        path: args.path ?? ".",
+        recentWindowDays: args.recent_window_days,
+        baselineWindowDays: args.baseline_window_days,
+        limit: args.limit,
+        maxCommits: args.max_commits,
+      });
+
+      try {
+        const { data, evidenceResult, historySourceID } = await executeStabilityReport(
+          runtimeOptions,
+          args,
+        );
+        const evidenceSourceID = `evidence:${data.anchor.resolvedPath}`;
+        const warnings = dedupeWarnings([
+          ...toRepoAmbiguityWarnings(data.repo),
+          ...(data.history.bounds.truncated
+            ? [
+                {
+                  code: "HISTORY_COMMITS_TRUNCATED",
+                  message: `Stability scan loaded ${data.history.loadedCommits}/${data.history.totalCommits} commit(s).`,
+                  ambiguity: "low" as const,
+                },
+              ]
+            : []),
+          ...(data.history.totalCommits === 0
+            ? [
+                {
+                  code: "HISTORY_EMPTY",
+                  message: `No matching non-merge commits were found for '${data.anchor.resolvedPath}'.`,
+                  ambiguity: "low" as const,
+                },
+              ]
+            : []),
+          ...toEvidenceWarnings(data.evidence),
+        ]);
+        const sources = dedupeSources([
+          ...buildRepoSources(data.repo),
+          buildHistorySource({
+            id: historySourceID,
+            resolvedPath: data.anchor.resolvedPath,
+            history: {
+              headCommit: data.history.headCommit,
+              headAuthoredAt: data.history.headAuthoredAt,
+              headAuthoredAtMs: parseTimestamp(data.history.headAuthoredAt ?? undefined),
+              oldestSince: data.history.oldestSince,
+              totalCommits: data.history.totalCommits,
+              commits: [],
+              bounds: data.history.bounds,
+              detectionMethod: data.history.detectionMethod,
+              warnings: [],
+            },
+          }),
+          {
+            kind: "derived",
+            id: evidenceSourceID,
+            path: data.anchor.resolvedPath,
+            label: "linked evidence",
+            detail: `${data.evidence.rankedItems} ranked item(s)`,
+          },
+          ...toProvenanceEvidenceSources(evidenceResult.ranked.items),
+        ]);
+        const response = createProvenanceSuccess({
+          tool: GW_STABILITY_REPORT_TOOL,
+          mode: "local",
+          confidence: getLowestConfidence([
+            data.repo.branch.confidence,
+            inferHistoryConfidence({
+              headCommit: data.history.headCommit,
+              headAuthoredAt: data.history.headAuthoredAt,
+              headAuthoredAtMs: parseTimestamp(data.history.headAuthoredAt ?? undefined),
+              oldestSince: data.history.oldestSince,
+              totalCommits: data.history.totalCommits,
+              commits: [],
+              bounds: data.history.bounds,
+              detectionMethod: data.history.detectionMethod,
+              warnings: [],
+            }),
+          ]),
+          ambiguity: getHighestAmbiguity([
+            data.repo.ambiguity.level,
+            ...warnings.map((warning) => warning.ambiguity ?? "low"),
+          ]),
+          summary: buildStabilitySummary(data),
+          warnings,
+          sources,
+          data,
         });
 
-        try {
-          const data = await executeAuthority(runtimeOptions, args);
-          const historySourceID = `authority-history:${data.anchor.resolvedPath}`;
-          const warnings = dedupeWarnings([
-            ...toRepoAmbiguityWarnings(data.repo),
-            ...(data.history.bounds.truncated
-              ? [
-                  {
-                    code: "HISTORY_COMMITS_TRUNCATED",
-                    message: `Authority scan loaded ${data.history.loadedCommits}/${data.history.totalCommits} commit(s).`,
-                    ambiguity: "low" as const,
-                  },
-                ]
-              : []),
-            ...(data.totals.commits === 0
-              ? [
-                  {
-                    code: "AUTHORITY_EMPTY",
-                    message: `No recent authority signals were found for '${data.anchor.resolvedPath}'.`,
-                    ambiguity: "low" as const,
-                  },
-                ]
-              : []),
-          ]);
-          const sources = dedupeSources([
-            ...buildRepoSources(data.repo),
-            buildHistorySource({
-              id: historySourceID,
-              resolvedPath: data.anchor.resolvedPath,
-              history: {
-                headCommit: data.history.headCommit,
-                headAuthoredAt: data.history.headAuthoredAt,
-                headAuthoredAtMs: parseTimestamp(data.history.headAuthoredAt ?? undefined),
-                oldestSince: data.history.oldestSince,
-                totalCommits: data.history.totalCommits,
-                commits: [],
-                bounds: data.history.bounds,
-                detectionMethod: data.history.detectionMethod,
-                warnings: [],
-              },
-            }),
-          ]);
-          const response = createProvenanceSuccess({
-            tool: GW_AUTHORITY_TOOL,
-            mode: "local",
-            confidence: getLowestConfidence([
-              data.repo.branch.confidence,
-              data.totals.commits > 0 ? (data.history.bounds.truncated ? "medium" : "high") : "low",
-            ]),
-            ambiguity: getHighestAmbiguity([
-              data.repo.ambiguity.level,
-              ...warnings.map((warning) => warning.ambiguity ?? "low"),
-            ]),
-            summary: buildAuthoritySummary(data),
-            warnings,
-            sources,
-            data,
-          });
+        logger.info("gw_stability_report end", {
+          tool: GW_STABILITY_REPORT_TOOL,
+          path: data.anchor.resolvedPath,
+          stability: data.scores.stability.value,
+          assessment: data.assessment.label,
+        });
 
-          logger.info("gw_authority end", {
-            tool: GW_AUTHORITY_TOOL,
-            path: data.anchor.resolvedPath,
-            leaders: data.leaders.length,
-            commits: data.totals.commits,
-          });
-
-          return JSON.stringify(response, null, 2);
-        } catch (error) {
-          const message = toErrorMessage(error);
-          logger.error("gw_authority failed", {
-            tool: GW_AUTHORITY_TOOL,
-            path: args.path ?? ".",
-            error: message,
-          });
-          return createToolFailure(
-            GW_AUTHORITY_TOOL,
-            `Failed to resolve authority for '${args.path ?? "."}'.`,
-            "AUTHORITY_UNAVAILABLE",
-            message,
-          );
-        }
-      },
-    }),
-    [GW_STABILITY_REPORT_TOOL]: tool({
-      description:
-        "Report recent path stability with explicit component scores, factor breakdowns, pending-change pressure, and linked evidence coverage.",
-      args: {
-        path: optionalPathArg,
-        recent_window_days: recentWindowArg,
-        baseline_window_days: baselineWindowArg,
-        limit: analysisLimitArg,
-        max_commits: historyMaxCommitsArg,
-        mode: provenanceModeArg,
-      },
-      async execute(args) {
-        const mode = args.mode ?? "local";
-        if (mode !== "local") {
-          logger.warn("gw_stability_report unsupported mode", {
-            tool: GW_STABILITY_REPORT_TOOL,
-            mode,
-          });
-          return createUnsupportedModeFailure(GW_STABILITY_REPORT_TOOL, mode);
-        }
-
-        logger.info("gw_stability_report start", {
+        return JSON.stringify(response, null, 2);
+      } catch (error) {
+        const message = toErrorMessage(error);
+        logger.error("gw_stability_report failed", {
           tool: GW_STABILITY_REPORT_TOOL,
           path: args.path ?? ".",
-          recentWindowDays: args.recent_window_days,
-          baselineWindowDays: args.baseline_window_days,
-          limit: args.limit,
-          maxCommits: args.max_commits,
+          error: message,
         });
-
-        try {
-          const { data, evidenceResult, historySourceID } = await executeStabilityReport(
-            runtimeOptions,
-            args,
-          );
-          const evidenceSourceID = `evidence:${data.anchor.resolvedPath}`;
-          const warnings = dedupeWarnings([
-            ...toRepoAmbiguityWarnings(data.repo),
-            ...(data.history.bounds.truncated
-              ? [
-                  {
-                    code: "HISTORY_COMMITS_TRUNCATED",
-                    message: `Stability scan loaded ${data.history.loadedCommits}/${data.history.totalCommits} commit(s).`,
-                    ambiguity: "low" as const,
-                  },
-                ]
-              : []),
-            ...(data.history.totalCommits === 0
-              ? [
-                  {
-                    code: "HISTORY_EMPTY",
-                    message: `No matching non-merge commits were found for '${data.anchor.resolvedPath}'.`,
-                    ambiguity: "low" as const,
-                  },
-                ]
-              : []),
-            ...toEvidenceWarnings(data.evidence),
-          ]);
-          const sources = dedupeSources([
-            ...buildRepoSources(data.repo),
-            buildHistorySource({
-              id: historySourceID,
-              resolvedPath: data.anchor.resolvedPath,
-              history: {
-                headCommit: data.history.headCommit,
-                headAuthoredAt: data.history.headAuthoredAt,
-                headAuthoredAtMs: parseTimestamp(data.history.headAuthoredAt ?? undefined),
-                oldestSince: data.history.oldestSince,
-                totalCommits: data.history.totalCommits,
-                commits: [],
-                bounds: data.history.bounds,
-                detectionMethod: data.history.detectionMethod,
-                warnings: [],
-              },
-            }),
-            {
-              kind: "derived",
-              id: evidenceSourceID,
-              path: data.anchor.resolvedPath,
-              label: "linked evidence",
-              detail: `${data.evidence.rankedItems} ranked item(s)`,
-            },
-            ...toProvenanceEvidenceSources(evidenceResult.ranked.items),
-          ]);
-          const response = createProvenanceSuccess({
-            tool: GW_STABILITY_REPORT_TOOL,
-            mode: "local",
-            confidence: getLowestConfidence([
-              data.repo.branch.confidence,
-              inferHistoryConfidence({
-                headCommit: data.history.headCommit,
-                headAuthoredAt: data.history.headAuthoredAt,
-                headAuthoredAtMs: parseTimestamp(data.history.headAuthoredAt ?? undefined),
-                oldestSince: data.history.oldestSince,
-                totalCommits: data.history.totalCommits,
-                commits: [],
-                bounds: data.history.bounds,
-                detectionMethod: data.history.detectionMethod,
-                warnings: [],
-              }),
-            ]),
-            ambiguity: getHighestAmbiguity([
-              data.repo.ambiguity.level,
-              ...warnings.map((warning) => warning.ambiguity ?? "low"),
-            ]),
-            summary: buildStabilitySummary(data),
-            warnings,
-            sources,
-            data,
-          });
-
-          logger.info("gw_stability_report end", {
-            tool: GW_STABILITY_REPORT_TOOL,
-            path: data.anchor.resolvedPath,
-            stability: data.scores.stability.value,
-            assessment: data.assessment.label,
-          });
-
-          return JSON.stringify(response, null, 2);
-        } catch (error) {
-          const message = toErrorMessage(error);
-          logger.error("gw_stability_report failed", {
-            tool: GW_STABILITY_REPORT_TOOL,
-            path: args.path ?? ".",
-            error: message,
-          });
-          return createToolFailure(
-            GW_STABILITY_REPORT_TOOL,
-            `Failed to build a stability report for '${args.path ?? "."}'.`,
-            "STABILITY_REPORT_UNAVAILABLE",
-            message,
-          );
-        }
-      },
-    }),
-  };
+        return createToolFailure(
+          GW_STABILITY_REPORT_TOOL,
+          `Failed to build a stability report for '${args.path ?? "."}'.`,
+          "STABILITY_REPORT_UNAVAILABLE",
+          message,
+        );
+      }
+    },
+  });
 }
