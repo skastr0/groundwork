@@ -22,3 +22,6 @@ id: gw-context-layer-hook-refactor
 [2026-05-06]: Targeted validation passed: `bun run typecheck`; `bun run test src/tests/context-runtime.test.ts src/tests/index.test.ts src/tests/layer-dispatcher.test.ts --reporter=verbose`.
 [2026-05-06]: Taste evidence: `taste score --signal TS-LD-02 .` no longer reports `createFrameworkContextLayer`; current top function outlier is `createLineageTools` at 137 LOC.
 [2026-05-06]: Full validation passed: `bun run verify` completed 25 files / 241 tests plus build/import/dist CLI/local-install checks.
+[2026-05-06]: Review follow-up centralized `session.deleted` cleanup through `createFrameworkSessionCleanupEventHook`, made the composed plugin register one cleanup owner for the shared session store, kept standalone layers owning their own cleanup by default, made prompt-context resolution pure with one persistence point, and added direct pending context snapshot lifecycle coverage.
+[2026-05-06]: Follow-up targeted validation passed: `bun run typecheck`; `bun run test src/tests/context-runtime.test.ts src/tests/index.test.ts src/tests/layer-dispatcher.test.ts --reporter=verbose` (12 tests).
+[2026-05-06]: Follow-up full validation passed: `bun run verify` completed 25 files / 242 tests plus build/import/dist CLI/local-install checks.

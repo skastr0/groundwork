@@ -6,6 +6,7 @@ import type {
   GroundworkLayerHooks,
   GroundworkLayerRegistration,
 } from "../layer/index.ts";
+import { createFrameworkSessionCleanupEventHook } from "../layer/index.ts";
 import {
   createSessionKernelStore,
   extractFrameworkToolTargets,
@@ -80,6 +81,7 @@ type FrameworkSystemTransformHook = NonNullable<
 export interface CreateFrameworkProvenanceLayerOptions {
   directory?: string;
   now?: () => string;
+  ownSessionCleanup?: boolean;
   sessionStore?: SessionKernelStore;
   shell?: CreateFrameworkProvenanceToolsOptions["shell"];
   rootDir?: CreateFrameworkProvenanceToolsOptions["rootDir"];
@@ -118,18 +120,9 @@ export async function createFrameworkProvenanceLayer(
       "experimental.chat.system.transform": createFrameworkSystemTransformHook(),
       "experimental.session.compacting": createFrameworkCompactionContextHook(sessionStore),
       "tool.definition": createFrameworkToolDefinitionHook(),
-      event: async ({ event }) => {
-        if (event.type !== "session.deleted") {
-          return;
-        }
-
-        const sessionID = readEventSessionID(event.properties);
-        if (!sessionID) {
-          return;
-        }
-
-        sessionStore.cleanup(sessionID);
-      },
+      ...(options.ownSessionCleanup ?? true
+        ? { event: createFrameworkSessionCleanupEventHook(sessionStore) }
+        : {}),
     },
   };
 }
@@ -457,23 +450,6 @@ function asToolArgs(value: unknown): Record<string, unknown> | undefined {
   }
 
   return value as Record<string, unknown>;
-}
-
-function readEventSessionID(properties: unknown): string | null {
-  const record = asToolArgs(properties);
-  if (!record) {
-    return null;
-  }
-
-  if (typeof record.id === "string" && record.id.length > 0) {
-    return record.id;
-  }
-
-  if (typeof record.sessionID === "string" && record.sessionID.length > 0) {
-    return record.sessionID;
-  }
-
-  return null;
 }
 
 function getOrCreateSessionState(

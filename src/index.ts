@@ -201,17 +201,20 @@ export const GroundworkPlugin: Plugin = async ({ $, client, directory, worktree 
   const policy = await createFrameworkPolicyLayer({
     client,
     directory,
+    ownSessionCleanup: false,
     sessionStore,
     worktree,
   });
   const context = await createFrameworkContextLayer({
     client,
     directory,
+    ownSessionCleanup: true,
     sessionStore,
     worktree,
   });
   const provenance = await createFrameworkProvenanceLayer({
     directory,
+    ownSessionCleanup: false,
     sessionStore,
     shell: $,
     rootDir: worktree,

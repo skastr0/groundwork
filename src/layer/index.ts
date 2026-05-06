@@ -13,6 +13,7 @@ export {
   isFrameworkEnforcementError,
   materializeGroundworkLayers,
 } from "./dispatcher.ts";
+export { createFrameworkSessionCleanupEventHook } from "./session-cleanup.ts";
 export type {
   GroundworkDispatcher,
   GroundworkHookName,

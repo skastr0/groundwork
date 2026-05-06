@@ -6,6 +6,8 @@ import {
   FRAMEWORK_CONTEXT_INJECTION_MAX_BYTES,
   FRAMEWORK_CONTEXT_INJECTION_MAX_ITEMS,
 } from "../index.ts";
+import { createFrameworkContextLayer } from "../context/runtime.ts";
+import { createSessionKernelStore } from "../kernel/index.ts";
 import { createFrameworkHookHarness, createFrameworkMockClient } from "./framework-test-harness.ts";
 
 describe("framework context runtime", () => {
@@ -217,6 +219,60 @@ describe("framework context runtime", () => {
         }),
       );
       expect(harness.client.session.messages).toHaveBeenCalledTimes(1);
+    } finally {
+      await harness.cleanup();
+    }
+  });
+
+  it("records and consumes pending context snapshots around tool execution", async () => {
+    const sessionStore = createSessionKernelStore();
+    const harness = await createFrameworkHookHarness({
+      createHooks: async (context) =>
+        (
+          await createFrameworkContextLayer({
+            client: context.client,
+            directory: context.directory,
+            sessionStore,
+            worktree: context.worktree,
+          })
+        ).hooks ?? {},
+    });
+
+    try {
+      const contextPath = path.join(harness.rootDir, "packages", "AGENTS.md");
+      await writeText(contextPath, "Parent context guidance");
+
+      await harness.invokeToolBefore(
+        {
+          tool: "read",
+          callID: "call-context-pending",
+          sessionID: "session-context-pending",
+        },
+        { filePath: "packages/src/index.ts" },
+      );
+
+      expect(
+        sessionStore.get("session-context-pending")?.pendingTools.calls[
+          "groundwork-context::call-context-pending"
+        ],
+      ).toMatchObject({
+        callID: "call-context-pending",
+        toolName: "read",
+        phase: "after",
+      });
+
+      await harness.invokeToolAfter({
+        tool: "read",
+        callID: "call-context-pending",
+        sessionID: "session-context-pending",
+      });
+
+      expect(
+        sessionStore.get("session-context-pending")?.pendingTools.calls[
+          "groundwork-context::call-context-pending"
+        ],
+      ).toBeUndefined();
+      expect(harness.client.session.prompt).toHaveBeenCalledTimes(1);
     } finally {
       await harness.cleanup();
     }

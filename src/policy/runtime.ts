@@ -2,6 +2,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import type { PluginInput } from "@opencode-ai/plugin";
 import {
+  createFrameworkSessionCleanupEventHook,
   FrameworkEnforcementError,
   type GroundworkLayerRegistration,
 } from "../layer/index.ts";
@@ -89,6 +90,7 @@ type FrameworkPolicyRuntimeClient = PluginInput["client"] & FrameworkPromptConte
 export interface CreateFrameworkPolicyLayerOptions {
   client: FrameworkPolicyRuntimeClient;
   directory: string;
+  ownSessionCleanup?: boolean;
   sessionStore?: SessionKernelStore;
   worktree?: string;
   env?: NodeJS.ProcessEnv;
@@ -97,6 +99,7 @@ export interface CreateFrameworkPolicyLayerOptions {
 type PolicyLayerRuntime = {
   client: FrameworkPolicyRuntimeClient;
   directory: string;
+  ownSessionCleanup: boolean;
   rootDir: string;
   config: GuardrailPolicyConfig | null | undefined;
   sessionStore: SessionKernelStore;
@@ -138,6 +141,7 @@ export async function createFrameworkPolicyLayer(
     hooks: createPolicyLayerHooks({
       client: options.client,
       directory,
+      ownSessionCleanup: options.ownSessionCleanup ?? true,
       rootDir,
       config,
       sessionStore,
@@ -159,9 +163,9 @@ function createPolicyLayerHooks(runtime: PolicyLayerRuntime): GroundworkLayerReg
       await handlePolicyToolAfter(runtime, tool, callID, sessionID);
     },
 
-    event: async ({ event }) => {
-      handlePolicyEvent(runtime, event);
-    },
+    ...(runtime.ownSessionCleanup
+      ? { event: createFrameworkSessionCleanupEventHook(runtime.sessionStore) }
+      : {}),
   };
 }
 
@@ -320,22 +324,6 @@ async function handlePolicyToolAfter(
 
   setPolicyRuntimeState(state, runtimeState);
   runtime.sessionStore.set(state);
-}
-
-function handlePolicyEvent(
-  runtime: PolicyLayerRuntime,
-  event: { type: string; properties?: unknown },
-): void {
-  if (event.type !== "session.deleted") {
-    return;
-  }
-
-  const sessionID = readEventSessionID(event.properties);
-  if (!sessionID) {
-    return;
-  }
-
-  runtime.sessionStore.cleanup(sessionID);
 }
 
 function asToolArgs(value: unknown): Record<string, unknown> | undefined {
@@ -1400,22 +1388,6 @@ function sanitizeFilePart(value: string): string {
 
 function createContentMatchCacheKey(ruleId: string, normalizedPath: string): string {
   return `${ruleId}::${normalizedPath}`;
-}
-
-function readEventSessionID(properties: unknown): string | null {
-  if (!isRecord(properties)) {
-    return null;
-  }
-
-  if (typeof properties.id === "string" && properties.id.length > 0) {
-    return properties.id;
-  }
-
-  if (typeof properties.sessionID === "string" && properties.sessionID.length > 0) {
-    return properties.sessionID;
-  }
-
-  return null;
 }
 
 async function log(

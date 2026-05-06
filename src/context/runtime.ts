@@ -1,6 +1,9 @@
 import path from "node:path";
 import type { PluginInput } from "@opencode-ai/plugin";
-import type { GroundworkLayerRegistration } from "../layer/index.ts";
+import {
+  createFrameworkSessionCleanupEventHook,
+  type GroundworkLayerRegistration,
+} from "../layer/index.ts";
 import {
   applyFrameworkPromptBudget,
   createFrameworkActionDedupeKey,
@@ -53,6 +56,7 @@ type BoundedContextReminder = {
 export interface CreateFrameworkContextLayerOptions {
   client: FrameworkContextRuntimeClient;
   directory: string;
+  ownSessionCleanup?: boolean;
   sessionStore?: SessionKernelStore;
   worktree?: string;
 }
@@ -60,6 +64,7 @@ export interface CreateFrameworkContextLayerOptions {
 type ContextLayerRuntime = {
   client: FrameworkContextRuntimeClient;
   directory: string;
+  ownSessionCleanup: boolean;
   rootDir: string;
   sessionStore: SessionKernelStore;
 };
@@ -83,6 +88,7 @@ export async function createFrameworkContextLayer(
     hooks: createContextLayerHooks({
       client: options.client,
       directory,
+      ownSessionCleanup: options.ownSessionCleanup ?? true,
       rootDir,
       sessionStore,
     }),
@@ -99,9 +105,9 @@ function createContextLayerHooks(runtime: ContextLayerRuntime): GroundworkLayerR
       await handleContextToolAfter(runtime, tool, callID, sessionID);
     },
 
-    event: async ({ event }) => {
-      handleContextEvent(runtime, event);
-    },
+    ...(runtime.ownSessionCleanup
+      ? { event: createFrameworkSessionCleanupEventHook(runtime.sessionStore) }
+      : {}),
   };
 }
 
@@ -258,22 +264,6 @@ async function injectContextReminders(options: {
   });
 }
 
-function handleContextEvent(
-  runtime: ContextLayerRuntime,
-  event: { type: string; properties?: unknown },
-): void {
-  if (event.type !== "session.deleted") {
-    return;
-  }
-
-  const sessionID = readEventSessionID(event.properties);
-  if (!sessionID) {
-    return;
-  }
-
-  runtime.sessionStore.cleanup(sessionID);
-}
-
 function asToolArgs(value: unknown): Record<string, unknown> | undefined {
   return isRecord(value) ? value : undefined;
 }
@@ -346,10 +336,6 @@ async function resolveContextPromptContext(
   const promptContext = await resolveSessionPromptContext(client, sessionID, {
     limit: CONTEXT_PROMPT_CONTEXT_LIMIT,
   });
-  if (promptContext) {
-    state.promptContext = promptContext;
-  }
-
   return promptContext;
 }
 
@@ -460,22 +446,6 @@ function normalizePromptTools(
   }
 
   return Object.keys(result).length > 0 ? result : undefined;
-}
-
-function readEventSessionID(properties: unknown): string | null {
-  if (!isRecord(properties)) {
-    return null;
-  }
-
-  if (typeof properties.id === "string" && properties.id.length > 0) {
-    return properties.id;
-  }
-
-  if (typeof properties.sessionID === "string" && properties.sessionID.length > 0) {
-    return properties.sessionID;
-  }
-
-  return null;
 }
 
 async function log(
