@@ -350,6 +350,47 @@ describe("provenance score tools", () => {
     });
   });
 
+  it("reports unavailable HEAD history anchors without running history windows", async () => {
+    const shell = createShellStub([
+      { pattern: "git log -1 --format=%H%x1f%aI HEAD", output: "" },
+      ...createRepoResponses(),
+    ]);
+
+    const { createScoreTools } = await import("../provenance/tooling/score/index.ts");
+    const toolDef = createScoreTools({ shell, rootDir: tempRoot }).gw_hotspots;
+    if (!toolDef) {
+      throw new Error("expected gw_hotspots tool");
+    }
+    const raw = await toolDef.execute(
+      {
+        path: "src",
+        windows: [7],
+        max_commits: 7,
+      },
+      {} as never,
+    );
+    const result = JSON.parse(raw);
+
+    expect(result.ok).toBe(true);
+    expect(result.data.history).toMatchObject({
+      headCommit: null,
+      headAuthoredAt: null,
+      headAuthoredAtMs: 0,
+      oldestSince: null,
+      totalCommits: 0,
+      loadedCommits: 0,
+      bounds: {
+        requested: 7,
+        limit: 7,
+        returned: 0,
+        truncated: false,
+      },
+    });
+    expect(result.meta.warnings).toEqual(
+      expect.arrayContaining([expect.objectContaining({ code: "HISTORY_EMPTY" })]),
+    );
+  });
+
   it("reports truncated hotspots history through meta warnings", async () => {
     const shell = createShellStub([
       ...createRepoResponses(),

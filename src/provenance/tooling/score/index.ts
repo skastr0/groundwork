@@ -376,6 +376,29 @@ type LoadedHistory = {
   warnings: ProvenanceWarning[];
 };
 
+type HistoryLoadOptions = {
+  requestedMaxCommits: number | undefined;
+  boundedMaxCommits: number;
+  largestWindow: number;
+  pathSpec: string;
+};
+
+type HistoryHeadAnchor =
+  | {
+      status: "available";
+      headCommit: string;
+      headAuthoredAt: string;
+      headAuthoredAtMs: number;
+    }
+  | {
+      status: "unavailable";
+    };
+
+type RawHistoryData = {
+  countRaw: string;
+  logRaw: string;
+};
+
 type MutablePathStats = {
   path: string;
   commitCount: number;
@@ -1049,13 +1072,53 @@ async function loadHistory(options: {
   windowDays: number[];
   maxCommits: number | undefined;
 }): Promise<LoadedHistory> {
-  const requestedMaxCommits = options.maxCommits;
-  const boundedMaxCommits = resolveBoundedNumber(requestedMaxCommits, HISTORY_COMMIT_LIMIT_OPTIONS);
-  const largestWindow =
-    options.windowDays[options.windowDays.length - 1] ?? DEFAULT_AUTHORITY_WINDOW_DAYS;
-  const pathSpec = options.resolvedPath === "." ? "." : options.resolvedPath;
-  const headRaw = await runProcessText({
+  const loadOptions = resolveHistoryLoadOptions(options);
+  const headAnchor = await loadHistoryHeadAnchor(options.shell);
+
+  if (headAnchor.status === "unavailable") {
+    return createUnavailableHeadHistory(loadOptions);
+  }
+
+  const oldestSince = createOldestHistorySince(headAnchor.headAuthoredAtMs, loadOptions);
+  const rawHistory = await loadRawHistoryData({
     shell: options.shell,
+    pathSpec: loadOptions.pathSpec,
+    oldestSince,
+    boundedMaxCommits: loadOptions.boundedMaxCommits,
+  });
+  const totalCommits = parseHistoryCount(rawHistory.countRaw);
+  const commits = parseHistoryLog(rawHistory.logRaw);
+
+  return createLoadedHistory({
+    loadOptions,
+    headAnchor,
+    oldestSince,
+    totalCommits,
+    commits,
+    resolvedPath: options.resolvedPath,
+  });
+}
+
+function resolveHistoryLoadOptions(options: {
+  resolvedPath: string;
+  windowDays: number[];
+  maxCommits: number | undefined;
+}): HistoryLoadOptions {
+  const requestedMaxCommits = options.maxCommits;
+  return {
+    requestedMaxCommits,
+    boundedMaxCommits: resolveBoundedNumber(requestedMaxCommits, HISTORY_COMMIT_LIMIT_OPTIONS),
+    largestWindow:
+      options.windowDays[options.windowDays.length - 1] ?? DEFAULT_AUTHORITY_WINDOW_DAYS,
+    pathSpec: options.resolvedPath === "." ? "." : options.resolvedPath,
+  };
+}
+
+async function loadHistoryHeadAnchor(
+  shell: CreateStateToolsOptions["shell"],
+): Promise<HistoryHeadAnchor> {
+  const headRaw = await runProcessText({
+    shell,
     cmd: ["git", "log", "-1", `--format=%H%x1f%aI`, "HEAD"],
     maxOutputBytes: historyParseMaxOutputBytes,
     trim: false,
@@ -1064,31 +1127,55 @@ async function loadHistory(options: {
   const headAuthoredAtMs = parseTimestamp(headAuthoredAt);
 
   if (!headCommit || !headAuthoredAt || headAuthoredAtMs === null) {
-    return {
-      headCommit: null,
-      headAuthoredAt: null,
-      headAuthoredAtMs: null,
-      oldestSince: null,
-      totalCommits: 0,
-      commits: [],
-      bounds: {
-        requested: requestedMaxCommits,
-        limit: boundedMaxCommits,
-        returned: 0,
-        truncated: false,
-      },
-      detectionMethod: `${HISTORY_HEAD_ANCHOR_METHOD} + ${HISTORY_DETECTION_METHOD}`,
-      warnings: [
-        {
-          code: "HEAD_HISTORY_UNAVAILABLE",
-          message: "HEAD commit timestamp could not be resolved for history windows.",
-          ambiguity: "medium",
-        },
-      ],
-    };
+    return { status: "unavailable" };
   }
 
-  const oldestSince = new Date(headAuthoredAtMs - largestWindow * DAY_MS).toISOString();
+  return {
+    status: "available",
+    headCommit,
+    headAuthoredAt,
+    headAuthoredAtMs,
+  };
+}
+
+function createUnavailableHeadHistory(loadOptions: HistoryLoadOptions): LoadedHistory {
+  return {
+    headCommit: null,
+    headAuthoredAt: null,
+    headAuthoredAtMs: null,
+    oldestSince: null,
+    totalCommits: 0,
+    commits: [],
+    bounds: createHistoryBounds({
+      requestedMaxCommits: loadOptions.requestedMaxCommits,
+      boundedMaxCommits: loadOptions.boundedMaxCommits,
+      returned: 0,
+      truncated: false,
+    }),
+    detectionMethod: getHistoryDetectionMethod(),
+    warnings: [
+      {
+        code: "HEAD_HISTORY_UNAVAILABLE",
+        message: "HEAD commit timestamp could not be resolved for history windows.",
+        ambiguity: "medium",
+      },
+    ],
+  };
+}
+
+function createOldestHistorySince(
+  headAuthoredAtMs: number,
+  loadOptions: Pick<HistoryLoadOptions, "largestWindow">,
+): string {
+  return new Date(headAuthoredAtMs - loadOptions.largestWindow * DAY_MS).toISOString();
+}
+
+async function loadRawHistoryData(options: {
+  shell: CreateStateToolsOptions["shell"];
+  pathSpec: string;
+  oldestSince: string;
+  boundedMaxCommits: number;
+}): Promise<RawHistoryData> {
   const [countRaw, logRaw] = await Promise.all([
     runProcessText({
       shell: options.shell,
@@ -1097,10 +1184,10 @@ async function loadHistory(options: {
         "rev-list",
         "--count",
         "--no-merges",
-        `--since=${oldestSince}`,
+        `--since=${options.oldestSince}`,
         "HEAD",
         "--",
-        pathSpec,
+        options.pathSpec,
       ],
       maxOutputBytes: historyParseMaxOutputBytes,
       trim: false,
@@ -1114,29 +1201,70 @@ async function loadHistory(options: {
         "--no-merges",
         "--numstat",
         "-n",
-        String(boundedMaxCommits),
-        `--since=${oldestSince}`,
+        String(options.boundedMaxCommits),
+        `--since=${options.oldestSince}`,
         `--format=%H%x1f%aI%x1f%an%x1f%ae%x1f%s`,
         "HEAD",
         "--",
-        pathSpec,
+        options.pathSpec,
       ],
       maxOutputBytes: historyParseMaxOutputBytes,
       trim: false,
     }),
   ]);
 
-  const totalCommits = Number.parseInt(countRaw.trim() || "0", 10) || 0;
-  const commits = parseHistoryLog(logRaw);
+  return { countRaw, logRaw };
+}
+
+function parseHistoryCount(raw: string): number {
+  return Number.parseInt(raw.trim() || "0", 10) || 0;
+}
+
+function createLoadedHistory(options: {
+  loadOptions: HistoryLoadOptions;
+  headAnchor: Extract<HistoryHeadAnchor, { status: "available" }>;
+  oldestSince: string;
+  totalCommits: number;
+  commits: HistoryCommit[];
+  resolvedPath: string;
+}): LoadedHistory {
+  const truncated = options.totalCommits > options.commits.length;
+  return {
+    headCommit: options.headAnchor.headCommit,
+    headAuthoredAt: options.headAnchor.headAuthoredAt,
+    headAuthoredAtMs: options.headAnchor.headAuthoredAtMs,
+    oldestSince: options.oldestSince,
+    totalCommits: options.totalCommits,
+    commits: options.commits,
+    bounds: createHistoryBounds({
+      requestedMaxCommits: options.loadOptions.requestedMaxCommits,
+      boundedMaxCommits: options.loadOptions.boundedMaxCommits,
+      returned: options.commits.length,
+      truncated,
+    }),
+    detectionMethod: getHistoryDetectionMethod(),
+    warnings: createHistoryWarnings({
+      totalCommits: options.totalCommits,
+      loadedCommits: options.commits.length,
+      resolvedPath: options.resolvedPath,
+    }),
+  };
+}
+
+function createHistoryWarnings(options: {
+  totalCommits: number;
+  loadedCommits: number;
+  resolvedPath: string;
+}): ProvenanceWarning[] {
   const warnings: ProvenanceWarning[] = [];
-  if (totalCommits > commits.length) {
+  if (options.totalCommits > options.loadedCommits) {
     warnings.push({
       code: "HISTORY_COMMITS_TRUNCATED",
-      message: `History scan loaded ${commits.length}/${totalCommits} commit(s); rerun with a larger max_commits to inspect more.`,
+      message: `History scan loaded ${options.loadedCommits}/${options.totalCommits} commit(s); rerun with a larger max_commits to inspect more.`,
       ambiguity: "low",
     });
   }
-  if (totalCommits === 0) {
+  if (options.totalCommits === 0) {
     warnings.push({
       code: "HISTORY_EMPTY",
       message: `No matching non-merge commits were found for '${options.resolvedPath}' in the requested window.`,
@@ -1144,22 +1272,25 @@ async function loadHistory(options: {
     });
   }
 
+  return warnings;
+}
+
+function createHistoryBounds(options: {
+  requestedMaxCommits: number | undefined;
+  boundedMaxCommits: number;
+  returned: number;
+  truncated: boolean;
+}): HistorySummary["bounds"] {
   return {
-    headCommit,
-    headAuthoredAt,
-    headAuthoredAtMs,
-    oldestSince,
-    totalCommits,
-    commits,
-    bounds: {
-      requested: requestedMaxCommits,
-      limit: boundedMaxCommits,
-      returned: commits.length,
-      truncated: totalCommits > commits.length,
-    },
-    detectionMethod: `${HISTORY_HEAD_ANCHOR_METHOD} + ${HISTORY_DETECTION_METHOD}`,
-    warnings,
+    requested: options.requestedMaxCommits,
+    limit: options.boundedMaxCommits,
+    returned: options.returned,
+    truncated: options.truncated,
   };
+}
+
+function getHistoryDetectionMethod(): string {
+  return `${HISTORY_HEAD_ANCHOR_METHOD} + ${HISTORY_DETECTION_METHOD}`;
 }
 
 function filterHistoryByWindow(
