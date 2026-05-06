@@ -373,7 +373,6 @@ type LoadedHistory = {
   commits: HistoryCommit[];
   bounds: HistorySummary["bounds"];
   detectionMethod: string;
-  warnings: ProvenanceWarning[];
 };
 
 type HistoryLoadOptions = {
@@ -1153,13 +1152,6 @@ function createUnavailableHeadHistory(loadOptions: HistoryLoadOptions): LoadedHi
       truncated: false,
     }),
     detectionMethod: getHistoryDetectionMethod(),
-    warnings: [
-      {
-        code: "HEAD_HISTORY_UNAVAILABLE",
-        message: "HEAD commit timestamp could not be resolved for history windows.",
-        ambiguity: "medium",
-      },
-    ],
   };
 }
 
@@ -1243,31 +1235,32 @@ function createLoadedHistory(options: {
       truncated,
     }),
     detectionMethod: getHistoryDetectionMethod(),
-    warnings: createHistoryWarnings({
-      totalCommits: options.totalCommits,
-      loadedCommits: options.commits.length,
-      resolvedPath: options.resolvedPath,
-    }),
   };
 }
 
 function createHistoryWarnings(options: {
+  prefix?: string;
   totalCommits: number;
   loadedCommits: number;
   resolvedPath: string;
+  emptyCode?: "HISTORY_EMPTY" | "AUTHORITY_EMPTY";
+  emptyMessage?: string;
 }): ProvenanceWarning[] {
   const warnings: ProvenanceWarning[] = [];
   if (options.totalCommits > options.loadedCommits) {
+    const subject = options.prefix ? `${options.prefix} scan` : "History scan";
     warnings.push({
       code: "HISTORY_COMMITS_TRUNCATED",
-      message: `History scan loaded ${options.loadedCommits}/${options.totalCommits} commit(s); rerun with a larger max_commits to inspect more.`,
+      message: `${subject} loaded ${options.loadedCommits}/${options.totalCommits} commit(s).`,
       ambiguity: "low",
     });
   }
   if (options.totalCommits === 0) {
     warnings.push({
-      code: "HISTORY_EMPTY",
-      message: `No matching non-merge commits were found for '${options.resolvedPath}' in the requested window.`,
+      code: options.emptyCode ?? "HISTORY_EMPTY",
+      message:
+        options.emptyMessage ??
+        `No matching non-merge commits were found for '${options.resolvedPath}' in the requested window.`,
       ambiguity: "low",
     });
   }
@@ -1708,7 +1701,6 @@ function toLoadedHistoryFromSummary(history: HistorySummary): LoadedHistory {
     commits: [],
     bounds: history.bounds,
     detectionMethod: history.detectionMethod,
-    warnings: [],
   };
 }
 
@@ -2409,24 +2401,11 @@ function createHotspotsWarnings(
 ): ProvenanceWarning[] {
   return dedupeWarnings([
     ...toRepoAmbiguityWarnings(data.repo),
-    ...(data.history.bounds.truncated
-      ? [
-          {
-            code: "HISTORY_COMMITS_TRUNCATED",
-            message: `History scan loaded ${data.history.loadedCommits}/${data.history.totalCommits} commit(s).`,
-            ambiguity: "low" as const,
-          },
-        ]
-      : []),
-    ...(data.history.totalCommits === 0
-      ? [
-          {
-            code: "HISTORY_EMPTY",
-            message: `No matching non-merge commits were found for '${data.anchor.resolvedPath}' in the requested window.`,
-            ambiguity: "low" as const,
-          },
-        ]
-      : []),
+    ...createHistoryWarnings({
+      totalCommits: data.history.totalCommits,
+      loadedCommits: data.history.loadedCommits,
+      resolvedPath: data.anchor.resolvedPath,
+    }),
   ]);
 }
 
@@ -2510,24 +2489,14 @@ function createAuthorityTool(runtimeOptions: CreateStateToolsOptions): ToolDefin
         );
         const warnings = dedupeWarnings([
           ...toRepoAmbiguityWarnings(data.repo),
-          ...(data.history.bounds.truncated
-            ? [
-                {
-                  code: "HISTORY_COMMITS_TRUNCATED",
-                  message: `Authority scan loaded ${data.history.loadedCommits}/${data.history.totalCommits} commit(s).`,
-                  ambiguity: "low" as const,
-                },
-              ]
-            : []),
-          ...(data.totals.commits === 0
-            ? [
-                {
-                  code: "AUTHORITY_EMPTY",
-                  message: `No recent authority signals were found for '${data.anchor.resolvedPath}'.`,
-                  ambiguity: "low" as const,
-                },
-              ]
-            : []),
+          ...createHistoryWarnings({
+            prefix: "Authority",
+            totalCommits: data.history.totalCommits,
+            loadedCommits: data.history.loadedCommits,
+            resolvedPath: data.anchor.resolvedPath,
+            emptyCode: "AUTHORITY_EMPTY",
+            emptyMessage: `No recent authority signals were found for '${data.anchor.resolvedPath}'.`,
+          }),
         ]);
         const sources = dedupeSources([
           ...buildRepoSources(data.repo),
@@ -2663,24 +2632,13 @@ function createStabilityReportWarnings(
 ): ProvenanceWarning[] {
   return dedupeWarnings([
     ...toRepoAmbiguityWarnings(data.repo),
-    ...(data.history.bounds.truncated
-      ? [
-          {
-            code: "HISTORY_COMMITS_TRUNCATED",
-            message: `Stability scan loaded ${data.history.loadedCommits}/${data.history.totalCommits} commit(s).`,
-            ambiguity: "low" as const,
-          },
-        ]
-      : []),
-    ...(data.history.totalCommits === 0
-      ? [
-          {
-            code: "HISTORY_EMPTY",
-            message: `No matching non-merge commits were found for '${data.anchor.resolvedPath}'.`,
-            ambiguity: "low" as const,
-          },
-        ]
-      : []),
+    ...createHistoryWarnings({
+      prefix: "Stability",
+      totalCommits: data.history.totalCommits,
+      loadedCommits: data.history.loadedCommits,
+      resolvedPath: data.anchor.resolvedPath,
+      emptyMessage: `No matching non-merge commits were found for '${data.anchor.resolvedPath}'.`,
+    }),
     ...toEvidenceWarnings(data.evidence),
   ]);
 }

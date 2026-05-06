@@ -30,8 +30,9 @@ type MockResponse = {
   shouldError?: boolean;
 };
 
-function createShellStub(responses: MockResponse[]) {
+function createShellStub(responses: MockResponse[], seenCommands?: string[]) {
   const executeCommand = (command: string): Promise<string> => {
+    seenCommands?.push(command);
     for (const response of responses) {
       const matches =
         typeof response.pattern === "string"
@@ -351,10 +352,11 @@ describe("provenance score tools", () => {
   });
 
   it("reports unavailable HEAD history anchors without running history windows", async () => {
+    const seenCommands: string[] = [];
     const shell = createShellStub([
       { pattern: "git log -1 --format=%H%x1f%aI HEAD", output: "" },
       ...createRepoResponses(),
-    ]);
+    ], seenCommands);
 
     const { createScoreTools } = await import("../provenance/tooling/score/index.ts");
     const toolDef = createScoreTools({ shell, rootDir: tempRoot }).gw_hotspots;
@@ -388,6 +390,12 @@ describe("provenance score tools", () => {
     });
     expect(result.meta.warnings).toEqual(
       expect.arrayContaining([expect.objectContaining({ code: "HISTORY_EMPTY" })]),
+    );
+    expect(seenCommands).not.toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("git rev-list --count --no-merges"),
+        expect.stringContaining("git log --find-renames --no-merges --numstat"),
+      ]),
     );
   });
 
@@ -557,6 +565,57 @@ describe("provenance score tools", () => {
         tool: "gw_hotspots",
         path: "src",
         error: expect.stringContaining("branch lookup failed"),
+      }),
+    );
+    expect(info).toHaveBeenCalledWith(
+      "gw_hotspots start",
+      expect.objectContaining({ tool: "gw_hotspots", path: "src" }),
+    );
+    expect(info).not.toHaveBeenCalledWith(
+      "gw_hotspots end",
+      expect.objectContaining({ tool: "gw_hotspots" }),
+    );
+  });
+
+  it("returns hotspots failure envelopes for history command failures", async () => {
+    const error = vi.spyOn(logger, "error");
+    const info = vi.spyOn(logger, "info");
+    const { createScoreTools } = await import("../provenance/tooling/score/index.ts");
+    const toolDef = createScoreTools({
+      shell: createShellStub([
+        ...createRepoResponses(),
+        {
+          pattern: "git rev-list --count --no-merges",
+          output: "history count failed",
+          shouldError: true,
+        },
+      ]),
+      rootDir: tempRoot,
+    }).gw_hotspots;
+    if (!toolDef) {
+      throw new Error("expected gw_hotspots tool");
+    }
+    const raw = await toolDef.execute(
+      {
+        path: "src",
+        windows: [7],
+      },
+      {} as never,
+    );
+    const result = JSON.parse(raw);
+
+    expect(result.ok).toBe(false);
+    expect(result.summary).toBe("Failed to resolve hotspots for 'src'.");
+    expect(result.error).toMatchObject({
+      code: "HOTSPOTS_UNAVAILABLE",
+      message: expect.stringContaining("history count failed"),
+    });
+    expect(error).toHaveBeenCalledWith(
+      "gw_hotspots failed",
+      expect.objectContaining({
+        tool: "gw_hotspots",
+        path: "src",
+        error: expect.stringContaining("history count failed"),
       }),
     );
     expect(info).toHaveBeenCalledWith(
