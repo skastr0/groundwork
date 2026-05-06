@@ -103,6 +103,14 @@ interface PolicyEvaluationContext {
   violations: PolicyViolation[];
 }
 
+type PolicyActionExecution = {
+  action: GuardrailAction;
+  actionIndex: number;
+  rule: GuardrailRule;
+  severity: GuardrailSeverity;
+  paths: string[];
+};
+
 export async function evaluatePolicyToolCall(input: PolicyEvaluateToolCallInput) {
   const rootDir = resolveRootDir(input.root_dir);
   const { config, projectPath, globalPath, projectPaths, globalPaths, sourceCount } =
@@ -333,132 +341,171 @@ async function evaluatePolicyRules(context: PolicyEvaluationContext): Promise<vo
 
 async function executePolicyAction(
   context: PolicyEvaluationContext,
-  params: {
-    action: GuardrailAction;
-    actionIndex: number;
-    rule: GuardrailRule;
-    severity: GuardrailSeverity;
-    paths: string[];
-  },
+  params: PolicyActionExecution,
 ): Promise<void> {
-  const { action, actionIndex, rule, severity, paths } = params;
+  const { action } = params;
   if (action.type === "inject_prompt") {
-    const key = `policy:${rule.id}:${actionIndex}:inject:${action.text}`;
-    if (rememberAction(context.state, key, "inject_prompt")) return;
-    context.messages.push({
-      level: "info",
-      rule_id: rule.id,
-      action_type: action.type,
-      text: `[groundwork:policy] ${action.text}`,
-      paths,
-    });
+    handleInjectPromptAction(context, { ...params, action });
     return;
   }
 
   if (action.type === "ensure_skill_loaded") {
-    const confirmed = new Set(context.state.policy.confirmedSkills.map(normalizeSkillName));
-    const missing = action.skills.filter((skill) => !confirmed.has(normalizeSkillName(skill)));
-    if (missing.length === 0) return;
-
-    const message =
-      action.message ??
-      `[groundwork:policy] Required skills missing for rule '${rule.id}': ${missing.join(", ")}. Confirm with 'groundwork policy skill-loaded'.`;
-    const guidanceKey = `policy:${rule.id}:${actionIndex}:skills:${missing
-      .map(normalizeSkillName)
-      .sort()
-      .join(",")}`;
-    if (!rememberAction(context.state, guidanceKey, "ensure_skill_loaded_guidance")) {
-      context.messages.push({
-        level: "info",
-        rule_id: rule.id,
-        action_type: action.type,
-        text: `${message} Load the required skills before continuing.`,
-        paths,
-      });
-    }
-
-    if ((action.mode ?? "prompt") !== "prompt") {
-      await recordViolation(context, rule, action.type, severity, message, paths);
-    }
+    await handleEnsureSkillLoadedAction(context, { ...params, action });
     return;
   }
 
   if (action.type === "require_work_item") {
-    for (const normalizedPath of paths) {
-      if (await hasMatchingWorkItem(context.rootDir, normalizedPath)) continue;
-      await recordViolation(
-        context,
-        rule,
-        action.type,
-        severity,
-        action.message ??
-          `[groundwork:policy] Path '${normalizedPath}' requires a matching active work item before tool execution (rule: ${rule.id})`,
-        [normalizedPath],
-      );
-      return;
-    }
+    await handleRequireWorkItemAction(context, { ...params, action });
     return;
   }
 
   if (action.type === "block_tool") {
-    await recordViolation(
-      context,
-      rule,
-      action.type,
-      severity,
-      action.message ??
-        `[groundwork:policy] Tool execution blocked by policy rule '${rule.id}' for paths: ${paths.join(", ")}`,
-      paths,
-    );
+    await handleBlockToolAction(context, { ...params, action });
     return;
   }
 
   if (action.type === "require_human_override") {
-    if (isBlockingSeverity(severity)) {
-      setLock(context.state, POLICY_PENDING_OVERRIDE_LOCK_KEY, {
-        scope: "mutating-tools",
-        reason:
-          action.message ??
-          `Rule '${rule.id}' requires explicit human override. Use 'groundwork policy override' to unlock mutating tools.`,
-        source: SERVICE,
-        createdAt: new Date().toISOString(),
-        paths: [...paths],
-        metadata: { ruleId: rule.id },
-      });
-    }
+    await handleRequireHumanOverrideAction(context, { ...params, action });
+    return;
+  }
+
+  if (action.type === "stop_session") {
+    await handleStopSessionAction(context, { ...params, action });
+  }
+}
+
+function handleInjectPromptAction(
+  context: PolicyEvaluationContext,
+  params: PolicyActionExecution & { action: Extract<GuardrailAction, { type: "inject_prompt" }> },
+): void {
+  const { action, actionIndex, rule, paths } = params;
+  const key = `policy:${rule.id}:${actionIndex}:inject:${action.text}`;
+  if (rememberAction(context.state, key, "inject_prompt")) return;
+  context.messages.push({
+    level: "info",
+    rule_id: rule.id,
+    action_type: action.type,
+    text: `[groundwork:policy] ${action.text}`,
+    paths,
+  });
+}
+
+async function handleEnsureSkillLoadedAction(
+  context: PolicyEvaluationContext,
+  params: PolicyActionExecution & {
+    action: Extract<GuardrailAction, { type: "ensure_skill_loaded" }>;
+  },
+): Promise<void> {
+  const { action, actionIndex, rule, severity, paths } = params;
+  const confirmed = new Set(context.state.policy.confirmedSkills.map(normalizeSkillName));
+  const missing = action.skills.filter((skill) => !confirmed.has(normalizeSkillName(skill)));
+  if (missing.length === 0) return;
+
+  const message =
+    action.message ??
+    `[groundwork:policy] Required skills missing for rule '${rule.id}': ${missing.join(", ")}. Confirm with 'groundwork policy skill-loaded'.`;
+  const guidanceKey = `policy:${rule.id}:${actionIndex}:skills:${missing
+    .map(normalizeSkillName)
+    .sort()
+    .join(",")}`;
+  if (!rememberAction(context.state, guidanceKey, "ensure_skill_loaded_guidance")) {
+    context.messages.push({
+      level: "info",
+      rule_id: rule.id,
+      action_type: action.type,
+      text: `${message} Load the required skills before continuing.`,
+      paths,
+    });
+  }
+
+  if ((action.mode ?? "prompt") !== "prompt") {
+    await recordViolation(context, rule, action.type, severity, message, paths);
+  }
+}
+
+async function handleRequireWorkItemAction(
+  context: PolicyEvaluationContext,
+  params: PolicyActionExecution & { action: Extract<GuardrailAction, { type: "require_work_item" }> },
+): Promise<void> {
+  const { action, rule, severity, paths } = params;
+  for (const normalizedPath of paths) {
+    if (await hasMatchingWorkItem(context.rootDir, normalizedPath)) continue;
     await recordViolation(
       context,
       rule,
       action.type,
       severity,
       action.message ??
-        `[groundwork:policy] Rule '${rule.id}' requires explicit human override. Use 'groundwork policy override' to continue.`,
-      paths,
+        `[groundwork:policy] Path '${normalizedPath}' requires a matching active work item before tool execution (rule: ${rule.id})`,
+      [normalizedPath],
     );
     return;
   }
+}
 
-  if (action.type === "stop_session") {
-    setLock(context.state, POLICY_TERMINATION_LOCK_KEY, {
-      scope: "session",
+async function handleBlockToolAction(
+  context: PolicyEvaluationContext,
+  params: PolicyActionExecution & { action: Extract<GuardrailAction, { type: "block_tool" }> },
+): Promise<void> {
+  const { action, rule, severity, paths } = params;
+  await recordViolation(
+    context,
+    rule,
+    action.type,
+    severity,
+    action.message ??
+      `[groundwork:policy] Tool execution blocked by policy rule '${rule.id}' for paths: ${paths.join(", ")}`,
+    paths,
+  );
+}
+
+async function handleRequireHumanOverrideAction(
+  context: PolicyEvaluationContext,
+  params: PolicyActionExecution & {
+    action: Extract<GuardrailAction, { type: "require_human_override" }>;
+  },
+): Promise<void> {
+  const { action, rule, severity, paths } = params;
+  if (isBlockingSeverity(severity)) {
+    setLock(context.state, POLICY_PENDING_OVERRIDE_LOCK_KEY, {
+      scope: "mutating-tools",
       reason:
         action.message ??
-        `[groundwork:policy] Session terminated due to critical policy violation in rule '${rule.id}'.`,
+        `Rule '${rule.id}' requires explicit human override. Use 'groundwork policy override' to unlock mutating tools.`,
       source: SERVICE,
       createdAt: new Date().toISOString(),
       paths: [...paths],
       metadata: { ruleId: rule.id },
     });
-    await recordViolation(
-      context,
-      rule,
-      action.type,
-      "terminate",
-      action.message ??
-        `[groundwork:policy] Session terminated due to critical policy violation in rule '${rule.id}'.`,
-      paths,
-    );
   }
+  await recordViolation(
+    context,
+    rule,
+    action.type,
+    severity,
+    action.message ??
+      `[groundwork:policy] Rule '${rule.id}' requires explicit human override. Use 'groundwork policy override' to continue.`,
+    paths,
+  );
+}
+
+async function handleStopSessionAction(
+  context: PolicyEvaluationContext,
+  params: PolicyActionExecution & { action: Extract<GuardrailAction, { type: "stop_session" }> },
+): Promise<void> {
+  const { action, rule, paths } = params;
+  const message =
+    action.message ??
+    `[groundwork:policy] Session terminated due to critical policy violation in rule '${rule.id}'.`;
+  setLock(context.state, POLICY_TERMINATION_LOCK_KEY, {
+    scope: "session",
+    reason: message,
+    source: SERVICE,
+    createdAt: new Date().toISOString(),
+    paths: [...paths],
+    metadata: { ruleId: rule.id },
+  });
+  await recordViolation(context, rule, action.type, "terminate", message, paths);
 }
 
 async function recordViolation(
