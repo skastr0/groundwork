@@ -12,12 +12,13 @@ import {
   evaluatePolicyToolResult,
 } from "../policy/cli-service.ts";
 import {
+  normalizeRequestedPath,
   resolveLocalFileState,
   resolveLocalRepoState,
+  toProvFileStateData,
+  toProvRepoStateData,
   type Shell,
-  type LocalFileState,
-  type LocalRepoState,
-} from "../provenance/tooling/state/local-state.ts";
+} from "../provenance/tooling/state/index.ts";
 import {
   isProvenanceToolID,
   PROVENANCE_CLI_COMMANDS,
@@ -300,7 +301,7 @@ const provenanceRepoStateCommand = Command.make("repo-state", { input: inputArg 
         shell: createShell(rootDir),
         explicitBase: payload.base,
       });
-      return toRepoStateData(state, payload.limit);
+      return toProvRepoStateData(state, payload.limit);
     }),
   ),
 ).pipe(Command.withDescription(commandDescription("provenance repo-state")));
@@ -310,12 +311,13 @@ const provenanceFileStateCommand = Command.make("file-state", { input: inputArg 
     executeJsonCommand("provenance file-state", async () => {
       const payload = await decodeJsonInput(input, ProvenanceFileStateInputSchema);
       const rootDir = resolveRootDir(payload.root_dir);
+      const normalizedPath = normalizeRequestedPath(payload.path, rootDir);
       const state = await resolveLocalFileState({
         shell: createShell(rootDir),
-        requestedPath: payload.path,
+        requestedPath: normalizedPath,
         explicitBase: payload.base,
       });
-      return toFileStateData(state);
+      return toProvFileStateData(state);
     }),
   ),
 ).pipe(Command.withDescription(commandDescription("provenance file-state")));
@@ -468,86 +470,3 @@ export const rootCommand = Command.make("groundwork").pipe(
     sessionCommand,
   ]),
 );
-
-function getBoundedItems<T>(
-  items: readonly T[],
-  limit: number | undefined,
-): { items: T[]; truncated: boolean } {
-  const resolvedLimit = limit ?? 20;
-  return {
-    items: [...items.slice(0, resolvedLimit)],
-    truncated: items.length > resolvedLimit,
-  };
-}
-
-function toRepoStateData(state: LocalRepoState, limit: number | undefined) {
-  const staged = getBoundedItems(state.index.files, limit);
-  const unstaged = getBoundedItems(state.worktree.files, limit);
-  const untracked = getBoundedItems(state.untracked.files, limit);
-
-  return {
-    branch: state.currentBranch,
-    base: {
-      ref: state.base.ref,
-      branchName: state.base.branchName,
-      detectionKind: state.base.detection.kind,
-      explicit: state.base.detection.explicit,
-      confidence: state.base.confidence,
-      detectionMethod: state.base.detectionMethod,
-    },
-    head: state.head,
-    staged: {
-      ...state.index,
-      truncated: staged.truncated,
-      files: staged.items,
-    },
-    unstaged: {
-      ...state.worktree,
-      truncated: unstaged.truncated,
-      files: unstaged.items,
-    },
-    untracked: {
-      ...state.untracked,
-      truncated: untracked.truncated,
-      files: untracked.items,
-    },
-    ambiguity: state.ambiguity,
-  };
-}
-
-function toFileStateData(state: LocalFileState) {
-  return {
-    requestedPath: state.requestedPath,
-    resolvedPath: state.resolvedPath,
-    base: state.base,
-    head: {
-      ...state.head,
-      ref: "HEAD",
-    },
-    index: {
-      ...state.index,
-      ref: "index",
-    },
-    worktree: {
-      ...state.worktree,
-      ref: "worktree",
-    },
-    comparisons: {
-      baseToHead: {
-        ...state.comparisons.baseToHead,
-        toRef: "HEAD",
-      },
-      headToIndex: {
-        ...state.comparisons.headToIndex,
-        fromRef: "HEAD",
-        toRef: "index",
-      },
-      indexToWorktree: {
-        ...state.comparisons.indexToWorktree,
-        fromRef: "index",
-        toRef: "worktree",
-      },
-    },
-    ambiguity: state.ambiguity,
-  };
-}

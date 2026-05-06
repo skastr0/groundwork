@@ -22,3 +22,4 @@ id: gw-state-tool-factory-refactor
 [2026-05-06]: Targeted validation passed: `bun run typecheck`; `bun run test src/tests/provenance-local-state.test.ts --reporter=verbose`; `bun run test src/tests/cli.test.ts -t "inspects local repository state|inspects local file state" --reporter=verbose`.
 [2026-05-06]: Taste evidence: `taste score --signal TS-LD-02 .` no longer reports `createStateTools`; current top function outlier is `executeReadTool` at 155 LOC.
 [2026-05-06]: Full validation passed: `bun run verify` completed 25 files / 237 tests plus build/import/dist CLI/local-install checks.
+[2026-05-06]: Consolidation review follow-up: direct `provenance file-state` now normalizes absolute paths against `root_dir` and reuses the shared provenance state DTO helpers, matching `gw_file_state` behavior. Added CLI regression coverage comparing direct and registry outputs for an absolute file path.

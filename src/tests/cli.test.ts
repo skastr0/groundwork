@@ -1603,6 +1603,35 @@ message = "console logging should be reviewed"
     });
   });
 
+  it("normalizes absolute file-state paths consistently across direct and registry commands", async () => {
+    const rootDir = process.cwd();
+    const absolutePath = path.join(rootDir, "src", "provenance", "tooling", "state", "index.ts");
+    const directResult = await runGroundwork([
+      "provenance",
+      "file-state",
+      JSON.stringify({ root_dir: rootDir, path: absolutePath }),
+    ]);
+    const registryResult = await runGroundwork([
+      "provenance",
+      "run",
+      JSON.stringify({
+        root_dir: rootDir,
+        tool: "gw_file_state",
+        args: { path: absolutePath },
+      }),
+    ]);
+    expect(directResult.exitCode).toBe(0);
+    expect(registryResult.exitCode).toBe(0);
+    const directData = (parseJson(directResult.stdout) as { data: Record<string, unknown> }).data;
+    const registryData = (parseJson(registryResult.stdout) as { data: { data: Record<string, unknown> } })
+      .data.data;
+
+    expect(directData.requestedPath).toBe("src/provenance/tooling/state/index.ts");
+    expect(registryData.requestedPath).toBe("src/provenance/tooling/state/index.ts");
+    expect(directData.resolvedPath).toBe(registryData.resolvedPath);
+    expect(directData.comparisons).toEqual(registryData.comparisons);
+  });
+
   it("runs full provenance registry tools through direct CLI commands", async () => {
     const result = await runGroundwork([
       "provenance",
