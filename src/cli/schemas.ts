@@ -207,6 +207,7 @@ export const ContextDiscoverInputSchema = z.object({
   directory: DirectorySchema,
   root_dir: RootDirSchema,
   include_root: z.boolean().optional(),
+  include_content: z.boolean().optional(),
 }).strict();
 
 export const ContextTouchedPathsInputSchema = z.object({
@@ -310,12 +311,15 @@ const SessionGetInputSchemaContract = {
   schema_id: "groundwork.session.get.input/v1",
   command_id: "session.get",
   command: "session get",
-  description: "Read one Groundwork durable session artifact state.",
+  description: "Read one Groundwork durable session artifact state, or use view=summary for compact counts.",
   schema: {
     type: "object",
     required: ["session_id"],
     additionalProperties: false,
-    properties: SessionBaseProperties,
+    properties: {
+      ...SessionBaseProperties,
+      view: { enum: ["full", "summary"] },
+    },
   },
 } as const;
 
@@ -543,7 +547,8 @@ export const SCHEMA_CONTRACTS = [
     schema_id: "groundwork.context.discover.input/v1",
     command_id: "context.discover",
     command: "context discover",
-    description: "Discover inherited AGENTS.md / CLAUDE.md instruction files for a target path. Root-level files are included only when include_root is true.",
+    description:
+      "Discover inherited AGENTS.md / CLAUDE.md instruction files for a target path. Root-level files are included only when include_root is true; set include_content=false for metadata-only output.",
     schema: {
       type: "object",
       required: ["target_path"],
@@ -553,6 +558,7 @@ export const SCHEMA_CONTRACTS = [
         directory: { type: "string", minLength: 1 },
         root_dir: { type: "string", minLength: 1 },
         include_root: { type: "boolean" },
+        include_content: { type: "boolean" },
       },
     },
   },

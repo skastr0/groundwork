@@ -1320,6 +1320,7 @@ message = "console logging should be reviewed"
       ok: true,
       command: "context discover",
       data: {
+        include_content: true,
         files: [
           expect.objectContaining({
             fileName: "AGENTS.md",
@@ -1328,6 +1329,32 @@ message = "console logging should be reviewed"
         ],
       },
     });
+
+    const compactResult = await runGroundwork([
+      "context",
+      "discover",
+      JSON.stringify({
+        target_path: "src/index.ts",
+        directory,
+        root_dir: rootDir,
+        include_content: false,
+      }),
+    ]);
+    const compact = parseJson(compactResult.stdout) as {
+      data: { files: Array<{ content?: string; content_bytes?: number }> };
+    };
+    expect(compact).toMatchObject({
+      data: {
+        include_content: false,
+        files: [
+          expect.objectContaining({
+            fileName: "AGENTS.md",
+            content_bytes: Buffer.byteLength("Use local app guidance.\n", "utf8"),
+          }),
+        ],
+      },
+    });
+    expect(compact.data.files[0]?.content).toBeUndefined();
   });
 
   it("discovers root context files only when explicitly requested", async () => {
@@ -1827,6 +1854,35 @@ message = "console logging should be reviewed"
         },
       },
     });
+
+    const summaryResult = await runGroundwork([
+      "session",
+      "get",
+      JSON.stringify({
+        root_dir: rootDir,
+        session_id: sessionId,
+        view: "summary",
+      }),
+    ]);
+    const summary = parseJson(summaryResult.stdout) as {
+      data: { state?: unknown; summary?: Record<string, unknown> };
+    };
+    expect(summary).toMatchObject({
+      ok: true,
+      command: "session get",
+      data: {
+        view: "summary",
+        summary: {
+          schema_version: "groundwork-session-artifacts/v1",
+          confirmed_skills: ["groundwork", "policy"],
+          overrides: 1,
+          active_locks: 0,
+          pending_tools: 1,
+          actions: 1,
+        },
+      },
+    });
+    expect(summary.data.state).toBeUndefined();
 
     const sessionDirs = await fs.readdir(path.join(rootDir, ".groundwork", "sessions"));
     expect(sessionDirs).toHaveLength(1);

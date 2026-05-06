@@ -77,7 +77,8 @@ export const COMMAND_CAPABILITIES = [
     command_id: "context.discover",
     command: "context discover",
     category: "workflow",
-    description: "Discover inherited instruction files for a target path; include root guidance with include_root.",
+    description:
+      "Discover inherited instruction files for a target path; include root guidance with include_root and omit full text with include_content=false.",
     schemas: ["groundwork.context.discover.input/v1"],
   },
   {
@@ -152,7 +153,7 @@ export const COMMAND_CAPABILITIES = [
     command_id: "session.get",
     command: "session get",
     category: "workflow",
-    description: "Read one Groundwork durable session artifact state.",
+    description: "Read one Groundwork durable session artifact state, or use view=summary for compact counts.",
     schemas: ["groundwork.session.get.input/v1"],
   },
   {
@@ -304,6 +305,12 @@ export const EXAMPLES = [
     args: [`{"target_path":"src/index.ts","include_root":false}`],
   },
   {
+    command_id: "context.discover",
+    command: "context discover",
+    name: "Find instruction file metadata without full content",
+    args: [`{"target_path":"src/index.ts","include_root":true,"include_content":false}`],
+  },
+  {
     command_id: "context.touched-paths",
     command: "context touched-paths",
     name: "Render new context reminders for touched paths",
@@ -438,6 +445,12 @@ export const EXAMPLES = [
     command: "session get",
     name: "Read one durable session artifact",
     args: [`{"session_id":"example"}`],
+  },
+  {
+    command_id: "session.get",
+    command: "session get",
+    name: "Read compact durable session summary",
+    args: [`{"session_id":"example","view":"summary"}`],
   },
   {
     command_id: "session.skill-loaded",

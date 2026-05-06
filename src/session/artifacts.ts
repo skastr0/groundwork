@@ -24,6 +24,7 @@ export const SessionArtifactRootInputSchema = z
 
 export const SessionGetInputSchema = SessionArtifactRootInputSchema.extend({
   session_id: z.string().min(1),
+  view: z.enum(["full", "summary"]).optional(),
 }).strict();
 
 export const SessionSkillLoadedInputSchema = SessionArtifactRootInputSchema.extend({
@@ -112,6 +113,9 @@ export function resolveArtifactRoot(rootDir?: string): string {
 
 export async function getSessionArtifact(input: SessionGetInput) {
   const state = await readSessionState(input.root_dir, input.session_id);
+  if (input.view === "summary") {
+    return toSessionArtifactSummaryResult(input.root_dir, input.session_id, state);
+  }
   return toSessionArtifactResult(input.root_dir, input.session_id, state);
 }
 
@@ -396,6 +400,27 @@ function toSessionArtifactResult(
     session_id: sessionID,
     artifact_root: resolveArtifactRoot(rootDir),
     state,
+  };
+}
+
+function toSessionArtifactSummaryResult(
+  rootDir: string | undefined,
+  sessionID: string,
+  state: SessionArtifactState,
+) {
+  return {
+    session_id: sessionID,
+    artifact_root: resolveArtifactRoot(rootDir),
+    view: "summary" as const,
+    summary: {
+      schema_version: state.schemaVersion,
+      confirmed_skills: state.policy.confirmedSkills,
+      overrides: state.policy.overrides.length,
+      active_locks: Object.keys(state.session.locks.active).length,
+      pending_tools: Object.keys(state.session.pendingTools.calls).length,
+      actions: Object.keys(state.actions).length,
+      updated_at: state.session.updatedAt,
+    },
   };
 }
 

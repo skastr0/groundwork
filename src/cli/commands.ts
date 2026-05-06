@@ -172,7 +172,15 @@ const contextDiscoverCommand = Command.make("discover", { input: inputArg }, ({ 
         directory,
         target_path: payload.target_path,
         include_root: payload.include_root ?? false,
-        files,
+        include_content: payload.include_content ?? true,
+        files:
+          payload.include_content === false
+            ? files.map((file) => ({
+                path: file.path,
+                fileName: file.fileName,
+                content_bytes: Buffer.byteLength(file.content, "utf8"),
+              }))
+            : files,
       };
     }),
   ),
