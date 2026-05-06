@@ -80,6 +80,7 @@ groundwork codex doctor
 ```
 
 The package also includes a Codex plugin bundle at `.codex-plugin/plugin.json`, with `hooks/hooks.json`.
+Bundled hooks use `groundwork` when it is available on `PATH` and fall back to `$HOME/.local/bin/groundwork`.
 
 Project and user installers patch `config.toml` to enable Codex hooks and install `hooks.json`. Skills are managed from `ai-plugins`, not from this package. Generated hooks default to an absolute Bun executable plus the active CLI entrypoint so hook execution does not depend on shell `PATH`. Pass an explicit `hook_command` to pin a packaged binary or custom wrapper:
 

@@ -4,7 +4,7 @@ Groundwork exposes Codex support through the same JSON-first CLI used by other i
 
 ## Install Surfaces
 
-- Plugin bundle: `.codex-plugin/plugin.json` with bundled `hooks/hooks.json`.
+- Plugin bundle: `.codex-plugin/plugin.json` with bundled `hooks/hooks.json`. Bundled hooks use `groundwork` when it is available on `PATH` and fall back to `$HOME/.local/bin/groundwork`.
 - Local marketplace: `.agents/plugins/marketplace.json` exposes this repo as a local `groundwork` plugin.
 - Project install: `groundwork codex install-project '{"target_dir":"."}'`.
 - User install: `groundwork codex install-user '{"codex_home":"/path/to/.codex"}'`.

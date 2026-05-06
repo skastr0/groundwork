@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "groundwork codex hook",
+            "command": "if command -v groundwork >/dev/null 2>&1; then exec groundwork codex hook; else exec \"$HOME/.local/bin/groundwork\" codex hook; fi",
             "timeout": 30,
             "statusMessage": "Loading Groundwork guidance"
           }
@@ -18,7 +18,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "groundwork codex hook",
+            "command": "if command -v groundwork >/dev/null 2>&1; then exec groundwork codex hook; else exec \"$HOME/.local/bin/groundwork\" codex hook; fi",
             "timeout": 30,
             "statusMessage": "Recording Groundwork policy commands"
           }
@@ -31,7 +31,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "groundwork codex hook",
+            "command": "if command -v groundwork >/dev/null 2>&1; then exec groundwork codex hook; else exec \"$HOME/.local/bin/groundwork\" codex hook; fi",
             "timeout": 30,
             "statusMessage": "Checking Groundwork pre-tool policy"
           }
@@ -44,7 +44,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "groundwork codex hook",
+            "command": "if command -v groundwork >/dev/null 2>&1; then exec groundwork codex hook; else exec \"$HOME/.local/bin/groundwork\" codex hook; fi",
             "timeout": 30,
             "statusMessage": "Checking Groundwork approval policy"
           }
@@ -57,7 +57,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "groundwork codex hook",
+            "command": "if command -v groundwork >/dev/null 2>&1; then exec groundwork codex hook; else exec \"$HOME/.local/bin/groundwork\" codex hook; fi",
             "timeout": 30,
             "statusMessage": "Recording Groundwork post-tool feedback"
           }
@@ -69,7 +69,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "groundwork codex hook",
+            "command": "if command -v groundwork >/dev/null 2>&1; then exec groundwork codex hook; else exec \"$HOME/.local/bin/groundwork\" codex hook; fi",
             "timeout": 30,
             "statusMessage": "Finalizing Groundwork hook state"
           }

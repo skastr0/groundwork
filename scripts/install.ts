@@ -66,7 +66,7 @@ const main = async (): Promise<void> => {
     console.log("Binary signed (ad-hoc)");
   }
 
-  console.log(`\nInstalled ${BINARY_NAME} to ${DESTINATION}`);
+  console.log(`\n✓ Installed ${BINARY_NAME} to ${DESTINATION}`);
 
   const pathDirs = (process.env["PATH"] || "").split(":");
   if (!pathDirs.includes(INSTALL_DIR)) {
@@ -74,7 +74,14 @@ const main = async (): Promise<void> => {
 Note: ${INSTALL_DIR} is not in your PATH.
 Add it to your shell configuration:
 
+  # bash (~/.bashrc or ~/.bash_profile)
   export PATH="$HOME/.local/bin:$PATH"
+
+  # zsh (~/.zshrc)
+  export PATH="$HOME/.local/bin:$PATH"
+
+  # fish (~/.config/fish/config.fish)
+  set -gx PATH $HOME/.local/bin $PATH
 `);
   }
 

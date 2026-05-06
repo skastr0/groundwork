@@ -20,7 +20,7 @@
     "README.md"
   ],
   "scripts": {
-    "build": "bun run build:js && bun run build:cli",
+    "build": "bun run build:cli && bun run build:js",
     "build:js": "bun build ./src/server.ts ./src/cli.ts --outdir ./dist --target bun --format esm --external @opencode-ai/plugin",
     "build:cli": "bun scripts/build-cli.ts",
     "install:local": "bun scripts/install.ts",

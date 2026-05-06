@@ -353,6 +353,14 @@ describe("groundwork CLI", () => {
     ).rejects.toThrow();
   });
 
+  it("bundles Codex plugin hooks with a local binary fallback", async () => {
+    const hooksConfig = JSON.parse(await fs.readFile(path.join(process.cwd(), "hooks", "hooks.json"), "utf8"));
+    const command = firstHookCommand(hooksConfig);
+    expect(command).toContain("command -v groundwork");
+    expect(command).toContain("$HOME/.local/bin/groundwork");
+    expect(command).toContain("codex hook");
+  });
+
   it("installs project-local Codex hooks with an explicit hook command", async () => {
     const targetDir = await fs.mkdtemp(path.join(os.tmpdir(), "groundwork-codex-command-"));
     const hookCommand = "/opt/groundwork/bin/groundwork codex hook";

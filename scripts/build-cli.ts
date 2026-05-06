@@ -1,12 +1,13 @@
 #!/usr/bin/env bun
 
 import { readFileSync } from "node:fs";
-import { mkdir } from "node:fs/promises";
+import { mkdir, rm } from "node:fs/promises";
 import { join, resolve } from "node:path";
 
 const REPO_ROOT = resolve(import.meta.dir, "..");
 const DIST_DIR = join(REPO_ROOT, "dist");
 const CLI_ENTRYPOINT = join(REPO_ROOT, "src", "cli.ts");
+const BINARY_NAME = "groundwork";
 const packageJson = JSON.parse(readFileSync(join(REPO_ROOT, "package.json"), "utf8")) as {
   readonly version?: string;
 };
@@ -37,13 +38,16 @@ const run = async (
   }
 };
 
-console.log("Preparing CLI binary output...");
+console.log("Cleaning CLI binary output...");
 await mkdir(DIST_DIR, { recursive: true });
+for (const { platform, arch } of binaryTargets) {
+  await rm(join(DIST_DIR, `${BINARY_NAME}-${platform}-${arch}`), { force: true });
+}
 
 console.log(`\nCompiling Groundwork CLI v${version} binaries...`);
 for (const { platform, arch } of binaryTargets) {
   const target = `${platform}-${arch}`;
-  const outfile = join(DIST_DIR, `groundwork-${target}`);
+  const outfile = join(DIST_DIR, `${BINARY_NAME}-${target}`);
   console.log(`Compiling ${target}...`);
   const buildResult = await Bun.build({
     target: "bun",
