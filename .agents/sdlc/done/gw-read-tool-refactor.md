@@ -22,3 +22,4 @@ id: gw-read-tool-refactor
 [2026-05-06]: Targeted validation passed: `bun run typecheck`; `bun run test src/tests/provenance-query-tools.test.ts --reporter=verbose`; `bun run test src/tests/cli.test.ts -t "runs arbitrary gw_|matches representative OpenCode" --reporter=verbose`.
 [2026-05-06]: Taste evidence: `taste score --signal TS-LD-02 .` no longer reports `executeReadTool`; current top function outlier is `createFrameworkPolicyLayer` at 152 LOC.
 [2026-05-06]: Full validation passed: `bun run verify` completed 25 files / 240 tests plus build/import/dist CLI/local-install checks.
+[2026-05-06]: Consolidation review follow-up: generalized the read state/evidence helpers and routed `gw_block_read` through them too, so `gw_read` and `gw_block_read` share one canonical repo/file state and local evidence loading path.

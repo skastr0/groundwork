@@ -1135,14 +1135,14 @@ async function executeReadTool(
   });
 
   try {
-    const { repoState, fileState } = await loadReadToolState(runtimeOptions, normalizedPath, base);
+    const { repoState, fileState } = await loadQueryToolState(runtimeOptions, normalizedPath, base);
     const content = await buildReadContent({
       runtimeOptions,
       fileState,
       selectedLayerName,
       maxBytes: max_bytes,
     });
-    const evidenceResult = await loadReadToolEvidence({
+    const evidenceResult = await loadQueryToolEvidence({
       runtimeOptions,
       normalizedPath,
       fileState,
@@ -1219,7 +1219,7 @@ function createReadPathInvalidFailure(requestedPath: string, error: unknown): st
   );
 }
 
-async function loadReadToolState(
+async function loadQueryToolState(
   runtimeOptions: QueryToolRuntimeOptions,
   normalizedPath: string,
   base: string | undefined,
@@ -1273,7 +1273,7 @@ async function buildReadContent(options: {
   };
 }
 
-async function loadReadToolEvidence(options: {
+async function loadQueryToolEvidence(options: {
   runtimeOptions: QueryToolRuntimeOptions;
   normalizedPath: string;
   fileState: ReadToolState["fileState"];
@@ -1385,17 +1385,11 @@ async function executeBlockReadTool(
   logBlockReadStart(input, resolvedMode, normalizedPath, selectedLayerName);
 
   try {
-    const [repoState, fileState] = await Promise.all([
-      resolveLocalRepoState({
-        shell: runtimeOptions.shell,
-        explicitBase: input.base,
-      }),
-      resolveLocalFileState({
-        shell: runtimeOptions.shell,
-        requestedPath: normalizedPath,
-        explicitBase: input.base,
-      }),
-    ]);
+    const { repoState, fileState } = await loadQueryToolState(
+      runtimeOptions,
+      normalizedPath,
+      input.base,
+    );
 
     const rootDir = runtimeOptions.rootDir ?? process.cwd();
     const contentResult = await resolveBlockReadContent({
@@ -1427,11 +1421,11 @@ async function executeBlockReadTool(
       focus: content.focus,
       limit: input.limit,
     });
-    const evidenceResult = await loadLocalPathEvidence({
-      rootDir,
-      path: normalizedPath,
-      aliases: buildEvidenceAliases(normalizedPath, fileState),
-      perSourceLimit: input.limit,
+    const evidenceResult = await loadQueryToolEvidence({
+      runtimeOptions,
+      normalizedPath,
+      fileState,
+      limit: input.limit,
       maxItems: input.max_items,
     });
 
