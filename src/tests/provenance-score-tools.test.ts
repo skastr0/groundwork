@@ -350,6 +350,81 @@ describe("provenance score tools", () => {
     });
   });
 
+  it("reports truncated hotspots history through meta warnings", async () => {
+    const shell = createShellStub([
+      ...createRepoResponses(),
+      ...createHistoryResponses("src", 5, createSrcHistoryLog()),
+    ]);
+
+    const { createScoreTools } = await import("../provenance/tooling/score/index.ts");
+    const toolDef = createScoreTools({ shell, rootDir: tempRoot }).gw_hotspots;
+    if (!toolDef) {
+      throw new Error("expected gw_hotspots tool");
+    }
+    const raw = await toolDef.execute(
+      {
+        path: "src",
+        windows: [30],
+        limit: 2,
+      },
+      {} as never,
+    );
+    const result = JSON.parse(raw);
+
+    expect(result.ok).toBe(true);
+    expect(result.meta).toMatchObject({
+      confidence: "medium",
+      ambiguity: "low",
+      warnings: [
+        expect.objectContaining({
+          code: "HISTORY_COMMITS_TRUNCATED",
+          message: "History scan loaded 3/5 commit(s).",
+          ambiguity: "low",
+        }),
+      ],
+    });
+    expect(result.data.history).toMatchObject({
+      totalCommits: 5,
+      loadedCommits: 3,
+      bounds: expect.objectContaining({ truncated: true }),
+    });
+  });
+
+  it("reports repo ambiguity warnings in hotspots metadata", async () => {
+    const shell = createShellStub([
+      ...createRepoResponses(" M src/a.ts", ""),
+      ...createHistoryResponses("src", 3, createSrcHistoryLog()),
+    ]);
+
+    const { createScoreTools } = await import("../provenance/tooling/score/index.ts");
+    const toolDef = createScoreTools({ shell, rootDir: tempRoot }).gw_hotspots;
+    if (!toolDef) {
+      throw new Error("expected gw_hotspots tool");
+    }
+    const raw = await toolDef.execute(
+      {
+        path: "src",
+        windows: [30],
+        limit: 2,
+      },
+      {} as never,
+    );
+    const result = JSON.parse(raw);
+
+    expect(result.ok).toBe(true);
+    expect(result.meta).toMatchObject({
+      ambiguity: "low",
+      warnings: [
+        expect.objectContaining({
+          code: "dirty_worktree",
+          ambiguity: "low",
+          message:
+            "Local index/worktree has uncommitted changes or untracked files, so provenance is relative to a dirty checkout.",
+        }),
+      ],
+    });
+  });
+
   it("reports unsupported hotspots modes and logs the mode rejection", async () => {
     const warn = vi.spyOn(logger, "warn");
     const info = vi.spyOn(logger, "info");
