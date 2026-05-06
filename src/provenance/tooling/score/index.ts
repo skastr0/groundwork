@@ -434,6 +434,15 @@ type StabilityPendingPaths = {
   allPending: Set<string>;
 };
 
+type StabilityReportToolInput = {
+  path?: string;
+  recent_window_days?: number;
+  baseline_window_days?: number;
+  limit?: number;
+  max_commits?: number;
+  mode?: "local" | "remote" | "hybrid";
+};
+
 function round(value: number): number {
   return Math.round(value * 100) / 100;
 }
@@ -2407,128 +2416,169 @@ function createStabilityReportTool(runtimeOptions: CreateStateToolsOptions): Too
       max_commits: historyMaxCommitsArg,
       mode: provenanceModeArg,
     },
-    async execute(args) {
-      const mode = args.mode ?? "local";
-      if (mode !== "local") {
-        logger.warn("gw_stability_report unsupported mode", {
-          tool: GW_STABILITY_REPORT_TOOL,
-          mode,
-        });
-        return createUnsupportedModeFailure(GW_STABILITY_REPORT_TOOL, mode);
-      }
-
-      logger.info("gw_stability_report start", {
-        tool: GW_STABILITY_REPORT_TOOL,
-        path: args.path ?? ".",
-        recentWindowDays: args.recent_window_days,
-        baselineWindowDays: args.baseline_window_days,
-        limit: args.limit,
-        maxCommits: args.max_commits,
-      });
-
-      try {
-        const { data, evidenceResult, historySourceID } = await executeStabilityReport(
-          runtimeOptions,
-          args,
-        );
-        const evidenceSourceID = `evidence:${data.anchor.resolvedPath}`;
-        const warnings = dedupeWarnings([
-          ...toRepoAmbiguityWarnings(data.repo),
-          ...(data.history.bounds.truncated
-            ? [
-                {
-                  code: "HISTORY_COMMITS_TRUNCATED",
-                  message: `Stability scan loaded ${data.history.loadedCommits}/${data.history.totalCommits} commit(s).`,
-                  ambiguity: "low" as const,
-                },
-              ]
-            : []),
-          ...(data.history.totalCommits === 0
-            ? [
-                {
-                  code: "HISTORY_EMPTY",
-                  message: `No matching non-merge commits were found for '${data.anchor.resolvedPath}'.`,
-                  ambiguity: "low" as const,
-                },
-              ]
-            : []),
-          ...toEvidenceWarnings(data.evidence),
-        ]);
-        const sources = dedupeSources([
-          ...buildRepoSources(data.repo),
-          buildHistorySource({
-            id: historySourceID,
-            resolvedPath: data.anchor.resolvedPath,
-            history: {
-              headCommit: data.history.headCommit,
-              headAuthoredAt: data.history.headAuthoredAt,
-              headAuthoredAtMs: parseTimestamp(data.history.headAuthoredAt ?? undefined),
-              oldestSince: data.history.oldestSince,
-              totalCommits: data.history.totalCommits,
-              commits: [],
-              bounds: data.history.bounds,
-              detectionMethod: data.history.detectionMethod,
-              warnings: [],
-            },
-          }),
-          {
-            kind: "derived",
-            id: evidenceSourceID,
-            path: data.anchor.resolvedPath,
-            label: "linked evidence",
-            detail: `${data.evidence.rankedItems} ranked item(s)`,
-          },
-          ...toProvenanceEvidenceSources(evidenceResult.ranked.items),
-        ]);
-        const response = createProvenanceSuccess({
-          tool: GW_STABILITY_REPORT_TOOL,
-          mode: "local",
-          confidence: getLowestConfidence([
-            data.repo.branch.confidence,
-            inferHistoryConfidence({
-              headCommit: data.history.headCommit,
-              headAuthoredAt: data.history.headAuthoredAt,
-              headAuthoredAtMs: parseTimestamp(data.history.headAuthoredAt ?? undefined),
-              oldestSince: data.history.oldestSince,
-              totalCommits: data.history.totalCommits,
-              commits: [],
-              bounds: data.history.bounds,
-              detectionMethod: data.history.detectionMethod,
-              warnings: [],
-            }),
-          ]),
-          ambiguity: getHighestAmbiguity([
-            data.repo.ambiguity.level,
-            ...warnings.map((warning) => warning.ambiguity ?? "low"),
-          ]),
-          summary: buildStabilitySummary(data),
-          warnings,
-          sources,
-          data,
-        });
-
-        logger.info("gw_stability_report end", {
-          tool: GW_STABILITY_REPORT_TOOL,
-          path: data.anchor.resolvedPath,
-          stability: data.scores.stability.value,
-          assessment: data.assessment.label,
-        });
-
-        return JSON.stringify(response, null, 2);
-      } catch (error) {
-        const message = toErrorMessage(error);
-        logger.error("gw_stability_report failed", {
-          tool: GW_STABILITY_REPORT_TOOL,
-          path: args.path ?? ".",
-          error: message,
-        });
-        return createToolFailure(
-          GW_STABILITY_REPORT_TOOL,
-          `Failed to build a stability report for '${args.path ?? "."}'.`,
-          "STABILITY_REPORT_UNAVAILABLE",
-          message,
-        );
-      }
-    },
+    execute: (args: StabilityReportToolInput) =>
+      executeStabilityReportTool(runtimeOptions, args),
   });
+}
+
+async function executeStabilityReportTool(
+  runtimeOptions: CreateStateToolsOptions,
+  args: StabilityReportToolInput,
+): Promise<string> {
+  const mode = args.mode ?? "local";
+  if (mode !== "local") {
+    return createUnsupportedStabilityReportModeFailure(mode);
+  }
+
+  logStabilityReportStart(args);
+
+  try {
+    const result = await executeStabilityReport(runtimeOptions, args);
+    const response = createStabilityReportSuccess(result);
+    logStabilityReportEnd(result.data);
+    return JSON.stringify(response, null, 2);
+  } catch (error) {
+    return createStabilityReportFailure(args, error);
+  }
+}
+
+function createUnsupportedStabilityReportModeFailure(mode: "remote" | "hybrid"): string {
+  logger.warn("gw_stability_report unsupported mode", {
+    tool: GW_STABILITY_REPORT_TOOL,
+    mode,
+  });
+  return createUnsupportedModeFailure(GW_STABILITY_REPORT_TOOL, mode);
+}
+
+function logStabilityReportStart(args: StabilityReportToolInput): void {
+  logger.info("gw_stability_report start", {
+    tool: GW_STABILITY_REPORT_TOOL,
+    path: args.path ?? ".",
+    recentWindowDays: args.recent_window_days,
+    baselineWindowDays: args.baseline_window_days,
+    limit: args.limit,
+    maxCommits: args.max_commits,
+  });
+}
+
+function createStabilityReportSuccess(result: {
+  data: z.infer<typeof ProvStabilityReportDataSchema>;
+  evidenceResult: Awaited<ReturnType<typeof loadLocalPathEvidence>>;
+  historySourceID: string;
+}) {
+  const warnings = createStabilityReportWarnings(result.data);
+  return createProvenanceSuccess({
+    tool: GW_STABILITY_REPORT_TOOL,
+    mode: "local",
+    confidence: inferStabilityReportConfidence(result.data),
+    ambiguity: getHighestAmbiguity([
+      result.data.repo.ambiguity.level,
+      ...warnings.map((warning) => warning.ambiguity ?? "low"),
+    ]),
+    summary: buildStabilitySummary(result.data),
+    warnings,
+    sources: createStabilityReportSources(result),
+    data: result.data,
+  });
+}
+
+function createStabilityReportWarnings(
+  data: z.infer<typeof ProvStabilityReportDataSchema>,
+): ProvenanceWarning[] {
+  return dedupeWarnings([
+    ...toRepoAmbiguityWarnings(data.repo),
+    ...(data.history.bounds.truncated
+      ? [
+          {
+            code: "HISTORY_COMMITS_TRUNCATED",
+            message: `Stability scan loaded ${data.history.loadedCommits}/${data.history.totalCommits} commit(s).`,
+            ambiguity: "low" as const,
+          },
+        ]
+      : []),
+    ...(data.history.totalCommits === 0
+      ? [
+          {
+            code: "HISTORY_EMPTY",
+            message: `No matching non-merge commits were found for '${data.anchor.resolvedPath}'.`,
+            ambiguity: "low" as const,
+          },
+        ]
+      : []),
+    ...toEvidenceWarnings(data.evidence),
+  ]);
+}
+
+function inferStabilityReportConfidence(
+  data: z.infer<typeof ProvStabilityReportDataSchema>,
+): ProvenanceConfidence {
+  return getLowestConfidence([
+    data.repo.branch.confidence,
+    inferHistoryConfidence(toStabilityReportHistory(data)),
+  ]);
+}
+
+function createStabilityReportSources(result: {
+  data: z.infer<typeof ProvStabilityReportDataSchema>;
+  evidenceResult: Awaited<ReturnType<typeof loadLocalPathEvidence>>;
+  historySourceID: string;
+}): ProvenanceEvidenceSource[] {
+  const data = result.data;
+  const evidenceSourceID = `evidence:${data.anchor.resolvedPath}`;
+  return dedupeSources([
+    ...buildRepoSources(data.repo),
+    buildHistorySource({
+      id: result.historySourceID,
+      resolvedPath: data.anchor.resolvedPath,
+      history: toStabilityReportHistory(data),
+    }),
+    {
+      kind: "derived",
+      id: evidenceSourceID,
+      path: data.anchor.resolvedPath,
+      label: "linked evidence",
+      detail: `${data.evidence.rankedItems} ranked item(s)`,
+    },
+    ...toProvenanceEvidenceSources(result.evidenceResult.ranked.items),
+  ]);
+}
+
+function toStabilityReportHistory(
+  data: z.infer<typeof ProvStabilityReportDataSchema>,
+): LoadedHistory {
+  return {
+    headCommit: data.history.headCommit,
+    headAuthoredAt: data.history.headAuthoredAt,
+    headAuthoredAtMs: parseTimestamp(data.history.headAuthoredAt ?? undefined),
+    oldestSince: data.history.oldestSince,
+    totalCommits: data.history.totalCommits,
+    commits: [],
+    bounds: data.history.bounds,
+    detectionMethod: data.history.detectionMethod,
+    warnings: [],
+  };
+}
+
+function logStabilityReportEnd(data: z.infer<typeof ProvStabilityReportDataSchema>): void {
+  logger.info("gw_stability_report end", {
+    tool: GW_STABILITY_REPORT_TOOL,
+    path: data.anchor.resolvedPath,
+    stability: data.scores.stability.value,
+    assessment: data.assessment.label,
+  });
+}
+
+function createStabilityReportFailure(args: StabilityReportToolInput, error: unknown): string {
+  const message = toErrorMessage(error);
+  logger.error("gw_stability_report failed", {
+    tool: GW_STABILITY_REPORT_TOOL,
+    path: args.path ?? ".",
+    error: message,
+  });
+  return createToolFailure(
+    GW_STABILITY_REPORT_TOOL,
+    `Failed to build a stability report for '${args.path ?? "."}'.`,
+    "STABILITY_REPORT_UNAVAILABLE",
+    message,
+  );
 }
