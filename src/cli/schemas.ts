@@ -505,7 +505,8 @@ export const SCHEMA_CONTRACTS = [
     schema_id: "groundwork.policy.override.input/v1",
     command_id: "policy.override",
     command: "policy override",
-    description: "Accept a human policy override and clear pending override locks.",
+    description:
+      "Record a one-shot human override for audit and clear the pending override lock; does not create durable scoped approval.",
     schema: SessionOverrideInputSchemaContract.schema,
   },
   {

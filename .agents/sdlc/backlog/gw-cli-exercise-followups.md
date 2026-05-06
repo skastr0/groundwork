@@ -12,7 +12,7 @@ The CLI surface exercise found no broad command-family functional failures, but 
 
 - [x] AC-1: Decide whether direct provenance commands should keep direct data envelopes while registry-backed commands return nested tool envelopes, or whether a normalized compatibility shape is needed.
 - [x] AC-2: Reduce `provenance pr-materialize` no-PR fallback latency or add an explicit cheap local/no-remote mode path.
-- [ ] AC-3: Clarify `policy override` semantics: one-shot lock clearing vs durable approval with scope/TTL.
+- [x] AC-3: Clarify `policy override` semantics: one-shot lock clearing vs durable approval with scope/TTL.
 - [x] AC-4: Prevent or clearly mark pending tool snapshots for pre-tool calls that policy already blocked.
 - [ ] AC-5: Evaluate compact output modes for noisy session/context commands, especially `session get` mutation responses and `context discover` full-content output.
 - [x] AC-6: Improve terminal `--help` discoverability or make help text point directly to `capabilities`, `schema show`, and `examples show`.
@@ -24,3 +24,4 @@ The CLI surface exercise found no broad command-family functional failures, but 
 [2026-05-06]: AC-6 completed in `.agents/sdlc/done/gw-cli-help-discoverability.md`.
 [2026-05-06]: AC-2 completed in `.agents/sdlc/done/gw-pr-materialize-local-mode-contract.md`: `mode: "local"` is the explicit no-remote path, public examples advertise it, and regression coverage now proves it does not invoke `gh`.
 [2026-05-06]: AC-1 completed in `.agents/sdlc/done/gw-provenance-output-shape-contract.md`: direct provenance state commands keep direct DTO output for compatibility, while registry-backed commands advertise `provenance_result` in capabilities.
+[2026-05-06]: AC-3 completed in `.agents/sdlc/done/gw-policy-override-semantics.md`: `policy override` is explicitly one-shot pending-lock clearing for audit, not durable approval with scope or TTL.

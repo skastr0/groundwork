@@ -1212,7 +1212,7 @@ message = "console logging should be reviewed"
     const policy = await runGroundwork(["policy", "--help"]);
     expect(policy.exitCode).toBe(0);
     expect(policy.stdout).toContain("Evaluate one pre-tool call against Groundwork policy.");
-    expect(policy.stdout).toContain("Accept a human policy override and clear pending override locks.");
+    expect(policy.stdout).toContain("Record a one-shot human override for audit");
 
     const provenance = await runGroundwork(["provenance", "--help"]);
     expect(provenance.exitCode).toBe(0);
@@ -2331,6 +2331,85 @@ message = "warning-only edits should still retain a pending snapshot"
       },
     });
   }, 120_000);
+
+  it("keeps policy overrides as one-shot lock clears instead of durable approvals", async () => {
+    const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "groundwork-policy-override-"));
+    await fs.writeFile(
+      path.join(rootDir, "groundwork.toml"),
+      `version = 1
+
+[[rules]]
+id = "human-override-required"
+match = ["infra/prod/**"]
+
+[[rules.actions]]
+type = "require_human_override"
+`,
+      "utf8",
+    );
+
+    const firstBlocked = await runGroundwork([
+      "policy",
+      "evaluate-tool-call",
+      JSON.stringify({
+        root_dir: rootDir,
+        session_id: "override-semantics",
+        tool: "edit",
+        call_id: "override-before",
+        args: { filePath: "infra/prod/main.tf" },
+      }),
+    ]);
+    expect(parseJson(firstBlocked.stdout)).toMatchObject({
+      ok: true,
+      data: { decision: "block" },
+    });
+
+    const override = await runGroundwork([
+      "policy",
+      "override",
+      JSON.stringify({
+        root_dir: rootDir,
+        session_id: "override-semantics",
+        reason: "human reviewed",
+      }),
+    ]);
+    expect(parseJson(override.stdout)).toMatchObject({
+      ok: true,
+      data: {
+        accepted: true,
+        semantics: {
+          kind: "one_shot_pending_lock_clear",
+          cleared_pending_lock: true,
+          durable_approval: false,
+          ttl: null,
+          scope: "pending_override_lock",
+        },
+      },
+    });
+
+    const secondBlocked = await runGroundwork([
+      "policy",
+      "evaluate-tool-call",
+      JSON.stringify({
+        root_dir: rootDir,
+        session_id: "override-semantics",
+        tool: "edit",
+        call_id: "override-after",
+        args: { filePath: "infra/prod/vars.tf" },
+      }),
+    ]);
+    expect(parseJson(secondBlocked.stdout)).toMatchObject({
+      ok: true,
+      data: {
+        decision: "block",
+        violations: [
+          expect.objectContaining({
+            rule_id: "human-override-required",
+          }),
+        ],
+      },
+    });
+  });
 
   it("keeps distinct unsafe-looking session ids isolated on disk", async () => {
     const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "groundwork-session-collision-"));

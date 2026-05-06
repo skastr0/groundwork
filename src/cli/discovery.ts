@@ -105,7 +105,8 @@ export const COMMAND_CAPABILITIES = [
     command_id: "policy.override",
     command: "policy override",
     category: "workflow",
-    description: "Accept a human policy override and clear pending override locks.",
+    description:
+      "Record a one-shot human override for audit and clear the pending override lock; does not create durable scoped approval.",
     schemas: ["groundwork.policy.override.input/v1"],
   },
   {
@@ -333,7 +334,7 @@ export const EXAMPLES = [
   {
     command_id: "policy.override",
     command: "policy override",
-    name: "Record a human policy override",
+    name: "Clear one pending policy override lock",
     args: [`{"session_id":"example","reason":"Approved by maintainer","rule_id":"strict-skill"}`],
   },
   {

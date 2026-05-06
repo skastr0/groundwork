@@ -233,6 +233,7 @@ export async function evaluatePolicyToolResult(input: PolicyEvaluateToolResultIn
 export async function acceptPolicyOverride(input: PolicyOverrideInput) {
   const updated = await updateSessionArtifactState(input.root_dir, input.session_id, (state) => {
     const now = new Date().toISOString();
+    const clearedPendingLock = state.session.locks.active[POLICY_PENDING_OVERRIDE_LOCK_KEY] !== undefined;
     state.policy.overrides.push({
       id: `override-${now}`,
       reason: input.reason,
@@ -241,12 +242,20 @@ export async function acceptPolicyOverride(input: PolicyOverrideInput) {
       metadata: toJsonObject(input.metadata),
     });
     delete state.session.locks.active[POLICY_PENDING_OVERRIDE_LOCK_KEY];
+    return { clearedPendingLock };
   });
   return {
     command: "policy override",
     decision: "allow" as const,
     session_id: input.session_id,
     accepted: true,
+    semantics: {
+      kind: "one_shot_pending_lock_clear",
+      cleared_pending_lock: updated.result.clearedPendingLock,
+      durable_approval: false,
+      ttl: null,
+      scope: "pending_override_lock",
+    },
     state: updated.state,
   };
 }
