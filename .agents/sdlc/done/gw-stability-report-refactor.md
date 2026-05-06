@@ -23,3 +23,4 @@ id: gw-stability-report-refactor
 [2026-05-06]: Targeted validation passed: `bun run typecheck`; `bun run test src/tests/provenance-score-tools.test.ts --reporter=verbose`.
 [2026-05-06]: Taste evidence: `taste score --signal TS-LD-02 .` no longer reports `executeStabilityReport`; current top function outlier is `createStateTools` at 186 LOC.
 [2026-05-06]: Full validation passed: `bun run verify` completed 25 files / 237 tests plus build/import/dist CLI/local-install checks.
+[2026-05-06]: Verification review follow-up: expanded `gw_stability_report` characterization coverage for empty history/no evidence with reversed windows and for untracked-only pending paths. Targeted score-tool validation now covers 5 tests.

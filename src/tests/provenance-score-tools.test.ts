@@ -371,4 +371,120 @@ describe("provenance score tools", () => {
       ]),
     );
   });
+
+  it("builds a stability report for empty history without evidence", async () => {
+    const shell = createShellStub([
+      ...createRepoResponses("", ""),
+      ...createHistoryResponses("src/missing.ts", 0, ""),
+    ]);
+
+    const { createScoreTools } = await import("../provenance/tooling/score/index.ts");
+    const toolDef = createScoreTools({ shell, rootDir: tempRoot }).gw_stability_report;
+    if (!toolDef) {
+      throw new Error("expected gw_stability_report tool");
+    }
+    const raw = await toolDef.execute(
+      {
+        path: "src/missing.ts",
+        recent_window_days: 30,
+        baseline_window_days: 7,
+        limit: 3,
+      },
+      {} as never,
+    );
+    const result = JSON.parse(raw);
+
+    expect(result.ok).toBe(true);
+    expect(result.data.anchor).toEqual({
+      requestedPath: "src/missing.ts",
+      resolvedPath: "src/missing.ts",
+    });
+    expect(result.data.history).toMatchObject({
+      totalCommits: 0,
+      loadedCommits: 0,
+    });
+    expect(result.data.windows).toMatchObject({
+      recent: {
+        days: 7,
+        commits: 0,
+      },
+      baseline: {
+        days: 30,
+        commits: 0,
+        touchedPaths: 0,
+        uniqueAuthors: 0,
+        churn: 0,
+      },
+    });
+    expect(result.data.pending).toEqual({
+      staged: 0,
+      unstaged: 0,
+      untracked: 0,
+      totalPaths: 0,
+    });
+    expect(result.data.evidence.rankedItems).toBe(0);
+    expect(result.data.scores).toMatchObject({
+      ownershipClarity: { value: 0 },
+      recentChangePressure: { value: 0 },
+      pendingChangePressure: { value: 0 },
+      evidenceCoverage: { value: 0 },
+      stability: {
+        value: 50,
+        interpretation: "mixed recent stability",
+      },
+    });
+    expect(result.data.assessment).toMatchObject({
+      label: "watch",
+      reasons: ["signals are mixed across recency, ownership, and evidence"],
+    });
+    expect(result.sources).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: "stability-history:src/missing.ts" }),
+        expect.objectContaining({ id: "evidence:src/missing.ts" }),
+      ]),
+    );
+  });
+
+  it("counts untracked pending paths in stability reports", async () => {
+    const shell = createShellStub([
+      ...createRepoResponses("", "src/a.ts\nsrc/other.ts"),
+      ...createHistoryResponses("src/a.ts", 2, createFileHistoryLog()),
+    ]);
+
+    const { createScoreTools } = await import("../provenance/tooling/score/index.ts");
+    const toolDef = createScoreTools({ shell, rootDir: tempRoot }).gw_stability_report;
+    if (!toolDef) {
+      throw new Error("expected gw_stability_report tool");
+    }
+    const raw = await toolDef.execute(
+      {
+        path: "src/a.ts",
+        recent_window_days: 7,
+        baseline_window_days: 30,
+        limit: 5,
+      },
+      {} as never,
+    );
+    const result = JSON.parse(raw);
+
+    expect(result.ok).toBe(true);
+    expect(result.data.pending).toEqual({
+      staged: 0,
+      unstaged: 0,
+      untracked: 1,
+      totalPaths: 1,
+    });
+    expect(result.data.scores.pendingChangePressure).toMatchObject({
+      value: 100,
+      formula: "100 * (pending_paths / max(1, baseline_touched_paths))",
+    });
+    expect(result.data.scores.pendingChangePressure.factors[0]).toMatchObject({
+      key: "pending_path_share",
+      signals: [
+        expect.objectContaining({ label: "Pending paths", value: 1 }),
+        expect.objectContaining({ label: "Baseline touched paths", value: 1 }),
+      ],
+    });
+    expect(result.data.assessment.label).toBe("volatile");
+  });
 });
