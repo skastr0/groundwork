@@ -217,7 +217,7 @@ export async function evaluatePolicyToolResult(input: PolicyEvaluateToolResultIn
       phase: "after",
       config,
       sessionID: input.session_id,
-      tool: pending.toolName || input.tool || "unknown",
+      tool: pending.toolName,
       callID: input.call_id,
       targets: materializeGuardrailTargets(rootDir, pending.targets),
       state,

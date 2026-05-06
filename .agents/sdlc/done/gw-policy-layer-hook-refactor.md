@@ -25,3 +25,4 @@ This touches `src/policy/**`, so Groundwork readiness applies and an SDLC work i
 [2026-05-06]: Targeted validation passed: `bun run typecheck`; `bun run test src/tests/policy-runtime.test.ts --reporter=verbose`; `bun run test src/tests/index.test.ts src/tests/layer-dispatcher.test.ts src/tests/policy-runtime.test.ts --reporter=verbose`.
 [2026-05-06]: Taste evidence: `taste score --signal TS-LD-02 .` no longer reports `createFrameworkPolicyLayer`; current top function outlier is `loadLocalSpanTraceEvidence` at 141 LOC.
 [2026-05-06]: Full validation passed: `bun run verify` completed 25 files / 241 tests plus build/import/dist CLI/local-install checks.
+[2026-05-06]: Consolidation review follow-up: removed after-hook tool-name compatibility fallbacks and opened `gw-policy-engine-consolidation` for the broader framework-vs-CLI policy evaluator duplication.

@@ -308,7 +308,7 @@ async function handlePolicyToolAfter(
     phase: "after",
     config,
     rootDir: runtime.rootDir,
-    tool: pending.toolName || tool,
+    tool: pending.toolName,
     callID,
     sessionID,
     targets: materializeGuardrailTargets(runtime.rootDir, pending.targets),
