@@ -181,6 +181,16 @@ function createRemotePrResponses(prNumber: number): MockResponse[] {
   ];
 }
 
+function createDetectedRemotePrResponses(prNumber: number): MockResponse[] {
+  return [
+    {
+      pattern: "gh pr view --json number --jq .number",
+      output: `${prNumber}\n`,
+    },
+    ...createRemotePrResponses(prNumber),
+  ];
+}
+
 async function seedEvidenceRoot(rootDir: string) {
   await fs.mkdir(path.join(rootDir, "src", "auth"), { recursive: true });
   await fs.mkdir(path.join(rootDir, ".agents", "messages"), { recursive: true });
@@ -284,9 +294,17 @@ describe("PR provenance tools", () => {
     expect(result.data.remote).toMatchObject({
       status: "available",
       resolvedNumber: 42,
+      confidence: "medium",
       metadata: {
         title: "Add auth provenance",
         author: "octocat",
+      },
+      description: {
+        text: "Tracks auth changes and review rationale for src/auth/login.ts.",
+        bounds: {
+          requested: 4000,
+          truncated: false,
+        },
       },
     });
     expect(result.data.remote.files).toMatchObject({
@@ -312,6 +330,50 @@ describe("PR provenance tools", () => {
         expect.objectContaining({ kind: "git", id: "local-branch-diff" }),
       ]),
     );
+  });
+
+  it("detects the current branch PR when no explicit PR number is provided", async () => {
+    await seedEvidenceRoot(tempRoot);
+    const seenCommands: string[] = [];
+    const shell = createShellStub(
+      [
+        ...createLocalRepoResponses(""),
+        ...createDetectedRemotePrResponses(42),
+      ],
+      seenCommands,
+    );
+
+    const { createPrMaterializeTool } = await import("../provenance/tooling/expand/pr-tools.ts");
+    const toolDef = createPrMaterializeTool({ shell, rootDir: tempRoot });
+    const raw = await toolDef.execute(
+      {
+        base: "origin/main",
+        mode: "hybrid",
+        limit: 10,
+        max_bytes: 4000,
+      },
+      {} as never,
+    );
+    const result = JSON.parse(raw);
+
+    expect(result.ok).toBe(true);
+    expect(seenCommands).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("gh pr view --json number --jq .number"),
+        expect.stringContaining(
+          "gh pr view 42 --json number,title,body,url,state,isDraft,author,baseRefName,headRefName,createdAt,updatedAt",
+        ),
+      ]),
+    );
+    expect(result.data.remote).toMatchObject({
+      status: "available",
+      attempted: true,
+      requestedNumber: null,
+      resolvedNumber: 42,
+      detectionMethod:
+        "gh pr view --json number --jq '.number' + gh pr view <pr> --json metadata + gh api pulls/<pr>/files + gh api pulls/<pr>/reviews + gh api pulls/<pr>/comments",
+    });
+    expect(result.data.fallback.used).toBe(false);
   });
 
   it("materializes PR review context when a PR has no submitted reviews", async () => {
@@ -614,6 +676,110 @@ describe("PR provenance tools", () => {
     expect(result.ok).toBe(false);
     expect(result.meta.mode).toBe("remote");
     expect(result.error).toMatchObject({ code: "GH_UNAUTHENTICATED" });
+  });
+
+  it("preserves generic GitHub CLI failure envelopes", async () => {
+    const shell = createShellStub([
+      {
+        pattern:
+          "gh pr view 42 --json number,title,body,url,state,isDraft,author,baseRefName,headRefName,createdAt,updatedAt",
+        output: "GraphQL: Something went wrong",
+        shouldError: true,
+      },
+    ]);
+
+    const { createPrMaterializeTool } = await import("../provenance/tooling/expand/pr-tools.ts");
+    const toolDef = createPrMaterializeTool({ shell, rootDir: tempRoot });
+    const raw = await toolDef.execute(
+      {
+        pr: 42,
+        mode: "remote",
+        limit: 10,
+        max_bytes: 4000,
+      },
+      {} as never,
+    );
+    const result = JSON.parse(raw);
+
+    expect(result.ok).toBe(false);
+    expect(result.error).toMatchObject({
+      code: "GH_REMOTE_ERROR",
+      retryable: true,
+    });
+    expect(result.error.message).toContain("GitHub CLI request failed");
+  });
+
+  it("bounds remote PR descriptions while preserving available remote confidence", async () => {
+    const shell = createShellStub([
+      {
+        pattern:
+          "gh pr view 42 --json number,title,body,url,state,isDraft,author,baseRefName,headRefName,createdAt,updatedAt",
+        output: JSON.stringify({
+          number: 42,
+          title: "Long body PR",
+          body: "remote description ".repeat(40),
+          url: "https://github.com/example/opencode/pull/42",
+          state: "OPEN",
+          isDraft: false,
+          author: { login: "octocat" },
+          baseRefName: "main",
+          headRefName: "feature/pr-context",
+          createdAt: "2026-05-30T12:00:00Z",
+          updatedAt: "2026-05-30T12:30:00Z",
+        }),
+      },
+      {
+        pattern: "gh api --paginate repos/:owner/:repo/pulls/42/files",
+        output: JSON.stringify([
+          {
+            filename: "src/auth/login.ts",
+            status: "modified",
+            additions: 12,
+            deletions: 3,
+          },
+        ]),
+      },
+      {
+        pattern: "gh api --paginate repos/:owner/:repo/pulls/42/reviews",
+        output: "[]",
+      },
+      {
+        pattern: "gh api --paginate repos/:owner/:repo/issues/42/comments",
+        output: "[]",
+      },
+    ]);
+
+    const { createPrMaterializeTool } = await import("../provenance/tooling/expand/pr-tools.ts");
+    const toolDef = createPrMaterializeTool({ shell, rootDir: tempRoot });
+    const raw = await toolDef.execute(
+      {
+        pr: 42,
+        mode: "remote",
+        limit: 10,
+        max_bytes: 120,
+      },
+      {} as never,
+    );
+    const result = JSON.parse(raw);
+
+    expect(result.ok).toBe(true);
+    expect(result.data.remote).toMatchObject({
+      status: "available",
+      confidence: "medium",
+      description: {
+        bounds: {
+          requested: 120,
+          limit: 120,
+          truncated: true,
+        },
+      },
+    });
+    expect(Buffer.byteLength(result.data.remote.description.text, "utf8")).toBeLessThanOrEqual(120);
+    expect(result.meta.warnings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: "PR_DESCRIPTION_TRUNCATED" }),
+      ]),
+    );
   });
 
   it("expands PR context into linked local evidence", async () => {

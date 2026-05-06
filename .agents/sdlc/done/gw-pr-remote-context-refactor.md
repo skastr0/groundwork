@@ -22,3 +22,6 @@ id: gw-pr-remote-context-refactor
 [2026-05-06]: Taste evidence: `taste score --signal TS-LD-02 .` no longer reports `resolveRemoteContext`; current top function outlier is `createStabilityReportTool` at 133 LOC.
 [2026-05-06]: Targeted validation passed: `bun run typecheck`; `bun run test src/tests/provenance-pr-tools.test.ts --reporter=verbose` (8 tests); `bun run test src/tests/provenance-pr-tools.test.ts src/tests/cli.test.ts -t "PR provenance|pr context|gw_pr|representative OpenCode provenance" --reporter=verbose` (9 tests).
 [2026-05-06]: Full validation passed: `bun run verify` completed 26 files / 247 tests plus build/import/dist CLI/local-install checks.
+[2026-05-06]: Verification review follow-up expanded PR provenance characterization for successful implicit PR detection, generic `GH_REMOTE_ERROR` envelopes, available remote confidence, and PR description truncation/bounds.
+[2026-05-06]: Follow-up targeted validation passed: `bun run typecheck`; `bun run test src/tests/provenance-pr-tools.test.ts --reporter=verbose` (11 tests); `bun run test src/tests/provenance-pr-tools.test.ts src/tests/cli.test.ts -t "PR provenance|pr context|gw_pr|representative OpenCode provenance" --reporter=verbose` (12 tests).
+[2026-05-06]: Follow-up full validation passed: `bun run verify` completed 26 files / 250 tests plus build/import/dist CLI/local-install checks.
