@@ -10,10 +10,7 @@ import {
 } from "../args.ts";
 import {
   createProvenanceFailure,
-  createProvenanceResultSchema,
   createProvenanceSuccess,
-  ProvenanceBoundsSchema,
-  ProvenanceWarningSchema,
   type ProvenanceAmbiguity,
   type ProvenanceConfidence,
   type ProvenanceEvidenceSource,
@@ -28,13 +25,42 @@ import {
 import {
   normalizeCreateStateToolsOptions,
   normalizeRequestedPath,
+  ProvRepoStateDataSchema,
   resolveLocalRepoState,
   toProvRepoStateData,
-  ProvRepoStateDataSchema,
   type CreateStateToolsOptions,
   type LocalRepoFileStatus,
 } from "../state/index.ts";
 import { logger } from "../utils/logger.ts";
+import {
+  ProvAuthorityDataSchema,
+  ProvAuthorityResultSchema,
+  ProvHotspotsDataSchema,
+  ProvHotspotsResultSchema,
+  ProvStabilityReportDataSchema,
+  ProvStabilityReportResultSchema,
+  type AuthorityAuthor,
+  type AuthorityTotals,
+  type AuthorSample,
+  type EvidenceSourceSummary,
+  type EvidenceSummary,
+  type ExplainableScore,
+  type HistorySummary,
+  type HotspotItem,
+  type HotspotWindow,
+  type ProvenanceScoreFactor,
+  type ProvenanceSignal,
+  type StabilityAssessment,
+} from "./schemas.ts";
+
+export {
+  ProvAuthorityDataSchema,
+  ProvAuthorityResultSchema,
+  ProvHotspotsDataSchema,
+  ProvHotspotsResultSchema,
+  ProvStabilityReportDataSchema,
+  ProvStabilityReportResultSchema,
+} from "./schemas.ts";
 
 const GW_HOTSPOTS_TOOL = "gw_hotspots" as const;
 const GW_AUTHORITY_TOOL = "gw_authority" as const;
@@ -125,227 +151,6 @@ const hotspotGroupByArg = z
   .enum(["file", "directory"])
   .optional()
   .describe("Aggregate hotspots by file or by directory path (default: file)");
-
-const EvidenceSourceSummarySchema = z.discriminatedUnion("status", [
-  z.object({
-    status: z.literal("available"),
-    totalMatches: z.number().int().nonnegative(),
-    bounds: ProvenanceBoundsSchema,
-    warnings: z.array(ProvenanceWarningSchema),
-  }),
-  z.object({
-    status: z.literal("unavailable"),
-    code: z.string().min(1),
-    message: z.string().min(1),
-  }),
-  z.object({
-    status: z.literal("unsupported"),
-    code: z.string().min(1),
-    message: z.string().min(1),
-  }),
-]);
-
-const ProvenanceSignalSchema = z.object({
-  key: z.string().min(1),
-  label: z.string().min(1),
-  value: z.union([z.number(), z.string(), z.boolean()]),
-  unit: z.string().min(1).optional(),
-  detail: z.string().min(1).optional(),
-  sourceIDs: z.array(z.string().min(1)).min(1),
-});
-
-const ProvenanceScoreFactorSchema = z.object({
-  key: z.string().min(1),
-  label: z.string().min(1),
-  weight: z.number().min(0).max(1),
-  value: z.number(),
-  contribution: z.number(),
-  explanation: z.string().min(1),
-  signals: z.array(ProvenanceSignalSchema).min(1),
-});
-
-const ExplainableScoreSchema = z.object({
-  key: z.string().min(1),
-  label: z.string().min(1),
-  value: z.number(),
-  scale: z.object({
-    min: z.number(),
-    max: z.number(),
-    unit: z.string().min(1),
-  }),
-  formula: z.string().min(1),
-  interpretation: z.string().min(1),
-  factors: z.array(ProvenanceScoreFactorSchema).min(1),
-  signals: z.array(ProvenanceSignalSchema).min(1),
-});
-
-const AuthorSampleSchema = z.object({
-  authorName: z.string().min(1),
-  authorEmail: z.string().email(),
-  commits: z.number().int().nonnegative(),
-});
-
-const HistorySummarySchema = z.object({
-  headCommit: z.string().nullable(),
-  headAuthoredAt: z.string().nullable(),
-  headAuthoredAtMs: z.number().int().nonnegative(),
-  oldestSince: z.string().nullable(),
-  totalCommits: z.number().int().nonnegative(),
-  loadedCommits: z.number().int().nonnegative(),
-  bounds: ProvenanceBoundsSchema,
-  detectionMethod: z.string().min(1),
-});
-
-const HotspotAnchorSchema = z.object({
-  requestedPath: z.string().min(1),
-  resolvedPath: z.string().min(1),
-  groupBy: z.enum(["file", "directory"]),
-  directoryDepth: z.number().int().positive(),
-});
-
-const HotspotItemSchema = z.object({
-  path: z.string().min(1),
-  commitCount: z.number().int().nonnegative(),
-  uniqueAuthors: z.number().int().nonnegative(),
-  additions: z.number().int().nonnegative(),
-  deletions: z.number().int().nonnegative(),
-  churn: z.number().int().nonnegative(),
-  lastTouchedAt: z.string().nullable(),
-  sampleAuthors: z.array(AuthorSampleSchema),
-  signals: z.array(ProvenanceSignalSchema).min(1),
-});
-
-const HotspotWindowSchema = z.object({
-  days: z.number().int().positive(),
-  since: z.string().min(1),
-  until: z.string().min(1),
-  commitCount: z.number().int().nonnegative(),
-  touchedPaths: z.number().int().nonnegative(),
-  highestChurn: z.array(HotspotItemSchema),
-  mostActive: z.array(HotspotItemSchema),
-  hints: z.array(z.string().min(1)),
-});
-
-export const ProvHotspotsDataSchema = z.object({
-  anchor: HotspotAnchorSchema,
-  repo: ProvRepoStateDataSchema,
-  history: HistorySummarySchema,
-  windows: z.array(HotspotWindowSchema),
-});
-
-export const ProvHotspotsResultSchema = createProvenanceResultSchema(ProvHotspotsDataSchema);
-
-const AuthorityTotalsSchema = z.object({
-  commits: z.number().int().nonnegative(),
-  touchedPaths: z.number().int().nonnegative(),
-  uniqueAuthors: z.number().int().nonnegative(),
-  additions: z.number().int().nonnegative(),
-  deletions: z.number().int().nonnegative(),
-  churn: z.number().int().nonnegative(),
-});
-
-const AuthorityAuthorSchema = z.object({
-  authorName: z.string().min(1),
-  authorEmail: z.string().email(),
-  commits: z.number().int().nonnegative(),
-  uniquePaths: z.number().int().nonnegative(),
-  additions: z.number().int().nonnegative(),
-  deletions: z.number().int().nonnegative(),
-  churn: z.number().int().nonnegative(),
-  lastTouchedAt: z.string().nullable(),
-  score: ExplainableScoreSchema,
-});
-
-export const ProvAuthorityDataSchema = z.object({
-  anchor: z.object({
-    requestedPath: z.string().min(1),
-    resolvedPath: z.string().min(1),
-  }),
-  repo: ProvRepoStateDataSchema,
-  history: HistorySummarySchema,
-  window: z.object({
-    days: z.number().int().positive(),
-    since: z.string().min(1),
-    until: z.string().min(1),
-  }),
-  totals: AuthorityTotalsSchema,
-  leaders: z.array(AuthorityAuthorSchema),
-});
-
-export const ProvAuthorityResultSchema = createProvenanceResultSchema(ProvAuthorityDataSchema);
-
-const StabilityEvidenceSchema = z.object({
-  sources: z.object({
-    messages: EvidenceSourceSummarySchema,
-    workItems: EvidenceSourceSummarySchema,
-    traces: EvidenceSourceSummarySchema,
-  }),
-  rankedItems: z.number().int().nonnegative(),
-  bounds: ProvenanceBoundsSchema,
-  bytes: ProvenanceBoundsSchema,
-  hints: z.array(z.string().min(1)),
-});
-
-const StabilityAssessmentSchema = z.object({
-  label: z.enum(["steady", "watch", "volatile"]),
-  reasons: z.array(z.string().min(1)),
-});
-
-export const ProvStabilityReportDataSchema = z.object({
-  anchor: z.object({
-    requestedPath: z.string().min(1),
-    resolvedPath: z.string().min(1),
-  }),
-  repo: ProvRepoStateDataSchema,
-  history: HistorySummarySchema,
-  windows: z.object({
-    recent: z.object({
-      days: z.number().int().positive(),
-      since: z.string().min(1),
-      until: z.string().min(1),
-      commits: z.number().int().nonnegative(),
-    }),
-    baseline: z.object({
-      days: z.number().int().positive(),
-      since: z.string().min(1),
-      until: z.string().min(1),
-      commits: z.number().int().nonnegative(),
-      touchedPaths: z.number().int().nonnegative(),
-      uniqueAuthors: z.number().int().nonnegative(),
-      additions: z.number().int().nonnegative(),
-      deletions: z.number().int().nonnegative(),
-      churn: z.number().int().nonnegative(),
-      lastTouchedAt: z.string().nullable(),
-    }),
-  }),
-  pending: z.object({
-    staged: z.number().int().nonnegative(),
-    unstaged: z.number().int().nonnegative(),
-    untracked: z.number().int().nonnegative(),
-    totalPaths: z.number().int().nonnegative(),
-  }),
-  evidence: StabilityEvidenceSchema,
-  scores: z.object({
-    stability: ExplainableScoreSchema,
-    ownershipClarity: ExplainableScoreSchema,
-    recentChangePressure: ExplainableScoreSchema,
-    pendingChangePressure: ExplainableScoreSchema,
-    evidenceCoverage: ExplainableScoreSchema,
-  }),
-  assessment: StabilityAssessmentSchema,
-});
-
-export const ProvStabilityReportResultSchema = createProvenanceResultSchema(
-  ProvStabilityReportDataSchema,
-);
-
-type ProvenanceSignal = z.infer<typeof ProvenanceSignalSchema>;
-type ProvenanceScoreFactor = z.infer<typeof ProvenanceScoreFactorSchema>;
-type ExplainableScore = z.infer<typeof ExplainableScoreSchema>;
-type HotspotItem = z.infer<typeof HotspotItemSchema>;
-type HotspotWindow = z.infer<typeof HotspotWindowSchema>;
-type EvidenceSummary = z.infer<typeof StabilityEvidenceSchema>;
-type HistorySummary = z.infer<typeof HistorySummarySchema>;
 
 type HistoryChange = {
   path: string;
@@ -890,7 +695,7 @@ function buildHistorySource(options: {
 
 function summarizeEvidenceSource<TItem extends LocalEvidenceMatch>(
   source: LocalEvidenceSourceResult<TItem>,
-): z.infer<typeof EvidenceSourceSummarySchema> {
+): EvidenceSourceSummary {
   switch (source.status) {
     case "available":
       return {
@@ -1424,10 +1229,7 @@ function compareHotspotByChurn(left: MutablePathStats, right: MutablePathStats):
   return left.path.localeCompare(right.path);
 }
 
-function compareAuthors(
-  left: z.infer<typeof AuthorityAuthorSchema>,
-  right: z.infer<typeof AuthorityAuthorSchema>,
-): number {
+function compareAuthors(left: AuthorityAuthor, right: AuthorityAuthor): number {
   if (right.score.value !== left.score.value) {
     return right.score.value - left.score.value;
   }
@@ -1439,7 +1241,7 @@ function compareAuthors(
   );
 }
 
-function toSampleAuthors(stats: MutablePathStats): z.infer<typeof AuthorSampleSchema>[] {
+function toSampleAuthors(stats: MutablePathStats): AuthorSample[] {
   return [...stats.authorCommitCounts.entries()]
     .map(([key, commits]) => ({
       key,
@@ -1579,7 +1381,7 @@ function buildHotspotWindows(options: {
 
 function buildAuthorityScore(options: {
   author: AuthorStats;
-  totals: z.infer<typeof AuthorityTotalsSchema>;
+  totals: AuthorityTotals;
   historySourceID: string;
 }): ExplainableScore {
   const factors = [
@@ -1634,7 +1436,7 @@ function buildAuthorityScore(options: {
 
 function buildAssessment(
   scores: z.infer<typeof ProvStabilityReportDataSchema>["scores"],
-): z.infer<typeof StabilityAssessmentSchema> {
+): StabilityAssessment {
   const reasons: string[] = [];
 
   if (scores.pendingChangePressure.value >= 70) {
@@ -1815,7 +1617,7 @@ async function executeAuthority(
     additions: aggregate.additions,
     deletions: aggregate.deletions,
     churn: aggregate.churn,
-  } satisfies z.infer<typeof AuthorityTotalsSchema>;
+  } satisfies AuthorityTotals;
 
   const leaders = aggregate.authorStats
     .map((author) => {
