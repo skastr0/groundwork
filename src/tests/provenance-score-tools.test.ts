@@ -262,7 +262,7 @@ describe("provenance score tools", () => {
     expect(result.meta).toMatchObject({
       tool: "gw_hotspots",
       mode: "local",
-      confidence: expect.any(String),
+      confidence: "high",
       ambiguity: "none",
       warnings: [],
     });
@@ -331,6 +331,7 @@ describe("provenance score tools", () => {
       tool: "gw_hotspots",
       mode: "local",
       confidence: "low",
+      ambiguity: "low",
       warnings: [
         expect.objectContaining({
           code: "HISTORY_EMPTY",
@@ -348,6 +349,7 @@ describe("provenance score tools", () => {
 
   it("reports unsupported hotspots modes and logs the mode rejection", async () => {
     const warn = vi.spyOn(logger, "warn");
+    const info = vi.spyOn(logger, "info");
     const { createScoreTools } = await import("../provenance/tooling/score/index.ts");
     const toolDef = createScoreTools({ shell: createShellStub([]), rootDir: tempRoot }).gw_hotspots;
     if (!toolDef) {
@@ -380,6 +382,14 @@ describe("provenance score tools", () => {
         expect.objectContaining({ tool: "gw_hotspots", mode }),
       );
     }
+    expect(info).not.toHaveBeenCalledWith(
+      "gw_hotspots start",
+      expect.objectContaining({ tool: "gw_hotspots" }),
+    );
+    expect(info).not.toHaveBeenCalledWith(
+      "gw_hotspots end",
+      expect.objectContaining({ tool: "gw_hotspots" }),
+    );
   });
 
   it("returns hotspots failure envelopes and logs execution failures", async () => {
