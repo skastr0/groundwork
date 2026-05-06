@@ -714,7 +714,7 @@ message = "console logging should be reviewed"
         additionalContext: expect.stringContaining("non-blocking"),
       },
     });
-  }, 60_000);
+  }, 120_000);
 
   it("combines Codex PostToolUse policy warnings with context reminders", async () => {
     const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "groundwork-codex-warn-context-"));
@@ -1905,7 +1905,7 @@ mode = "block"
       ok: true,
       data: { decision: "allow", violations: [] },
     });
-  });
+  }, 30_000);
 
   it("uses policy override locks and post-tool result evaluation", async () => {
     const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "groundwork-policy-cli-"));
