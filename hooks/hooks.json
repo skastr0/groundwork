@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "/Users/guilhermecastro/.bun/bin/groundwork codex hook",
+            "command": "groundwork codex hook",
             "timeout": 30,
             "statusMessage": "Loading Groundwork guidance"
           }
@@ -18,7 +18,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "/Users/guilhermecastro/.bun/bin/groundwork codex hook",
+            "command": "groundwork codex hook",
             "timeout": 30,
             "statusMessage": "Recording Groundwork policy commands"
           }
@@ -31,7 +31,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "/Users/guilhermecastro/.bun/bin/groundwork codex hook",
+            "command": "groundwork codex hook",
             "timeout": 30,
             "statusMessage": "Checking Groundwork pre-tool policy"
           }
@@ -44,7 +44,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "/Users/guilhermecastro/.bun/bin/groundwork codex hook",
+            "command": "groundwork codex hook",
             "timeout": 30,
             "statusMessage": "Checking Groundwork approval policy"
           }
@@ -57,7 +57,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "/Users/guilhermecastro/.bun/bin/groundwork codex hook",
+            "command": "groundwork codex hook",
             "timeout": 30,
             "statusMessage": "Recording Groundwork post-tool feedback"
           }
@@ -69,7 +69,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "/Users/guilhermecastro/.bun/bin/groundwork codex hook",
+            "command": "groundwork codex hook",
             "timeout": 30,
             "statusMessage": "Finalizing Groundwork hook state"
           }

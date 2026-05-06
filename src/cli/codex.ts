@@ -341,7 +341,24 @@ function codexHooksConfig(hookCommand?: string) {
 }
 
 function resolveHookCommand(hookCommand: string | undefined): string {
-  return hookCommand?.trim() || "groundwork codex hook";
+  return hookCommand?.trim() || defaultHookCommand();
+}
+
+function defaultHookCommand(): string {
+  if (path.basename(process.execPath) !== "bun") {
+    return [shellQuote(process.execPath), "codex", "hook"].join(" ");
+  }
+
+  return [
+    shellQuote(process.execPath),
+    shellQuote(Bun.main),
+    "codex",
+    "hook",
+  ].join(" ");
+}
+
+function shellQuote(value: string): string {
+  return `'${value.replace(/'/g, "'\\''")}'`;
 }
 
 function sessionStartContext(): string {

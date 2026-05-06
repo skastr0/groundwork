@@ -20,9 +20,12 @@
     "README.md"
   ],
   "scripts": {
-    "build": "bun build ./src/server.ts ./src/cli.ts --outdir ./dist --target bun --format esm --external @opencode-ai/plugin",
+    "build": "bun run build:js && bun run build:cli",
+    "build:js": "bun build ./src/server.ts ./src/cli.ts --outdir ./dist --target bun --format esm --external @opencode-ai/plugin",
+    "build:cli": "bun scripts/build-cli.ts",
+    "install:local": "bun scripts/install.ts",
     "check:imports": "bun -e \"await import('./dist/server.js')\"",
-    "check:cli": "bun ./src/cli.ts doctor",
+    "check:cli": "bun ./dist/cli.js doctor",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "verify": "bun run typecheck && bun run test && bun run build && bun run check:imports && bun run check:cli"

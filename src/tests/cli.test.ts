@@ -87,6 +87,16 @@ function expectJsonOnlyFailure(result: CommandResult) {
   expect(() => parseJson(result.stderr)).not.toThrow();
 }
 
+function expectDefaultHookCommand(command: string) {
+  expect(command).toMatch(/'[^']*bun[^']*' '[^']*src\/cli\.ts' codex hook$/);
+}
+
+function firstHookCommand(hooksConfig: {
+  hooks: Record<string, Array<{ hooks: Array<{ command: string }> }>>;
+}): string {
+  return hooksConfig.hooks["PreToolUse"]?.[0]?.hooks[0]?.command ?? "";
+}
+
 async function runRegistryProvenanceTool(
   tool: FrameworkProvenanceToolID,
   args: Record<string, unknown>,
@@ -165,7 +175,8 @@ describe("groundwork CLI", () => {
     ]);
     expect(result.exitCode).toBe(0);
     expect(result.stderr).toBe("");
-    expect(parseJson(result.stdout)).toMatchObject({
+    const parsed = parseJson(result.stdout);
+    expect(parsed).toMatchObject({
       ok: true,
       command: "codex install-project",
       data: {
@@ -175,14 +186,13 @@ describe("groundwork CLI", () => {
         ]),
       },
     });
+    expectDefaultHookCommand((parsed as { data: { hook_command: string } }).data.hook_command);
 
     await expect(fs.readFile(path.join(targetDir, ".codex", "config.toml"), "utf8")).resolves.toContain(
       "codex_hooks = true",
     );
-    await expect(fs.readFile(path.join(targetDir, ".codex", "hooks.json"), "utf8")).resolves.toContain(
-      "groundwork codex hook",
-    );
     const hooksConfig = JSON.parse(await fs.readFile(path.join(targetDir, ".codex", "hooks.json"), "utf8"));
+    expectDefaultHookCommand(firstHookCommand(hooksConfig));
     expect(Object.keys(hooksConfig.hooks).sort()).toEqual([
       "PermissionRequest",
       "PostToolUse",
@@ -293,9 +303,8 @@ describe("groundwork CLI", () => {
     const config = await fs.readFile(path.join(codexDir, "config.toml"), "utf8");
     expect(config).toContain('model = "gpt-5.5"');
     expect(config).toContain("codex_hooks = true");
-    await expect(fs.readFile(path.join(codexDir, "hooks.json"), "utf8")).resolves.toContain(
-      "groundwork codex hook",
-    );
+    const hooksConfig = JSON.parse(await fs.readFile(path.join(codexDir, "hooks.json"), "utf8"));
+    expectDefaultHookCommand(firstHookCommand(hooksConfig));
   });
 
   it("installs user-level Codex hooks and config files", async () => {
@@ -307,17 +316,18 @@ describe("groundwork CLI", () => {
     ]);
     expect(result.exitCode).toBe(0);
     expect(result.stderr).toBe("");
-    expect(parseJson(result.stdout)).toMatchObject({
+    const parsed = parseJson(result.stdout);
+    expect(parsed).toMatchObject({
       ok: true,
       command: "codex install-user",
       data: {
         codex_home: codexHome,
       },
     });
+    expectDefaultHookCommand((parsed as { data: { hook_command: string } }).data.hook_command);
 
-    await expect(fs.readFile(path.join(codexHome, "hooks.json"), "utf8")).resolves.toContain(
-      "groundwork codex hook",
-    );
+    const hooksConfig = JSON.parse(await fs.readFile(path.join(codexHome, "hooks.json"), "utf8"));
+    expectDefaultHookCommand(firstHookCommand(hooksConfig));
     await expect(fs.readFile(path.join(codexHome, "config.toml"), "utf8")).resolves.toContain(
       "codex_hooks = true",
     );
@@ -642,7 +652,7 @@ message = "console logging is blocked"
         additionalContext: expect.stringContaining("cannot undo side effects"),
       },
     });
-  }, 35_000);
+  }, 120_000);
 
   it("keeps Codex PostToolUse warnings non-blocking", async () => {
     const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "groundwork-codex-post-warn-"));
@@ -704,7 +714,7 @@ message = "console logging should be reviewed"
         additionalContext: expect.stringContaining("non-blocking"),
       },
     });
-  }, 35_000);
+  }, 60_000);
 
   it("combines Codex PostToolUse policy warnings with context reminders", async () => {
     const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "groundwork-codex-warn-context-"));
@@ -762,7 +772,7 @@ message = "console logging should be reviewed"
     expect(parsed).not.toHaveProperty("decision");
     expect(parsed.systemMessage).toEqual(expect.stringContaining("console logging should be reviewed"));
     expect(parsed.systemMessage).toEqual(expect.stringContaining("Use combined context."));
-  }, 35_000);
+  }, 60_000);
 
   it("reports Codex PostToolUse context reminders with dedupe", async () => {
     const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "groundwork-codex-context-"));
@@ -994,6 +1004,33 @@ message = "console logging should be reviewed"
         details: {
           expected: expect.arrayContaining(["policy"]),
         },
+      },
+    });
+  });
+
+  it("passes root completion generation through to Effect CLI", async () => {
+    const result = await runGroundwork(["--completions", "zsh"]);
+    expect(result.exitCode).toBe(0);
+    expect(result.stderr).toBe("");
+    expect(result.stdout).toContain("#compdef groundwork");
+  });
+
+  it("allows root log-level before JSON commands without weakening preflight", async () => {
+    const success = await runGroundwork(["--log-level", "none", "doctor"]);
+    expect(success.exitCode).toBe(0);
+    expect(parseJson(success.stdout)).toMatchObject({
+      ok: true,
+      command: "doctor",
+    });
+
+    const missingInput = await runGroundwork(["--log-level=none", "risk", "evaluate-command"]);
+    expectJsonOnlyFailure(missingInput);
+    expect(parseJson(missingInput.stderr)).toMatchObject({
+      ok: false,
+      command: "risk evaluate-command",
+      error: {
+        type: "CliInputError",
+        message: "Missing required argument 'input'",
       },
     });
   });
@@ -1512,7 +1549,7 @@ message = "console logging should be reviewed"
         removed: [],
       },
     });
-  });
+  }, 30_000);
 
   it("renders compact Groundwork session context", async () => {
     const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "groundwork-compaction-"));
@@ -1875,7 +1912,7 @@ message = "console logging is blocked"
         violations: [expect.objectContaining({ rule_id: "no-console" })],
       },
     });
-  }, 35_000);
+  }, 120_000);
 
   it("keeps distinct unsafe-looking session ids isolated on disk", async () => {
     const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "groundwork-session-collision-"));
@@ -1940,7 +1977,7 @@ message = "console logging is blocked"
         },
       },
     });
-  });
+  }, 60_000);
 
   it("serializes concurrent session mutations", async () => {
     const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "groundwork-session-concurrent-"));

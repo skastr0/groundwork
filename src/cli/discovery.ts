@@ -26,14 +26,14 @@ export const COMMAND_CAPABILITIES = [
     command_id: "codex.install-project",
     command: "codex install-project",
     category: "integration",
-    description: "Install Groundwork hooks and skill into a project .codex/ directory.",
+    description: "Install Groundwork hooks and config into a project .codex/ directory.",
     schemas: ["groundwork.codex.install-project.input/v1"],
   },
   {
     command_id: "codex.install-user",
     command: "codex install-user",
     category: "integration",
-    description: "Install Groundwork hooks and skill into CODEX_HOME.",
+    description: "Install Groundwork hooks and config into CODEX_HOME.",
     schemas: ["groundwork.codex.install-user.input/v1"],
   },
   {
@@ -188,13 +188,13 @@ export const EXAMPLES = [
     command_id: "codex.install-project",
     command: "codex install-project",
     name: "Install project-local Codex integration",
-    args: [`{"target_dir":".","hook_command":"groundwork codex hook","force":false}`],
+    args: [`{"target_dir":".","hook_command":"/absolute/path/to/groundwork codex hook","force":false}`],
   },
   {
     command_id: "codex.install-user",
     command: "codex install-user",
     name: "Install user-level Codex integration",
-    args: [`{"hook_command":"groundwork codex hook","force":false}`],
+    args: [`{"hook_command":"/absolute/path/to/groundwork codex hook","force":false}`],
   },
   {
     command_id: "context.discover",

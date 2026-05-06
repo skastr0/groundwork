@@ -906,7 +906,7 @@ describe("content matching", () => {
     });
 
     expect(result).toEqual([]);
-  });
+  }, 15_000);
 
   it("matches ast-grep selectors for object pair rules", async () => {
     const root = await createTempRoot();

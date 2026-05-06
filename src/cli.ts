@@ -40,38 +40,44 @@ function validateCommandShape(args: string[]): CommandShapeFailure | undefined {
     return undefined;
   }
 
-  if (args.length === 0) {
+  if (hasRootCompletionOption(args)) {
+    return undefined;
+  }
+
+  const commandArgs = stripRootExecutionOptions(args);
+
+  if (commandArgs.length === 0) {
     return shapeFailure(undefined, "Missing command", { expected: knownTopLevelCommands() });
   }
 
-  const [group, subcommand, input] = args;
+  const [group, subcommand, input] = commandArgs;
   switch (group) {
     case "capabilities":
     case "doctor":
-      return rejectUnexpectedArgs(group, args, 1);
+      return rejectUnexpectedArgs(group, commandArgs, 1);
     case "codex":
-      return validateCodexCommand(subcommand, input, args);
+      return validateCodexCommand(subcommand, input, commandArgs);
     case "schema":
     case "examples":
-      return validateDiscoveryCommand(group, subcommand, input, args);
+      return validateDiscoveryCommand(group, subcommand, input, commandArgs);
     case "risk":
-      return validateInputCommand("risk evaluate-command", subcommand, input, args, [
+      return validateInputCommand("risk evaluate-command", subcommand, input, commandArgs, [
         "evaluate-command",
       ]);
     case "context":
-      return validateInputCommand("context", subcommand, input, args, [
+      return validateInputCommand("context", subcommand, input, commandArgs, [
         "discover",
         "touched-paths",
       ]);
     case "policy":
-      return validateInputCommand("policy", subcommand, input, args, [
+      return validateInputCommand("policy", subcommand, input, commandArgs, [
         "evaluate-tool-call",
         "evaluate-tool-result",
         "override",
         "skill-loaded",
       ]);
     case "provenance":
-      return validateInputCommand("provenance", subcommand, input, args, [
+      return validateInputCommand("provenance", subcommand, input, commandArgs, [
         "authority",
         "block-read",
         "commit-expand",
@@ -90,7 +96,7 @@ function validateCommandShape(args: string[]): CommandShapeFailure | undefined {
         "worktree-overview",
       ]);
     case "session":
-      return validateInputCommand("session", subcommand, input, args, [
+      return validateInputCommand("session", subcommand, input, commandArgs, [
         "append-trace",
         "cleanup",
         "get",
@@ -105,6 +111,29 @@ function validateCommandShape(args: string[]): CommandShapeFailure | undefined {
         expected: knownTopLevelCommands(),
       });
   }
+}
+
+function hasRootCompletionOption(args: string[]): boolean {
+  return args.some((arg) => arg === "--completions" || arg.startsWith("--completions="));
+}
+
+function stripRootExecutionOptions(args: string[]): string[] {
+  const result: string[] = [];
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    if (arg === undefined) {
+      continue;
+    }
+    if (arg === "--log-level") {
+      index += 1;
+      continue;
+    }
+    if (arg.startsWith("--log-level=")) {
+      continue;
+    }
+    result.push(arg);
+  }
+  return result;
 }
 
 function validateCodexCommand(

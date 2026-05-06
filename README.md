@@ -9,10 +9,11 @@ The package exposes a standard `groundwork` binary:
 ```sh
 bun install
 bun run build
-bun link
-bun link groundwork
-./node_modules/.bin/groundwork doctor
+bun run install:local
+groundwork doctor
 ```
+
+`bun run build` emits both package JavaScript (`dist/server.js`, `dist/cli.js`) and standalone local CLI binaries (`dist/groundwork-<platform>-<arch>`). `bun run install:local` copies the current-platform binary to `~/.local/bin/groundwork`.
 
 Packaged installs use `bin.groundwork -> dist/cli.js`. The published file surface includes `dist/`, `docs/`, `hooks/`, `.codex-plugin/`, and this README.
 
@@ -78,7 +79,7 @@ groundwork codex doctor
 
 The package also includes a Codex plugin bundle at `.codex-plugin/plugin.json`, with `hooks/hooks.json`.
 
-Project and user installers patch `config.toml` to enable Codex hooks and install `hooks.json`. Skills are managed from `ai-plugins`, not from this package. Hooks call `groundwork codex hook` by default. If `groundwork` is not on `PATH` for hook execution, pass an explicit `hook_command`:
+Project and user installers patch `config.toml` to enable Codex hooks and install `hooks.json`. Skills are managed from `ai-plugins`, not from this package. Generated hooks default to an absolute Bun executable plus the active CLI entrypoint so hook execution does not depend on shell `PATH`. Pass an explicit `hook_command` to pin a packaged binary or custom wrapper:
 
 ```sh
 groundwork codex install-project '{"target_dir":".","hook_command":"/absolute/path/to/groundwork codex hook"}'
@@ -106,7 +107,10 @@ Headless validation evidence for OpenCode and Codex lives under `.agents/validat
 bun install
 bun run typecheck
 bun run test
+bun run build:js
+bun run build:cli
 bun run build
+bun run install:local
 bun run check:imports
 bun run verify
 ```
