@@ -84,6 +84,14 @@ type SpanCommitHistorySourceResult =
 
 type LineageEntry = z.infer<typeof SpanHistoryLineageEntrySchema>;
 
+type SpanHistoryToolInput = {
+  path: string;
+  start_line: number;
+  end_line: number;
+  mode?: "local" | "remote" | "hybrid";
+  limit?: number;
+};
+
 const TraceContributorSchema = z.object({
   type: z.enum(CONTRIBUTOR_TYPE_VALUES),
   modelId: z.string().min(1).optional(),
@@ -759,145 +767,213 @@ export function createLineageTools(
   const runtimeOptions = normalizeCreateStateToolsOptions(options);
 
   return {
-    [GW_SPAN_HISTORY_TOOL]: tool({
-      description:
-        "Return bounded span-level lineage from local traces and git range history for one file plus line range, with contributor summaries and heuristic confidence downgrades.",
-      args: {
-        path: provenancePathArg,
-        start_line: provenanceStartLineArg,
-        end_line: provenanceEndLineArg,
-        mode: provenanceModeArg,
-        limit: provenanceLimitArg,
-      },
-      async execute({
-        path: requestedPath,
-        start_line: startLine,
-        end_line: endLine,
-        mode,
-        limit,
-      }) {
-        const resolvedMode = mode ?? "local";
+    [GW_SPAN_HISTORY_TOOL]: createSpanHistoryTool(runtimeOptions),
+  };
+}
 
-        if (resolvedMode !== "local") {
-          logger.warn("gw_span_history unsupported mode", {
-            tool: GW_SPAN_HISTORY_TOOL,
-            mode: resolvedMode,
-          });
-          return createUnsupportedModeFailure(resolvedMode);
-        }
+function createSpanHistoryTool(runtimeOptions: ReturnType<typeof normalizeCreateStateToolsOptions>): ToolDefinition {
+  return tool({
+    description:
+      "Return bounded span-level lineage from local traces and git range history for one file plus line range, with contributor summaries and heuristic confidence downgrades.",
+    args: {
+      path: provenancePathArg,
+      start_line: provenanceStartLineArg,
+      end_line: provenanceEndLineArg,
+      mode: provenanceModeArg,
+      limit: provenanceLimitArg,
+    },
+    execute: (input: SpanHistoryToolInput) => executeSpanHistoryTool(input, runtimeOptions),
+  });
+}
 
-        if (endLine < startLine) {
-          return JSON.stringify(
-            createProvenanceFailure({
-              tool: GW_SPAN_HISTORY_TOOL,
-              mode: "local",
-              confidence: "unknown",
-              ambiguity: "high",
-              summary: `Invalid span '${requestedPath}:${startLine}-${endLine}'.`,
-              error: {
-                code: "SPAN_RANGE_INVALID",
-                message: "end_line must be greater than or equal to start_line.",
-              },
-            }),
-            null,
-            2,
-          );
-        }
+async function executeSpanHistoryTool(
+  {
+    path: requestedPath,
+    start_line: startLine,
+    end_line: endLine,
+    mode,
+    limit,
+  }: SpanHistoryToolInput,
+  runtimeOptions: ReturnType<typeof normalizeCreateStateToolsOptions>,
+): Promise<string> {
+  const resolvedMode = mode ?? "local";
 
-        let normalizedPath: string;
-        try {
-          normalizedPath = normalizeRequestedPath(requestedPath, runtimeOptions.rootDir);
-        } catch (error) {
-          return JSON.stringify(
-            createProvenanceFailure({
-              tool: GW_SPAN_HISTORY_TOOL,
-              mode: "local",
-              confidence: "unknown",
-              ambiguity: "high",
-              summary: `Failed to normalize path '${requestedPath}'.`,
-              error: {
-                code: "SPAN_HISTORY_PATH_INVALID",
-                message: toErrorMessage(error),
-              },
-            }),
-            null,
-            2,
-          );
-        }
+  if (resolvedMode !== "local") {
+    logger.warn("gw_span_history unsupported mode", {
+      tool: GW_SPAN_HISTORY_TOOL,
+      mode: resolvedMode,
+    });
+    return createUnsupportedModeFailure(resolvedMode);
+  }
 
-        logger.info("gw_span_history start", {
-          tool: GW_SPAN_HISTORY_TOOL,
-          mode: resolvedMode,
-          path: normalizedPath,
-          startLine,
-          endLine,
-          limit,
-        });
+  if (endLine < startLine) {
+    return createInvalidSpanFailure(requestedPath, startLine, endLine);
+  }
 
-        try {
-          const lineageResolution = await resolveLocalSpanLineage({
-            shell: runtimeOptions.shell,
-            rootDir: runtimeOptions.rootDir ?? process.cwd(),
-            requestedPath,
-            normalizedPath,
-            startLine,
-            endLine,
-            limit,
-          });
-          const response = createProvenanceSuccess({
-            tool: GW_SPAN_HISTORY_TOOL,
-            mode: "local",
-            confidence: lineageResolution.confidence,
-            ambiguity: lineageResolution.ambiguity,
-            bounds: lineageResolution.bounds,
-            summary: lineageResolution.summary,
-            warnings: lineageResolution.warnings,
-            sources: lineageResolution.sources,
-            data: lineageResolution.data,
-          });
+  let normalizedPath: string;
+  try {
+    normalizedPath = normalizeRequestedPath(requestedPath, runtimeOptions.rootDir);
+  } catch (error) {
+    return createPathNormalizationFailure(requestedPath, error);
+  }
 
-          logger.info("gw_span_history end", {
-            tool: GW_SPAN_HISTORY_TOOL,
-            confidence: response.meta.confidence,
-            ambiguity: response.meta.ambiguity,
-            path: normalizedPath,
-            startLine,
-            endLine,
-            traceStatus: lineageResolution.data.traces.status,
-            commitStatus: lineageResolution.data.commits.status,
-            contributors: lineageResolution.data.contributors.length,
-            lineage: lineageResolution.data.lineage.length,
-          });
+  logSpanHistoryStart({
+    mode: resolvedMode,
+    normalizedPath,
+    startLine,
+    endLine,
+    limit,
+  });
 
-          return JSON.stringify(response, null, 2);
-        } catch (error) {
-          const errorMessage = toErrorMessage(error);
-          logger.error("gw_span_history failed", {
-            tool: GW_SPAN_HISTORY_TOOL,
-            mode: resolvedMode,
-            path: normalizedPath,
-            startLine,
-            endLine,
-            error: errorMessage,
-          });
+  try {
+    const lineageResolution = await resolveLocalSpanLineage({
+      shell: runtimeOptions.shell,
+      rootDir: runtimeOptions.rootDir ?? process.cwd(),
+      requestedPath,
+      normalizedPath,
+      startLine,
+      endLine,
+      limit,
+    });
+    return serializeSpanHistorySuccess({
+      lineageResolution,
+      normalizedPath,
+      startLine,
+      endLine,
+    });
+  } catch (error) {
+    return createSpanHistoryUnavailableFailure({
+      error,
+      mode: resolvedMode,
+      normalizedPath,
+      startLine,
+      endLine,
+    });
+  }
+}
 
-          return JSON.stringify(
-            createProvenanceFailure({
-              tool: GW_SPAN_HISTORY_TOOL,
-              mode: "local",
-              confidence: "unknown",
-              ambiguity: "high",
-              summary: `Failed to resolve span history for '${normalizedPath}:${startLine}-${endLine}'.`,
-              error: {
-                code: "SPAN_HISTORY_UNAVAILABLE",
-                message: errorMessage,
-              },
-            }),
-            null,
-            2,
-          );
-        }
+function createInvalidSpanFailure(
+  requestedPath: string,
+  startLine: number,
+  endLine: number,
+): string {
+  return JSON.stringify(
+    createProvenanceFailure({
+      tool: GW_SPAN_HISTORY_TOOL,
+      mode: "local",
+      confidence: "unknown",
+      ambiguity: "high",
+      summary: `Invalid span '${requestedPath}:${startLine}-${endLine}'.`,
+      error: {
+        code: "SPAN_RANGE_INVALID",
+        message: "end_line must be greater than or equal to start_line.",
       },
     }),
-  };
+    null,
+    2,
+  );
+}
+
+function createPathNormalizationFailure(requestedPath: string, error: unknown): string {
+  return JSON.stringify(
+    createProvenanceFailure({
+      tool: GW_SPAN_HISTORY_TOOL,
+      mode: "local",
+      confidence: "unknown",
+      ambiguity: "high",
+      summary: `Failed to normalize path '${requestedPath}'.`,
+      error: {
+        code: "SPAN_HISTORY_PATH_INVALID",
+        message: toErrorMessage(error),
+      },
+    }),
+    null,
+    2,
+  );
+}
+
+function logSpanHistoryStart(options: {
+  mode: string;
+  normalizedPath: string;
+  startLine: number;
+  endLine: number;
+  limit: number | undefined;
+}): void {
+  logger.info("gw_span_history start", {
+    tool: GW_SPAN_HISTORY_TOOL,
+    mode: options.mode,
+    path: options.normalizedPath,
+    startLine: options.startLine,
+    endLine: options.endLine,
+    limit: options.limit,
+  });
+}
+
+function serializeSpanHistorySuccess(options: {
+  lineageResolution: LocalSpanLineageResolution;
+  normalizedPath: string;
+  startLine: number;
+  endLine: number;
+}): string {
+  const { lineageResolution } = options;
+  const response = createProvenanceSuccess({
+    tool: GW_SPAN_HISTORY_TOOL,
+    mode: "local",
+    confidence: lineageResolution.confidence,
+    ambiguity: lineageResolution.ambiguity,
+    bounds: lineageResolution.bounds,
+    summary: lineageResolution.summary,
+    warnings: lineageResolution.warnings,
+    sources: lineageResolution.sources,
+    data: lineageResolution.data,
+  });
+
+  logger.info("gw_span_history end", {
+    tool: GW_SPAN_HISTORY_TOOL,
+    confidence: response.meta.confidence,
+    ambiguity: response.meta.ambiguity,
+    path: options.normalizedPath,
+    startLine: options.startLine,
+    endLine: options.endLine,
+    traceStatus: lineageResolution.data.traces.status,
+    commitStatus: lineageResolution.data.commits.status,
+    contributors: lineageResolution.data.contributors.length,
+    lineage: lineageResolution.data.lineage.length,
+  });
+
+  return JSON.stringify(response, null, 2);
+}
+
+function createSpanHistoryUnavailableFailure(options: {
+  error: unknown;
+  mode: string;
+  normalizedPath: string;
+  startLine: number;
+  endLine: number;
+}): string {
+  const errorMessage = toErrorMessage(options.error);
+  logger.error("gw_span_history failed", {
+    tool: GW_SPAN_HISTORY_TOOL,
+    mode: options.mode,
+    path: options.normalizedPath,
+    startLine: options.startLine,
+    endLine: options.endLine,
+    error: errorMessage,
+  });
+
+  return JSON.stringify(
+    createProvenanceFailure({
+      tool: GW_SPAN_HISTORY_TOOL,
+      mode: "local",
+      confidence: "unknown",
+      ambiguity: "high",
+      summary: `Failed to resolve span history for '${options.normalizedPath}:${options.startLine}-${options.endLine}'.`,
+      error: {
+        code: "SPAN_HISTORY_UNAVAILABLE",
+        message: errorMessage,
+      },
+    }),
+    null,
+    2,
+  );
 }
