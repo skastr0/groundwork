@@ -11,6 +11,35 @@ const GH_COMMAND_TIMEOUT_MS = 20_000;
 const MAX_GRAPHQL_PAGES = 50;
 const MAX_REVIEW_COMMENT_CONCURRENCY = 8;
 
+const REVIEW_THREAD_STATES_QUERY = `
+  query($owner: String!, $repo: String!, $pr: Int!, $cursor: String) {
+    repository(owner: $owner, name: $repo) {
+      pullRequest(number: $pr) {
+        reviewThreads(first: 100, after: $cursor) {
+          nodes {
+            id
+            isResolved
+            isCollapsed
+            outdated
+            resolvedBy { login }
+            comments(first: 100) {
+              nodes { databaseId }
+              pageInfo {
+                hasNextPage
+                endCursor
+              }
+            }
+          }
+          pageInfo {
+            hasNextPage
+            endCursor
+          }
+        }
+      }
+    }
+  }
+`;
+
 export interface GitHubUser {
   login: string;
 }
@@ -119,6 +148,96 @@ interface GraphQLThreadCommentsResponse {
       comments: GraphQLReviewThreadComments;
     } | null;
   };
+}
+
+function createReviewThreadStatesCommand(
+  prNumber: number,
+  cursor: string | null,
+): readonly [string, ...string[]] {
+  const command: [string, ...string[]] = [
+    "gh",
+    "api",
+    "graphql",
+    "-f",
+    `query=${REVIEW_THREAD_STATES_QUERY}`,
+    "-f",
+    "owner=:owner",
+    "-f",
+    "repo=:repo",
+    "-F",
+    `pr=${prNumber}`,
+  ];
+
+  if (cursor) {
+    command.push("-F", `cursor=${cursor}`);
+  }
+
+  return command;
+}
+
+function parseReviewThreadStatesPage(raw: string): Result<GraphQLReviewThreadConnection> {
+  try {
+    const parsed: GraphQLResponse = JSON.parse(raw);
+    return { success: true, data: parsed.data.repository.pullRequest.reviewThreads };
+  } catch (error) {
+    return { success: false, error: `Failed to parse GraphQL: ${error}` };
+  }
+}
+
+function createReviewThreadPaginationLimitFailure(prNumber: number): Result<never> {
+  return {
+    success: false,
+    error: `GraphQL review thread pagination exceeded ${MAX_GRAPHQL_PAGES} pages for PR #${prNumber}.`,
+  };
+}
+
+function createReviewThreadRepeatedCursorFailure(
+  prNumber: number,
+  cursor: string,
+): Result<never> {
+  return {
+    success: false,
+    error: `GraphQL review thread pagination repeated cursor '${cursor}' for PR #${prNumber}.`,
+  };
+}
+
+function collectFirstPageCommentIds(thread: GraphQLReviewThread): Set<number> {
+  const commentIds = new Set<number>();
+
+  for (const comment of thread.comments.nodes) {
+    if (comment.databaseId == null) continue;
+    commentIds.add(comment.databaseId);
+  }
+
+  return commentIds;
+}
+
+function toCommentState(thread: GraphQLReviewThread): CommentState {
+  return {
+    is_resolved: thread.isResolved,
+    is_hidden: thread.isCollapsed,
+    is_outdated: thread.outdated,
+    resolved_by: thread.resolvedBy?.login,
+  };
+}
+
+function applyReviewThreadState(
+  stateMap: Map<number, CommentState>,
+  thread: GraphQLReviewThread,
+  commentIds: Iterable<number>,
+): void {
+  const state = toCommentState(thread);
+  for (const commentId of commentIds) {
+    stateMap.set(commentId, state);
+  }
+}
+
+function resolveNextReviewThreadCursor(threads: GraphQLReviewThreadConnection): string | null {
+  if (!threads.pageInfo.hasNextPage || !threads.pageInfo.endCursor) {
+    return null;
+  }
+
+  return threads.pageInfo.endCursor;
 }
 
 export interface RawComments {
@@ -785,36 +904,55 @@ export class PRCommentsManager {
     return { success: true, data: ids };
   }
 
-  async fetchCommentStatesViaGraphQL(prNumber: number): Promise<Result<Map<number, CommentState>>> {
-    const query = `
-      query($owner: String!, $repo: String!, $pr: Int!, $cursor: String) {
-        repository(owner: $owner, name: $repo) {
-          pullRequest(number: $pr) {
-            reviewThreads(first: 100, after: $cursor) {
-              nodes {
-                id
-                isResolved
-                isCollapsed
-                outdated
-                resolvedBy { login }
-                comments(first: 100) {
-                  nodes { databaseId }
-                  pageInfo {
-                    hasNextPage
-                    endCursor
-                  }
-                }
-              }
-              pageInfo {
-                hasNextPage
-                endCursor
-              }
-            }
-          }
-        }
-      }
-    `;
+  private async fetchReviewThreadStatesPage(
+    prNumber: number,
+    cursor: string | null,
+  ): Promise<Result<GraphQLReviewThreadConnection>> {
+    const result = await this.runCommand(
+      "gh api graphql",
+      createReviewThreadStatesCommand(prNumber, cursor),
+      { tool: "pr_comments", endpoint: "graphql" },
+    );
 
+    if (!result.success) return result;
+    return parseReviewThreadStatesPage(result.data);
+  }
+
+  private async collectReviewThreadCommentIds(thread: GraphQLReviewThread): Promise<Set<number>> {
+    const commentIds = collectFirstPageCommentIds(thread);
+
+    if (thread.comments.pageInfo.hasNextPage && thread.comments.pageInfo.endCursor) {
+      const extraComments = await this.fetchThreadCommentIds(
+        thread.id,
+        thread.comments.pageInfo.endCursor,
+      );
+
+      if (extraComments.success) {
+        for (const id of extraComments.data) {
+          commentIds.add(id);
+        }
+      } else {
+        logger.warn("Failed to fetch additional thread comments", {
+          thread_id: thread.id,
+          error: extraComments.error,
+        });
+      }
+    }
+
+    return commentIds;
+  }
+
+  private async applyReviewThreadStates(
+    stateMap: Map<number, CommentState>,
+    threads: GraphQLReviewThreadConnection,
+  ): Promise<void> {
+    for (const thread of threads.nodes) {
+      const commentIds = await this.collectReviewThreadCommentIds(thread);
+      applyReviewThreadState(stateMap, thread, commentIds);
+    }
+  }
+
+  async fetchCommentStatesViaGraphQL(prNumber: number): Promise<Result<Map<number, CommentState>>> {
     const stateMap = new Map<number, CommentState>();
     const seenCursors = new Set<string>();
     let cursor: string | null = null;
@@ -823,105 +961,26 @@ export class PRCommentsManager {
     while (true) {
       pageCount += 1;
       if (pageCount > MAX_GRAPHQL_PAGES) {
-        return {
-          success: false,
-          error: `GraphQL review thread pagination exceeded ${MAX_GRAPHQL_PAGES} pages for PR #${prNumber}.`,
-        };
+        return createReviewThreadPaginationLimitFailure(prNumber);
       }
 
       if (cursor && seenCursors.has(cursor)) {
-        return {
-          success: false,
-          error: `GraphQL review thread pagination repeated cursor '${cursor}' for PR #${prNumber}.`,
-        };
+        return createReviewThreadRepeatedCursorFailure(prNumber, cursor);
       }
       if (cursor) {
         seenCursors.add(cursor);
       }
 
-      const result = await this.runCommand(
-        "gh api graphql",
-        cursor
-          ? [
-              "gh",
-              "api",
-              "graphql",
-              "-f",
-              `query=${query}`,
-              "-f",
-              "owner=:owner",
-              "-f",
-              "repo=:repo",
-              "-F",
-              `pr=${prNumber}`,
-              "-F",
-              `cursor=${cursor}`,
-            ]
-          : [
-              "gh",
-              "api",
-              "graphql",
-              "-f",
-              `query=${query}`,
-              "-f",
-              "owner=:owner",
-              "-f",
-              "repo=:repo",
-              "-F",
-              `pr=${prNumber}`,
-            ],
-        { tool: "pr_comments", endpoint: "graphql" },
-      );
+      const threads = await this.fetchReviewThreadStatesPage(prNumber, cursor);
+      if (!threads.success) return threads;
 
-      if (!result.success) return result;
-
-      try {
-        const parsed: GraphQLResponse = JSON.parse(result.data);
-        const threads = parsed.data.repository.pullRequest.reviewThreads;
-
-        for (const thread of threads.nodes) {
-          const commentIds = new Set<number>();
-
-          for (const comment of thread.comments.nodes) {
-            if (comment.databaseId == null) continue;
-            commentIds.add(comment.databaseId);
-          }
-
-          if (thread.comments.pageInfo.hasNextPage && thread.comments.pageInfo.endCursor) {
-            const extraComments = await this.fetchThreadCommentIds(
-              thread.id,
-              thread.comments.pageInfo.endCursor,
-            );
-
-            if (extraComments.success) {
-              for (const id of extraComments.data) {
-                commentIds.add(id);
-              }
-            } else {
-              logger.warn("Failed to fetch additional thread comments", {
-                thread_id: thread.id,
-                error: extraComments.error,
-              });
-            }
-          }
-
-          for (const commentId of commentIds) {
-            stateMap.set(commentId, {
-              is_resolved: thread.isResolved,
-              is_hidden: thread.isCollapsed,
-              is_outdated: thread.outdated,
-              resolved_by: thread.resolvedBy?.login,
-            });
-          }
-        }
-
-        if (!threads.pageInfo.hasNextPage || !threads.pageInfo.endCursor) {
-          break;
-        }
-        cursor = threads.pageInfo.endCursor;
-      } catch (error) {
-        return { success: false, error: `Failed to parse GraphQL: ${error}` };
+      await this.applyReviewThreadStates(stateMap, threads.data);
+      const nextCursor = resolveNextReviewThreadCursor(threads.data);
+      if (!nextCursor) {
+        break;
       }
+
+      cursor = nextCursor;
     }
 
     return { success: true, data: stateMap };
