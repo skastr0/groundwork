@@ -62,6 +62,7 @@ import { logger } from "../utils/logger.ts";
 
 const GW_READ_TOOL = "gw_read" as const;
 const GW_BLOCK_READ_TOOL = "gw_block_read" as const;
+type QueryToolName = typeof GW_READ_TOOL | typeof GW_BLOCK_READ_TOOL;
 
 const EVIDENCE_ITEM_KIND_VALUES = ["message", "work_item", "trace"] as const;
 const BLOCK_WINDOW_SOURCE_VALUES = ["focus", "radius", "explicit"] as const;
@@ -1129,7 +1130,12 @@ async function executeReadTool(
   try {
     normalizedPath = normalizeRequestedPath(requestedPath, runtimeOptions.rootDir);
   } catch (error) {
-    return createReadPathInvalidFailure(requestedPath, error);
+    return createPathNormalizationFailure({
+      tool: GW_READ_TOOL,
+      requestedPath,
+      code: "GW_READ_PATH_INVALID",
+      error,
+    });
   }
 
   logger.info("gw_read start", {
@@ -1210,17 +1216,22 @@ async function executeReadTool(
   }
 }
 
-function createReadPathInvalidFailure(requestedPath: string, error: unknown): string {
+function createPathNormalizationFailure(options: {
+  tool: QueryToolName;
+  requestedPath: string;
+  code: string;
+  error: unknown;
+}): string {
   return JSON.stringify(
     createProvenanceFailure({
-      tool: GW_READ_TOOL,
+      tool: options.tool,
       mode: "local",
       confidence: "unknown",
       ambiguity: "high",
-      summary: `Failed to normalize path '${requestedPath}'.`,
+      summary: `Failed to normalize path '${options.requestedPath}'.`,
       error: {
-        code: "GW_READ_PATH_INVALID",
-        message: toErrorMessage(error),
+        code: options.code,
+        message: toErrorMessage(options.error),
       },
     }),
     null,
@@ -1425,21 +1436,12 @@ function normalizeBlockReadPath(
 }
 
 function createBlockReadPathFailure(input: BlockReadToolInput, error: unknown): string {
-  return JSON.stringify(
-    createProvenanceFailure({
-      tool: GW_BLOCK_READ_TOOL,
-      mode: "local",
-      confidence: "unknown",
-      ambiguity: "high",
-      summary: `Failed to normalize path '${input.path}'.`,
-      error: {
-        code: "GW_BLOCK_READ_PATH_INVALID",
-        message: toErrorMessage(error),
-      },
-    }),
-    null,
-    2,
-  );
+  return createPathNormalizationFailure({
+    tool: GW_BLOCK_READ_TOOL,
+    requestedPath: input.path,
+    code: "GW_BLOCK_READ_PATH_INVALID",
+    error,
+  });
 }
 
 async function loadBlockReadSuccessInputs(params: {
