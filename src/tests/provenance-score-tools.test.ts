@@ -8,6 +8,7 @@ import {
   type ProcessRunnerCarrier,
 } from "../../shared/effect-runtime.ts";
 import { z } from "zod";
+import { logger } from "../provenance/tooling/utils/logger.ts";
 import type { Shell } from "../provenance/tooling/state/index.ts";
 
 vi.mock("@opencode-ai/plugin", () => {
@@ -26,6 +27,7 @@ const HEAD_HASH = "abcdef1234567890abcdef1234567890abcdef12";
 type MockResponse = {
   pattern: string | RegExp;
   output: string;
+  shouldError?: boolean;
 };
 
 function createShellStub(responses: MockResponse[]) {
@@ -37,7 +39,9 @@ function createShellStub(responses: MockResponse[]) {
           : response.pattern.test(command);
 
       if (matches) {
-        return Promise.resolve(response.output);
+        return response.shouldError
+          ? Promise.reject(new Error(response.output))
+          : Promise.resolve(response.output);
       }
     }
 
@@ -486,5 +490,75 @@ describe("provenance score tools", () => {
       ],
     });
     expect(result.data.assessment.label).toBe("volatile");
+  });
+
+  it("reports unsupported stability modes and logs the mode rejection", async () => {
+    const warn = vi.spyOn(logger, "warn");
+    const { createScoreTools } = await import("../provenance/tooling/score/index.ts");
+    const toolDef = createScoreTools({ shell: createShellStub([]), rootDir: tempRoot })
+      .gw_stability_report;
+    if (!toolDef) {
+      throw new Error("expected gw_stability_report tool");
+    }
+    const raw = await toolDef.execute(
+      {
+        path: "src/a.ts",
+        mode: "remote",
+      },
+      {} as never,
+    );
+    const result = JSON.parse(raw);
+
+    expect(result.ok).toBe(false);
+    expect(result.error).toMatchObject({
+      code: "MODE_NOT_SUPPORTED",
+      message: "gw_stability_report currently supports only local mode.",
+    });
+    expect(warn).toHaveBeenCalledWith(
+      "gw_stability_report unsupported mode",
+      expect.objectContaining({ tool: "gw_stability_report", mode: "remote" }),
+    );
+  });
+
+  it("returns stability failure envelopes and logs execution failures", async () => {
+    const error = vi.spyOn(logger, "error");
+    const { createScoreTools } = await import("../provenance/tooling/score/index.ts");
+    const toolDef = createScoreTools({
+      shell: createShellStub([
+        {
+          pattern: "git branch --show-current",
+          output: "branch lookup failed",
+          shouldError: true,
+        },
+      ]),
+      rootDir: tempRoot,
+    }).gw_stability_report;
+    if (!toolDef) {
+      throw new Error("expected gw_stability_report tool");
+    }
+    const raw = await toolDef.execute(
+      {
+        path: "src/a.ts",
+        recent_window_days: 7,
+        baseline_window_days: 30,
+      },
+      {} as never,
+    );
+    const result = JSON.parse(raw);
+
+    expect(result.ok).toBe(false);
+    expect(result.summary).toBe("Failed to build a stability report for 'src/a.ts'.");
+    expect(result.error).toMatchObject({
+      code: "STABILITY_REPORT_UNAVAILABLE",
+    });
+    expect(result.error.message).toContain("branch lookup failed");
+    expect(error).toHaveBeenCalledWith(
+      "gw_stability_report failed",
+      expect.objectContaining({
+        tool: "gw_stability_report",
+        path: "src/a.ts",
+        error: expect.stringContaining("branch lookup failed"),
+      }),
+    );
   });
 });

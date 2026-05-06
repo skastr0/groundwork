@@ -22,3 +22,6 @@ id: gw-stability-report-tool-refactor
 [2026-05-06]: Taste evidence: `taste score --signal TS-LD-02 .` no longer reports `createStabilityReportTool`; current top function outlier is `fetchCommentStatesViaGraphQL` at 128 LOC.
 [2026-05-06]: Targeted validation passed: `bun run typecheck`; `bun run test src/tests/provenance-score-tools.test.ts --reporter=verbose` (5 tests); `bun run test src/tests/provenance-score-tools.test.ts src/tests/cli.test.ts -t "score tools|stability report|gw_stability|representative OpenCode provenance" --reporter=verbose` (6 tests).
 [2026-05-06]: Full validation passed: `bun run verify` completed 26 files / 250 tests plus build/import/dist CLI/local-install checks.
+[2026-05-06]: Verification review follow-up added direct `gw_stability_report` negative-path coverage for unsupported mode warning/envelope and execution failure logging/envelope.
+[2026-05-06]: Follow-up targeted validation passed: `bun run typecheck`; `bun run test src/tests/provenance-score-tools.test.ts --reporter=verbose` (7 tests); `bun run test src/tests/provenance-score-tools.test.ts src/tests/cli.test.ts -t "score tools|stability report|gw_stability|representative OpenCode provenance" --reporter=verbose` (8 tests).
+[2026-05-06]: Follow-up full validation passed: `bun run verify` completed 26 files / 252 tests plus build/import/dist CLI/local-install checks.
