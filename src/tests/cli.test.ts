@@ -1038,7 +1038,28 @@ message = "console logging should be reviewed"
       command: "examples list",
       data: {
         examples: expect.arrayContaining([
-          expect.objectContaining({ command_id: "risk.evaluate-command" }),
+          expect.objectContaining({
+            command_id: "risk.evaluate-command",
+            example_count: 1,
+          }),
+          expect.objectContaining({
+            command_id: "context.discover",
+            example_count: 2,
+            examples: expect.arrayContaining([
+              expect.objectContaining({
+                name: "Find instruction file metadata without full content",
+              }),
+            ]),
+          }),
+          expect.objectContaining({
+            command_id: "session.get",
+            example_count: 2,
+            examples: expect.arrayContaining([
+              expect.objectContaining({
+                name: "Read compact durable session summary",
+              }),
+            ]),
+          }),
         ]),
       },
     });

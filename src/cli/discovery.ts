@@ -565,20 +565,25 @@ export function showSchema(target: string) {
 }
 
 export function listExamples() {
-  const seen = new Set<string>();
+  const byCommandID = new Map<string, typeof EXAMPLES[number][]>();
+  for (const entry of EXAMPLES) {
+    byCommandID.set(entry.command_id, [...(byCommandID.get(entry.command_id) ?? []), entry]);
+  }
+
   return {
-    examples: EXAMPLES.flatMap((entry) => {
-      if (seen.has(entry.command_id)) {
-        return [];
-      }
-      seen.add(entry.command_id);
-      return [
-        {
-          command_id: entry.command_id,
-          command: entry.command,
+    examples: [...byCommandID.values()].map((entries) => {
+      const first = entries[0]!;
+      return {
+        command_id: first.command_id,
+        command: first.command,
+        name: first.name,
+        example_count: entries.length,
+        examples: entries.map((entry) => ({
           name: entry.name,
-        },
-      ];
+          args: entry.args,
+          ...("stdin" in entry ? { stdin: entry.stdin } : {}),
+        })),
+      };
     }),
   };
 }
