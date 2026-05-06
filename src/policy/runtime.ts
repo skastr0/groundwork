@@ -94,6 +94,14 @@ export interface CreateFrameworkPolicyLayerOptions {
   env?: NodeJS.ProcessEnv;
 }
 
+type PolicyLayerRuntime = {
+  client: FrameworkPolicyRuntimeClient;
+  directory: string;
+  rootDir: string;
+  config: GuardrailPolicyConfig | null | undefined;
+  sessionStore: SessionKernelStore;
+};
+
 export async function createFrameworkPolicyLayer(
   options: CreateFrameworkPolicyLayerOptions,
 ): Promise<GroundworkLayerRegistration> {
@@ -127,151 +135,207 @@ export async function createFrameworkPolicyLayer(
 
   return {
     active: Boolean(config),
-    hooks: {
-      "chat.message": async ({ sessionID }, { parts }) => {
-        if (!config) return;
+    hooks: createPolicyLayerHooks({
+      client: options.client,
+      directory,
+      rootDir,
+      config,
+      sessionStore,
+    }),
+  };
+}
 
-        let state = getOrCreateSessionState(sessionStore, sessionID);
-        const runtimeState = getPolicyRuntimeState(state);
-        const commands = parsePolicyCommands(parts);
-        if (commands.length === 0) {
-          return;
-        }
+function createPolicyLayerHooks(runtime: PolicyLayerRuntime): GroundworkLayerRegistration["hooks"] {
+  return {
+    "chat.message": async ({ sessionID }, { parts }) => {
+      await handlePolicyChatMessage(runtime, sessionID, parts);
+    },
 
-        for (const command of commands) {
-          if (command.type === "override") {
-            const hadLock = Boolean(getPendingHumanOverrideLock(state));
-            clearPendingHumanOverrideLock(state);
+    "tool.execute.before": async ({ tool, callID, sessionID }, { args }) => {
+      await handlePolicyToolBefore(runtime, tool, callID, sessionID, args);
+    },
 
-            await log(options.client, hadLock ? "warn" : "info", "Policy override accepted", {
-              sessionID,
-              reason: command.reason,
-              had_lock: hadLock,
-            });
+    "tool.execute.after": async ({ tool, callID, sessionID }) => {
+      await handlePolicyToolAfter(runtime, tool, callID, sessionID);
+    },
 
-            await injectPolicyPrompt(
-              options.client,
-              state,
-              runtimeState,
-              sessionID,
-              `Override accepted: ${command.reason}`,
-            );
-            continue;
-          }
-
-          for (const skill of command.skills) {
-            runtimeState.confirmedSkills.add(normalizeSkillName(skill));
-          }
-
-          await log(options.client, "info", "Policy skill confirmation accepted", {
-            sessionID,
-            skills: command.skills,
-          });
-        }
-
-        setPolicyRuntimeState(state, runtimeState);
-        sessionStore.set(state);
-      },
-
-      "tool.execute.before": async ({ tool, callID, sessionID }, { args }) => {
-        if (!config) return;
-
-        let state = getOrCreateSessionState(sessionStore, sessionID);
-        const runtimeState = getPolicyRuntimeState(state);
-        enforceSessionStateGuards(state, tool);
-
-        const extraction = extractFrameworkToolTargets(asToolArgs(args), {
-          toolName: tool,
-          directory,
-          rootDir,
-        });
-        const targets = materializeGuardrailTargets(rootDir, extraction.targets, args);
-        const normalizedPaths = targets.map((target) => target.normalizedPath);
-        if (normalizedPaths.length === 0) {
-          return;
-        }
-
-        if (MUTATING_TOOLS.has(tool)) {
-          invalidateContentMatchCache(state, new Date().toISOString(), normalizedPaths);
-        }
-
-        state = await evaluateRulesForPhase({
-          phase: "before",
-          config,
-          rootDir,
-          tool,
-          callID,
-          sessionID,
-          targets,
-          client: options.client,
-          sessionStore,
-          state,
-          runtimeState,
-        });
-
-        if (MUTATING_TOOLS.has(tool)) {
-          state.pendingTools.calls[createPolicyPendingToolKey(callID)] = {
-            callID,
-            toolName: tool,
-            phase: "after",
-            capturedAt: new Date().toISOString(),
-            targets: await snapshotFrameworkTargets(rootDir, extraction.targets),
-            data: {
-              source: SERVICE,
-            },
-          };
-        }
-
-        setPolicyRuntimeState(state, runtimeState);
-        sessionStore.set(state);
-      },
-
-      "tool.execute.after": async ({ tool, callID, sessionID }) => {
-        if (!config) return;
-
-        let state = getOrCreateSessionState(sessionStore, sessionID);
-        const pendingKey = createPolicyPendingToolKey(callID);
-        const pending = state.pendingTools.calls[pendingKey];
-        if (!pending) {
-          return;
-        }
-
-        delete state.pendingTools.calls[pendingKey];
-        state = sessionStore.set(state);
-
-        const runtimeState = getPolicyRuntimeState(state);
-        state = await evaluateRulesForPhase({
-          phase: "after",
-          config,
-          rootDir,
-          tool: pending.toolName || tool,
-          callID,
-          sessionID,
-          targets: materializeGuardrailTargets(rootDir, pending.targets),
-          client: options.client,
-          sessionStore,
-          state,
-          runtimeState,
-        });
-
-        setPolicyRuntimeState(state, runtimeState);
-        sessionStore.set(state);
-      },
-
-      event: async ({ event }) => {
-        if (event.type !== "session.deleted") {
-          return;
-        }
-
-        const sessionID = readEventSessionID(event.properties);
-        if (!sessionID) {
-          return;
-        }
-
-        sessionStore.cleanup(sessionID);
-      },
+    event: async ({ event }) => {
+      handlePolicyEvent(runtime, event);
     },
   };
+}
+
+async function handlePolicyChatMessage(
+  runtime: PolicyLayerRuntime,
+  sessionID: string,
+  parts: unknown,
+): Promise<void> {
+  if (!runtime.config) return;
+
+  const state = getOrCreateSessionState(runtime.sessionStore, sessionID);
+  const runtimeState = getPolicyRuntimeState(state);
+  const commands = parsePolicyCommands(parts);
+  if (commands.length === 0) {
+    return;
+  }
+
+  for (const command of commands) {
+    await applyPolicyCommand(runtime, state, runtimeState, sessionID, command);
+  }
+
+  setPolicyRuntimeState(state, runtimeState);
+  runtime.sessionStore.set(state);
+}
+
+async function applyPolicyCommand(
+  runtime: PolicyLayerRuntime,
+  state: FrameworkSessionKernelState,
+  runtimeState: PolicyRuntimeState,
+  sessionID: string,
+  command: ParsedPolicyCommand,
+): Promise<void> {
+  if (command.type === "override") {
+    const hadLock = Boolean(getPendingHumanOverrideLock(state));
+    clearPendingHumanOverrideLock(state);
+
+    await log(runtime.client, hadLock ? "warn" : "info", "Policy override accepted", {
+      sessionID,
+      reason: command.reason,
+      had_lock: hadLock,
+    });
+
+    await injectPolicyPrompt(
+      runtime.client,
+      state,
+      runtimeState,
+      sessionID,
+      `Override accepted: ${command.reason}`,
+    );
+    return;
+  }
+
+  for (const skill of command.skills) {
+    runtimeState.confirmedSkills.add(normalizeSkillName(skill));
+  }
+
+  await log(runtime.client, "info", "Policy skill confirmation accepted", {
+    sessionID,
+    skills: command.skills,
+  });
+}
+
+async function handlePolicyToolBefore(
+  runtime: PolicyLayerRuntime,
+  tool: string,
+  callID: string,
+  sessionID: string,
+  args: unknown,
+): Promise<void> {
+  const { config } = runtime;
+  if (!config) return;
+
+  let state = getOrCreateSessionState(runtime.sessionStore, sessionID);
+  const runtimeState = getPolicyRuntimeState(state);
+  enforceSessionStateGuards(state, tool);
+
+  const extraction = extractFrameworkToolTargets(asToolArgs(args), {
+    toolName: tool,
+    directory: runtime.directory,
+    rootDir: runtime.rootDir,
+  });
+  const targets = materializeGuardrailTargets(runtime.rootDir, extraction.targets, args);
+  const normalizedPaths = targets.map((target) => target.normalizedPath);
+  if (normalizedPaths.length === 0) {
+    return;
+  }
+
+  if (MUTATING_TOOLS.has(tool)) {
+    invalidateContentMatchCache(state, new Date().toISOString(), normalizedPaths);
+  }
+
+  state = await evaluateRulesForPhase({
+    phase: "before",
+    config,
+    rootDir: runtime.rootDir,
+    tool,
+    callID,
+    sessionID,
+    targets,
+    client: runtime.client,
+    sessionStore: runtime.sessionStore,
+    state,
+    runtimeState,
+  });
+
+  if (MUTATING_TOOLS.has(tool)) {
+    state.pendingTools.calls[createPolicyPendingToolKey(callID)] = {
+      callID,
+      toolName: tool,
+      phase: "after",
+      capturedAt: new Date().toISOString(),
+      targets: await snapshotFrameworkTargets(runtime.rootDir, extraction.targets),
+      data: {
+        source: SERVICE,
+      },
+    };
+  }
+
+  setPolicyRuntimeState(state, runtimeState);
+  runtime.sessionStore.set(state);
+}
+
+async function handlePolicyToolAfter(
+  runtime: PolicyLayerRuntime,
+  tool: string,
+  callID: string,
+  sessionID: string,
+): Promise<void> {
+  const { config } = runtime;
+  if (!config) return;
+
+  let state = getOrCreateSessionState(runtime.sessionStore, sessionID);
+  const pendingKey = createPolicyPendingToolKey(callID);
+  const pending = state.pendingTools.calls[pendingKey];
+  if (!pending) {
+    return;
+  }
+
+  delete state.pendingTools.calls[pendingKey];
+  state = runtime.sessionStore.set(state);
+
+  const runtimeState = getPolicyRuntimeState(state);
+  state = await evaluateRulesForPhase({
+    phase: "after",
+    config,
+    rootDir: runtime.rootDir,
+    tool: pending.toolName || tool,
+    callID,
+    sessionID,
+    targets: materializeGuardrailTargets(runtime.rootDir, pending.targets),
+    client: runtime.client,
+    sessionStore: runtime.sessionStore,
+    state,
+    runtimeState,
+  });
+
+  setPolicyRuntimeState(state, runtimeState);
+  runtime.sessionStore.set(state);
+}
+
+function handlePolicyEvent(
+  runtime: PolicyLayerRuntime,
+  event: { type: string; properties?: unknown },
+): void {
+  if (event.type !== "session.deleted") {
+    return;
+  }
+
+  const sessionID = readEventSessionID(event.properties);
+  if (!sessionID) {
+    return;
+  }
+
+  runtime.sessionStore.cleanup(sessionID);
 }
 
 function asToolArgs(value: unknown): Record<string, unknown> | undefined {

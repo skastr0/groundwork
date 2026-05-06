@@ -118,6 +118,47 @@ type = "require_human_override"
     }
   });
 
+  it("cleans policy session locks on session deletion events", async () => {
+    const harness = await createPolicyRuntimeHarness({
+      policyToml: `version = 1
+
+[[rules]]
+id = "human-override-required"
+match = ["infra/prod/**"]
+
+[[rules.actions]]
+type = "require_human_override"
+`,
+    });
+
+    try {
+      await expect(
+        harness.invokeToolBefore(
+          { tool: "edit", callID: "call-1", sessionID: "session-cleanup-1" },
+          { filePath: "infra/prod/main.tf" },
+        ),
+      ).rejects.toThrow("requires explicit human override");
+
+      await expect(
+        harness.invokeToolBefore(
+          { tool: "write", callID: "call-2", sessionID: "session-cleanup-1" },
+          { filePath: "README.md" },
+        ),
+      ).rejects.toThrow("Mutating tools are locked");
+
+      await harness.cleanupSession("session-cleanup-1");
+
+      await expect(
+        harness.invokeToolBefore(
+          { tool: "write", callID: "call-3", sessionID: "session-cleanup-1" },
+          { filePath: "README.md" },
+        ),
+      ).resolves.toBeUndefined();
+    } finally {
+      await harness.cleanup();
+    }
+  });
+
   it("enforces ensure_skill_loaded in block mode until confirmation", async () => {
     const harness = await createPolicyRuntimeHarness({
       policyToml: `version = 1
