@@ -630,10 +630,10 @@ const unsupportedSource = <TItem extends LocalEvidenceMatch>(
   message,
 });
 
-const unavailableSource = <TItem extends LocalEvidenceMatch>(
-  source: LocalEvidenceSourceName,
+const unavailableSource = <TSource extends LocalEvidenceSourceName>(
+  source: TSource,
   directory: string,
-): LocalEvidenceSourceResult<TItem> => ({
+): UnavailableLocalEvidenceSource & { source: TSource } => ({
   source,
   directory,
   status: "unavailable",
@@ -1330,13 +1330,7 @@ function createUnavailableSpanTraceEvidenceResult(params: {
   return {
     anchor: params.anchor,
     span: toRequestedSpan(params.options),
-    source: {
-      source: "traces",
-      directory: params.directory,
-      status: "unavailable",
-      code: "directory_missing",
-      message: `Local evidence source '${params.directory}' is not available in this workspace.`,
-    },
+    source: unavailableSource("traces", params.directory),
   };
 }
 

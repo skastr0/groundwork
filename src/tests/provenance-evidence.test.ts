@@ -668,4 +668,91 @@ describe("loadLocalPathEvidence", () => {
       ],
     });
   });
+
+  it("prefers exact span traces over heuristic matches and applies deterministic bounds", async () => {
+    await fs.mkdir(path.join(tempRoot, ".agents", "traces"), { recursive: true });
+    await fs.writeFile(
+      path.join(tempRoot, ".agents", "traces", "session-mixed.jsonl"),
+      [
+        JSON.stringify({
+          version: "0.1.0",
+          id: "trace-heuristic",
+          timestamp: "2026-05-30T12:45:00Z",
+          files: [
+            {
+              path: "src/example.ts",
+              conversations: [{ ranges: [{ start_line: 40, end_line: 45 }] }],
+            },
+          ],
+        }),
+        JSON.stringify({
+          version: "0.1.0",
+          id: "trace-exact-one",
+          timestamp: "2026-05-30T12:00:00Z",
+          files: [
+            {
+              path: "src/example.ts",
+              conversations: [
+                {
+                  ranges: [
+                    { start_line: 4, end_line: 8, content_hash: "hash-exact-one-a" },
+                    { start_line: 5, end_line: 7, content_hash: "hash-exact-one-b" },
+                  ],
+                },
+              ],
+            },
+          ],
+        }),
+        JSON.stringify({
+          version: "0.1.0",
+          id: "trace-exact-two",
+          timestamp: "2026-05-30T13:00:00Z",
+          files: [
+            {
+              path: "src/example.ts",
+              conversations: [
+                { ranges: [{ start_line: 5, end_line: 6, content_hash: "hash-exact-two" }] },
+              ],
+            },
+          ],
+        }),
+        "{not-json",
+      ].join("\n") + "\n",
+      "utf8",
+    );
+
+    const result = await loadLocalSpanTraceEvidence({
+      rootDir: tempRoot,
+      path: "src/example.ts",
+      startLine: 5,
+      endLine: 6,
+      limit: 1,
+    });
+
+    expect(result.source).toMatchObject({
+      status: "available",
+      matchMode: "exact",
+      totalMatches: 2,
+      exactMatches: 2,
+      heuristicMatches: 1,
+      bounds: {
+        requested: 1,
+        limit: 1,
+        returned: 1,
+        truncated: true,
+      },
+      warnings: [expect.objectContaining({ code: "invalid_trace_record" })],
+    });
+    expect(result.source.status === "available" && result.source.items).toEqual([
+      expect.objectContaining({
+        id: ".agents/traces/session-mixed.jsonl:trace-exact-one:src/example.ts:exact",
+        matchKind: "exact_span",
+        score: 420,
+        ranges: [
+          expect.objectContaining({ contentHash: "hash-exact-one-a" }),
+          expect.objectContaining({ contentHash: "hash-exact-one-b" }),
+        ],
+      }),
+    ]);
+  });
 });
