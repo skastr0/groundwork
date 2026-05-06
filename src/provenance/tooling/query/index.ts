@@ -1062,6 +1062,15 @@ type ReadToolState = {
   fileState: Awaited<ReturnType<typeof resolveLocalFileState>>;
 };
 
+type BlockReadSuccessInputs = {
+  repoState: ReadToolState["repoState"];
+  fileState: ReadToolState["fileState"];
+  content: ProvBlockReadData["content"];
+  lineageResolution: Awaited<ReturnType<typeof resolveLocalSpanLineage>>;
+  diff: Awaited<ReturnType<typeof buildLocalDiffContext>>;
+  evidenceResult: Awaited<ReturnType<typeof loadLocalPathEvidence>>;
+};
+
 function createReadTool(runtimeOptions: QueryToolRuntimeOptions): ToolDefinition {
   return tool({
     description:
@@ -1351,122 +1360,181 @@ async function executeBlockReadTool(
   runtimeOptions: QueryToolRuntimeOptions,
 ): Promise<string> {
   const resolvedMode = input.mode ?? "local";
-
   if (resolvedMode !== "local") {
-    logger.warn("gw_block_read unsupported mode", {
-      tool: GW_BLOCK_READ_TOOL,
-      mode: resolvedMode,
-    });
-    return createUnsupportedModeFailure(GW_BLOCK_READ_TOOL, resolvedMode);
+    return createUnsupportedBlockReadModeFailure(resolvedMode);
   }
 
   const selectedLayerName = input.layer ?? "worktree";
-  let normalizedPath: string;
-  try {
-    normalizedPath = normalizeRequestedPath(input.path, runtimeOptions.rootDir);
-  } catch (error) {
-    return JSON.stringify(
-      createProvenanceFailure({
-        tool: GW_BLOCK_READ_TOOL,
-        mode: "local",
-        confidence: "unknown",
-        ambiguity: "high",
-        summary: `Failed to normalize path '${input.path}'.`,
-        error: {
-          code: "GW_BLOCK_READ_PATH_INVALID",
-          message: toErrorMessage(error),
-        },
-      }),
-      null,
-      2,
-    );
+  const normalizedPath = normalizeBlockReadPath(input, runtimeOptions);
+  if (!normalizedPath.success) {
+    return normalizedPath.response;
   }
 
-  logBlockReadStart(input, resolvedMode, normalizedPath, selectedLayerName);
+  logBlockReadStart(input, resolvedMode, normalizedPath.path, selectedLayerName);
 
   try {
-    const { repoState, fileState } = await loadQueryToolState(
-      runtimeOptions,
-      normalizedPath,
-      input.base,
-    );
-
-    const rootDir = runtimeOptions.rootDir ?? process.cwd();
-    const contentResult = await resolveBlockReadContent({
+    const result = await loadBlockReadSuccessInputs({
       input,
       runtimeOptions,
-      rootDir,
+      normalizedPath: normalizedPath.path,
       selectedLayerName,
-      fileState,
     });
-    if (typeof contentResult === "string") {
-      return contentResult;
+    if (typeof result === "string") {
+      return result;
     }
-
-    const { content, selectedLayer } = contentResult;
-    const lineageResolution = await resolveLocalSpanLineage({
-      shell: runtimeOptions.shell,
-      rootDir,
-      requestedPath: input.path,
-      normalizedPath: selectedLayer.path,
-      startLine: content.window.startLine,
-      endLine: content.window.endLine,
-      limit: input.limit,
-    });
-    const diff = await buildLocalDiffContext({
-      shell: runtimeOptions.shell,
-      rootDir,
-      fileState,
-      selectedLayerName,
-      focus: content.focus,
-      limit: input.limit,
-    });
-    const evidenceResult = await loadQueryToolEvidence({
-      runtimeOptions,
-      normalizedPath,
-      fileState,
-      limit: input.limit,
-      maxItems: input.max_items,
-    });
 
     return serializeBlockReadSuccess({
       input,
-      normalizedPath,
-      repoState,
-      fileState,
-      content,
-      lineageResolution,
-      diff,
-      evidenceResult,
+      normalizedPath: normalizedPath.path,
+      ...result,
     });
   } catch (error) {
-    const errorMessage = toErrorMessage(error);
-    logger.error("gw_block_read failed", {
-      tool: GW_BLOCK_READ_TOOL,
-      mode: resolvedMode,
-      path: normalizedPath,
-      layer: selectedLayerName,
-      startLine: input.start_line,
-      endLine: input.end_line,
-      error: errorMessage,
+    return createBlockReadFailure({
+      input,
+      resolvedMode,
+      normalizedPath: normalizedPath.path,
+      selectedLayerName,
+      error,
     });
-
-    return JSON.stringify(
-      createProvenanceFailure({
-        tool: GW_BLOCK_READ_TOOL,
-        mode: "local",
-        confidence: "unknown",
-        ambiguity: "high",
-        summary: `Failed to read block provenance for '${normalizedPath}:${input.start_line}-${input.end_line}'.`,
-        error: {
-          code: "GW_BLOCK_READ_UNAVAILABLE",
-          message: errorMessage,
-        },
-      }),
-      null,
-      2,
-    );
   }
+}
+
+function createUnsupportedBlockReadModeFailure(mode: string): string {
+  logger.warn("gw_block_read unsupported mode", {
+    tool: GW_BLOCK_READ_TOOL,
+    mode,
+  });
+  return createUnsupportedModeFailure(GW_BLOCK_READ_TOOL, mode);
+}
+
+function normalizeBlockReadPath(
+  input: BlockReadToolInput,
+  runtimeOptions: QueryToolRuntimeOptions,
+): { success: true; path: string } | { success: false; response: string } {
+  try {
+    return {
+      success: true,
+      path: normalizeRequestedPath(input.path, runtimeOptions.rootDir),
+    };
+  } catch (error) {
+    return {
+      success: false,
+      response: createBlockReadPathFailure(input, error),
+    };
+  }
+}
+
+function createBlockReadPathFailure(input: BlockReadToolInput, error: unknown): string {
+  return JSON.stringify(
+    createProvenanceFailure({
+      tool: GW_BLOCK_READ_TOOL,
+      mode: "local",
+      confidence: "unknown",
+      ambiguity: "high",
+      summary: `Failed to normalize path '${input.path}'.`,
+      error: {
+        code: "GW_BLOCK_READ_PATH_INVALID",
+        message: toErrorMessage(error),
+      },
+    }),
+    null,
+    2,
+  );
+}
+
+async function loadBlockReadSuccessInputs(params: {
+  input: BlockReadToolInput;
+  runtimeOptions: QueryToolRuntimeOptions;
+  normalizedPath: string;
+  selectedLayerName: ProvenanceContentLayer;
+}): Promise<string | BlockReadSuccessInputs> {
+  const { input, runtimeOptions, normalizedPath, selectedLayerName } = params;
+  const { repoState, fileState } = await loadQueryToolState(
+    runtimeOptions,
+    normalizedPath,
+    input.base,
+  );
+  const rootDir = runtimeOptions.rootDir ?? process.cwd();
+  const contentResult = await resolveBlockReadContent({
+    input,
+    runtimeOptions,
+    rootDir,
+    selectedLayerName,
+    fileState,
+  });
+  if (typeof contentResult === "string") {
+    return contentResult;
+  }
+
+  const { content, selectedLayer } = contentResult;
+  const lineageResolution = await resolveLocalSpanLineage({
+    shell: runtimeOptions.shell,
+    rootDir,
+    requestedPath: input.path,
+    normalizedPath: selectedLayer.path,
+    startLine: content.window.startLine,
+    endLine: content.window.endLine,
+    limit: input.limit,
+  });
+  const diff = await buildLocalDiffContext({
+    shell: runtimeOptions.shell,
+    rootDir,
+    fileState,
+    selectedLayerName,
+    focus: content.focus,
+    limit: input.limit,
+  });
+  const evidenceResult = await loadQueryToolEvidence({
+    runtimeOptions,
+    normalizedPath,
+    fileState,
+    limit: input.limit,
+    maxItems: input.max_items,
+  });
+
+  return {
+    repoState,
+    fileState,
+    content,
+    lineageResolution,
+    diff,
+    evidenceResult,
+  };
+}
+
+function createBlockReadFailure(params: {
+  input: BlockReadToolInput;
+  resolvedMode: string;
+  normalizedPath: string;
+  selectedLayerName: ProvenanceContentLayer;
+  error: unknown;
+}): string {
+  const errorMessage = toErrorMessage(params.error);
+  logger.error("gw_block_read failed", {
+    tool: GW_BLOCK_READ_TOOL,
+    mode: params.resolvedMode,
+    path: params.normalizedPath,
+    layer: params.selectedLayerName,
+    startLine: params.input.start_line,
+    endLine: params.input.end_line,
+    error: errorMessage,
+  });
+
+  return JSON.stringify(
+    createProvenanceFailure({
+      tool: GW_BLOCK_READ_TOOL,
+      mode: "local",
+      confidence: "unknown",
+      ambiguity: "high",
+      summary: `Failed to read block provenance for '${params.normalizedPath}:${params.input.start_line}-${params.input.end_line}'.`,
+      error: {
+        code: "GW_BLOCK_READ_UNAVAILABLE",
+        message: errorMessage,
+      },
+    }),
+    null,
+    2,
+  );
 }
 
 function buildEvidenceAliases(normalizedPath: string, fileState: LocalFileState): string[] {
