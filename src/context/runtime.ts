@@ -57,6 +57,13 @@ export interface CreateFrameworkContextLayerOptions {
   worktree?: string;
 }
 
+type ContextLayerRuntime = {
+  client: FrameworkContextRuntimeClient;
+  directory: string;
+  rootDir: string;
+  sessionStore: SessionKernelStore;
+};
+
 export async function createFrameworkContextLayer(
   options: CreateFrameworkContextLayerOptions,
 ): Promise<GroundworkLayerRegistration> {
@@ -73,146 +80,198 @@ export async function createFrameworkContextLayer(
 
   return {
     active: true,
-    hooks: {
-      "tool.execute.before": async ({ tool, callID, sessionID }, { args }) => {
-        if (!CONTEXT_TRIGGER_TOOLS.has(tool)) {
-          return;
-        }
+    hooks: createContextLayerHooks({
+      client: options.client,
+      directory,
+      rootDir,
+      sessionStore,
+    }),
+  };
+}
 
-        const extraction = extractFrameworkToolTargets(asToolArgs(args), {
-          toolName: tool,
-          directory,
-          rootDir,
-        });
-        if (extraction.targets.length === 0) {
-          return;
-        }
+function createContextLayerHooks(runtime: ContextLayerRuntime): GroundworkLayerRegistration["hooks"] {
+  return {
+    "tool.execute.before": async ({ tool, callID, sessionID }, { args }) => {
+      handleContextToolBefore(runtime, tool, callID, sessionID, args);
+    },
 
-        const state = getOrCreateSessionState(sessionStore, sessionID);
-        state.pendingTools.calls[createContextPendingToolKey(callID)] = {
-          callID,
-          toolName: tool,
-          phase: "after",
-          capturedAt: new Date().toISOString(),
-          targets: structuredClone(extraction.targets),
-          data: {
-            source: SERVICE,
-          },
-        };
-        sessionStore.set(state);
-      },
+    "tool.execute.after": async ({ tool, callID, sessionID }) => {
+      await handleContextToolAfter(runtime, tool, callID, sessionID);
+    },
 
-      "tool.execute.after": async ({ tool, callID, sessionID }) => {
-        if (!CONTEXT_TRIGGER_TOOLS.has(tool)) {
-          return;
-        }
-
-        let state = getOrCreateSessionState(sessionStore, sessionID);
-        const pendingKey = createContextPendingToolKey(callID);
-        const pending = state.pendingTools.calls[pendingKey];
-        if (!pending) {
-          return;
-        }
-
-        delete state.pendingTools.calls[pendingKey];
-        state = sessionStore.set(state);
-
-        const discoveredFiles = await collectDiscoveredContextFiles(pending.targets, {
-          directory,
-          rootDir,
-        });
-        const unseenFiles = discoveredFiles.filter(
-          (file) => !hasInjectedContextFile(state, file.path),
-        );
-        if (unseenFiles.length === 0) {
-          return;
-        }
-
-        const promptContext = await resolveContextPromptContext(options.client, state, sessionID);
-        if (!promptContext) {
-          await log(
-            options.client,
-            "warn",
-            "Skipping context injection because prompt context is unavailable",
-            {
-              sessionID,
-              callID,
-              tool,
-              target_count: pending.targets.length,
-              context_paths: unseenFiles.map((file) => file.path),
-            },
-          );
-          return;
-        }
-
-        state.promptContext ??= promptContext;
-        state = sessionStore.set(state);
-
-        const now = new Date().toISOString();
-        const reminders = buildBoundedContextReminders(state, unseenFiles, now);
-        if (reminders.length === 0) {
-          return;
-        }
-
-        const text = wrapContextReminder(reminders.map((reminder) => reminder.text));
-        if (!text) {
-          return;
-        }
-
-        await options.client.session.prompt({
-          path: { id: sessionID },
-          body: {
-            ...toSessionPromptContext(promptContext),
-            noReply: true,
-            parts: [
-              {
-                type: "text",
-                text,
-                synthetic: true,
-              },
-            ],
-          },
-        });
-
-        for (const reminder of reminders) {
-          rememberFrameworkAction(state, {
-            now,
-            source: CONTEXT_DEDUPE_SOURCE,
-            action: CONTEXT_DEDUPE_ACTION,
-            parts: [reminder.file.path],
-            metadata: {
-              path: reminder.file.path,
-              fileName: reminder.file.fileName,
-            },
-          });
-        }
-        sessionStore.set(state);
-
-        await log(options.client, "info", "Injected context reminders", {
-          sessionID,
-          callID,
-          tool,
-          injected_count: reminders.length,
-          discovered_count: discoveredFiles.length,
-          context_paths: reminders.map((reminder) => reminder.file.path),
-          bounded_bytes: Buffer.byteLength(text, "utf8"),
-        });
-      },
-
-      event: async ({ event }) => {
-        if (event.type !== "session.deleted") {
-          return;
-        }
-
-        const sessionID = readEventSessionID(event.properties);
-        if (!sessionID) {
-          return;
-        }
-
-        sessionStore.cleanup(sessionID);
-      },
+    event: async ({ event }) => {
+      handleContextEvent(runtime, event);
     },
   };
+}
+
+function handleContextToolBefore(
+  runtime: ContextLayerRuntime,
+  tool: string,
+  callID: string,
+  sessionID: string,
+  args: unknown,
+): void {
+  if (!CONTEXT_TRIGGER_TOOLS.has(tool)) {
+    return;
+  }
+
+  const extraction = extractFrameworkToolTargets(asToolArgs(args), {
+    toolName: tool,
+    directory: runtime.directory,
+    rootDir: runtime.rootDir,
+  });
+  if (extraction.targets.length === 0) {
+    return;
+  }
+
+  const state = getOrCreateSessionState(runtime.sessionStore, sessionID);
+  state.pendingTools.calls[createContextPendingToolKey(callID)] = {
+    callID,
+    toolName: tool,
+    phase: "after",
+    capturedAt: new Date().toISOString(),
+    targets: structuredClone(extraction.targets),
+    data: {
+      source: SERVICE,
+    },
+  };
+  runtime.sessionStore.set(state);
+}
+
+async function handleContextToolAfter(
+  runtime: ContextLayerRuntime,
+  tool: string,
+  callID: string,
+  sessionID: string,
+): Promise<void> {
+  if (!CONTEXT_TRIGGER_TOOLS.has(tool)) {
+    return;
+  }
+
+  let state = getOrCreateSessionState(runtime.sessionStore, sessionID);
+  const pendingKey = createContextPendingToolKey(callID);
+  const pending = state.pendingTools.calls[pendingKey];
+  if (!pending) {
+    return;
+  }
+
+  delete state.pendingTools.calls[pendingKey];
+  state = runtime.sessionStore.set(state);
+
+  const discoveredFiles = await collectDiscoveredContextFiles(pending.targets, {
+    directory: runtime.directory,
+    rootDir: runtime.rootDir,
+  });
+  const unseenFiles = discoveredFiles.filter((file) => !hasInjectedContextFile(state, file.path));
+  if (unseenFiles.length === 0) {
+    return;
+  }
+
+  await injectContextReminders({
+    runtime,
+    state,
+    sessionID,
+    callID,
+    tool,
+    targetCount: pending.targets.length,
+    discoveredFiles,
+    unseenFiles,
+  });
+}
+
+async function injectContextReminders(options: {
+  runtime: ContextLayerRuntime;
+  state: FrameworkSessionKernelState;
+  sessionID: string;
+  callID: string;
+  tool: string;
+  targetCount: number;
+  discoveredFiles: FrameworkDiscoveredContextFile[];
+  unseenFiles: FrameworkDiscoveredContextFile[];
+}): Promise<void> {
+  const { runtime, sessionID, callID, tool, discoveredFiles, unseenFiles } = options;
+  let { state } = options;
+  const promptContext = await resolveContextPromptContext(runtime.client, state, sessionID);
+  if (!promptContext) {
+    await log(runtime.client, "warn", "Skipping context injection because prompt context is unavailable", {
+      sessionID,
+      callID,
+      tool,
+      target_count: options.targetCount,
+      context_paths: unseenFiles.map((file) => file.path),
+    });
+    return;
+  }
+
+  state.promptContext ??= promptContext;
+  state = runtime.sessionStore.set(state);
+
+  const now = new Date().toISOString();
+  const reminders = buildBoundedContextReminders(state, unseenFiles, now);
+  if (reminders.length === 0) {
+    return;
+  }
+
+  const text = wrapContextReminder(reminders.map((reminder) => reminder.text));
+  if (!text) {
+    return;
+  }
+
+  await runtime.client.session.prompt({
+    path: { id: sessionID },
+    body: {
+      ...toSessionPromptContext(promptContext),
+      noReply: true,
+      parts: [
+        {
+          type: "text",
+          text,
+          synthetic: true,
+        },
+      ],
+    },
+  });
+
+  for (const reminder of reminders) {
+    rememberFrameworkAction(state, {
+      now,
+      source: CONTEXT_DEDUPE_SOURCE,
+      action: CONTEXT_DEDUPE_ACTION,
+      parts: [reminder.file.path],
+      metadata: {
+        path: reminder.file.path,
+        fileName: reminder.file.fileName,
+      },
+    });
+  }
+  runtime.sessionStore.set(state);
+
+  await log(runtime.client, "info", "Injected context reminders", {
+    sessionID,
+    callID,
+    tool,
+    injected_count: reminders.length,
+    discovered_count: discoveredFiles.length,
+    context_paths: reminders.map((reminder) => reminder.file.path),
+    bounded_bytes: Buffer.byteLength(text, "utf8"),
+  });
+}
+
+function handleContextEvent(
+  runtime: ContextLayerRuntime,
+  event: { type: string; properties?: unknown },
+): void {
+  if (event.type !== "session.deleted") {
+    return;
+  }
+
+  const sessionID = readEventSessionID(event.properties);
+  if (!sessionID) {
+    return;
+  }
+
+  runtime.sessionStore.cleanup(sessionID);
 }
 
 function asToolArgs(value: unknown): Record<string, unknown> | undefined {
