@@ -1123,6 +1123,51 @@ message = "console logging should be reviewed"
     });
   });
 
+  it("discovers root context files only when explicitly requested", async () => {
+    const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "groundwork-context-root-"));
+    await fs.writeFile(path.join(rootDir, "AGENTS.md"), "Use root guidance.\n", "utf8");
+    await fs.writeFile(path.join(rootDir, "README.md"), "# Demo\n", "utf8");
+
+    const defaultResult = await runGroundwork([
+      "context",
+      "discover",
+      JSON.stringify({
+        target_path: "README.md",
+        root_dir: rootDir,
+      }),
+    ]);
+    expect(parseJson(defaultResult.stdout)).toMatchObject({
+      ok: true,
+      data: {
+        include_root: false,
+        files: [],
+      },
+    });
+
+    const includeResult = await runGroundwork([
+      "context",
+      "discover",
+      JSON.stringify({
+        target_path: "README.md",
+        root_dir: rootDir,
+        include_root: true,
+      }),
+    ]);
+    expect(parseJson(includeResult.stdout)).toMatchObject({
+      ok: true,
+      command: "context discover",
+      data: {
+        include_root: true,
+        files: [
+          expect.objectContaining({
+            fileName: "AGENTS.md",
+            content: "Use root guidance.\n",
+          }),
+        ],
+      },
+    });
+  });
+
   it("dedupes context reminders for touched paths", async () => {
     const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "groundwork-context-touched-"));
     await fs.mkdir(path.join(rootDir, "src", "feature"), { recursive: true });
@@ -1153,6 +1198,31 @@ message = "console logging should be reviewed"
         new_files: [],
         repeated_files: [expect.objectContaining({ file_name: "AGENTS.md" })],
         reminders: [],
+      },
+    });
+  });
+
+  it("includes root context reminders for touched paths when explicitly requested", async () => {
+    const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "groundwork-context-root-touched-"));
+    await fs.writeFile(path.join(rootDir, "AGENTS.md"), "Use root reminder.\n", "utf8");
+
+    const result = await runGroundwork([
+      "context",
+      "touched-paths",
+      JSON.stringify({
+        root_dir: rootDir,
+        session_id: "root-context-session",
+        include_root: true,
+        tool: "edit",
+        args: { path: "README.md" },
+      }),
+    ]);
+    expect(parseJson(result.stdout)).toMatchObject({
+      ok: true,
+      command: "context touched-paths",
+      data: {
+        new_files: [expect.objectContaining({ file_name: "AGENTS.md" })],
+        reminders: [expect.stringContaining("Use root reminder.")],
       },
     });
   });

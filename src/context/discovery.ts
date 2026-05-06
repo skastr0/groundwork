@@ -18,6 +18,7 @@ export interface DiscoverFrameworkContextFilesOptions {
   targetPath: string;
   directory: string;
   rootDir: string;
+  includeRoot?: boolean;
   fileExists?: (filePath: string) => Promise<boolean>;
   readText?: (filePath: string) => Promise<string>;
 }
@@ -52,14 +53,15 @@ export async function discoverFrameworkContextFiles(
   const startDir = path.dirname(targetPath);
   const relativeStartDir = path.relative(rootDir, startDir);
 
-  if (!relativeStartDir || relativeStartDir === "." || isOutsideRoot(relativeStartDir)) {
+  if (isOutsideRoot(relativeStartDir)) {
     return [];
   }
 
   const results: FrameworkDiscoveredContextFile[] = [];
   let currentDir = startDir;
+  const stopDir = options.includeRoot ? path.dirname(rootDir) : rootDir;
 
-  while (currentDir !== rootDir && currentDir !== path.dirname(currentDir)) {
+  while (currentDir !== stopDir && currentDir !== path.dirname(currentDir)) {
     for (const fileName of FRAMEWORK_CONTEXT_RULE_FILES) {
       const candidatePath = path.join(currentDir, fileName);
       if (!(await fileExists(candidatePath))) {

@@ -15,6 +15,7 @@ export interface ContextTouchedPathsInput {
   root_dir?: string;
   directory?: string;
   session_id: string;
+  include_root?: boolean;
   tool?: string;
   args?: Record<string, unknown>;
   targets?: Record<string, unknown>[];
@@ -32,7 +33,11 @@ export async function evaluateContextTouchedPaths(input: ContextTouchedPathsInpu
           rootDir,
         }).targets;
 
-  const discovered = await collectDiscoveredContextFiles(frameworkTargets, { directory, rootDir });
+  const discovered = await collectDiscoveredContextFiles(frameworkTargets, {
+    directory,
+    rootDir,
+    includeRoot: input.include_root,
+  });
   const updated = await updateSessionArtifactState(rootDir, input.session_id, (state) => {
     const now = new Date().toISOString();
     const newFiles: FrameworkDiscoveredContextFile[] = [];
@@ -81,7 +86,7 @@ export async function evaluateContextTouchedPaths(input: ContextTouchedPathsInpu
 
 async function collectDiscoveredContextFiles(
   targets: readonly FrameworkToolTarget[],
-  options: { directory: string; rootDir: string },
+  options: { directory: string; rootDir: string; includeRoot?: boolean },
 ): Promise<FrameworkDiscoveredContextFile[]> {
   const files: FrameworkDiscoveredContextFile[] = [];
   const seen = new Set<string>();
@@ -92,6 +97,7 @@ async function collectDiscoveredContextFiles(
       targetPath: path.join(options.rootDir, targetPath),
       directory: options.directory,
       rootDir: options.rootDir,
+      includeRoot: options.includeRoot,
     });
     for (const file of discovered) {
       if (seen.has(file.path)) continue;

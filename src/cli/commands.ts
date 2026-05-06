@@ -150,17 +150,19 @@ const contextDiscoverCommand = Command.make("discover", { input: inputArg }, ({ 
   toEffect(() =>
     executeJsonCommand("context discover", async () => {
       const payload = await decodeJsonInput(input, ContextDiscoverInputSchema);
-      const directory = path.resolve(payload.directory ?? process.cwd());
       const rootDir = resolveRootDir(payload.root_dir);
+      const directory = path.resolve(payload.directory ?? payload.root_dir ?? process.cwd());
       const files = await discoverFrameworkContextFiles({
         targetPath: payload.target_path,
         directory,
         rootDir,
+        includeRoot: payload.include_root,
       });
       return {
         root_dir: rootDir,
         directory,
         target_path: payload.target_path,
+        include_root: payload.include_root ?? false,
         files,
       };
     }),

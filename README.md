@@ -29,12 +29,14 @@ groundwork examples list
 groundwork risk evaluate-command '{"command":"git reset --hard"}'
 groundwork policy evaluate-tool-call '{"session_id":"codex","tool":"edit","args":{"path":"src/index.ts"}}'
 groundwork context touched-paths '{"session_id":"codex","tool":"edit","args":{"path":"src/index.ts"}}'
+groundwork context discover '{"target_path":"README.md","include_root":true}'
 groundwork provenance read '{"path":"src/index.ts","max_bytes":4000}'
 groundwork provenance run '{"tool":"gw_worktree_overview","args":{"limit":10}}'
 groundwork session render-compaction '{"session_id":"codex"}'
 ```
 
 Discovery commands expose supported capabilities, examples, and JSON schema contracts.
+Context discovery excludes root-level `AGENTS.md` / `CLAUDE.md` by default to preserve harness parity; pass `include_root: true` when using the CLI for workspace-root audits or root-level files.
 
 ## Policy Configuration
 

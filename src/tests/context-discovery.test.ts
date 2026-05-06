@@ -90,6 +90,49 @@ describe("framework context discovery", () => {
     ).resolves.toEqual([]);
   });
 
+  it("includes root-level context files when requested", async () => {
+    const { rootDir, directory } = await createFixture();
+    const targetFile = path.join(rootDir, "plugin", "feature", "src", "index.ts");
+
+    await writeText(path.join(rootDir, "AGENTS.md"), "root instructions");
+    await writeText(path.join(rootDir, "plugin", "AGENTS.md"), "plugin instructions");
+
+    await expect(
+      discoverFrameworkContextFiles({
+        targetPath: path.join(rootDir, "README.md"),
+        directory,
+        rootDir,
+        includeRoot: true,
+      }),
+    ).resolves.toEqual([
+      {
+        path: path.join(rootDir, "AGENTS.md"),
+        content: "root instructions",
+        fileName: "AGENTS.md",
+      },
+    ]);
+
+    await expect(
+      discoverFrameworkContextFiles({
+        targetPath: path.relative(directory, targetFile),
+        directory,
+        rootDir,
+        includeRoot: true,
+      }),
+    ).resolves.toEqual([
+      {
+        path: path.join(rootDir, "AGENTS.md"),
+        content: "root instructions",
+        fileName: "AGENTS.md",
+      },
+      {
+        path: path.join(rootDir, "plugin", "AGENTS.md"),
+        content: "plugin instructions",
+        fileName: "AGENTS.md",
+      },
+    ]);
+  });
+
   it("keeps the first matching context file per directory, even when it is empty", async () => {
     const { rootDir, directory } = await createFixture();
     const targetFile = path.join(rootDir, "plugin", "feature", "src", "index.ts");

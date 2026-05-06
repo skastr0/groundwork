@@ -53,14 +53,14 @@ export const COMMAND_CAPABILITIES = [
     command_id: "context.discover",
     command: "context discover",
     category: "workflow",
-    description: "Discover inherited instruction files for a target path.",
+    description: "Discover inherited instruction files for a target path; include root guidance with include_root.",
     schemas: ["groundwork.context.discover.input/v1"],
   },
   {
     command_id: "context.touched-paths",
     command: "context touched-paths",
     category: "workflow",
-    description: "Discover inherited instruction files for hook-style touched paths with session dedupe.",
+    description: "Discover inherited instruction files for hook-style touched paths with session dedupe; include root guidance with include_root.",
     schemas: ["groundwork.context.touched-paths.input/v1"],
   },
   {
@@ -200,7 +200,7 @@ export const EXAMPLES = [
     command_id: "context.discover",
     command: "context discover",
     name: "Find inherited instructions for a file",
-    args: [`{"target_path":"src/index.ts"}`],
+    args: [`{"target_path":"src/index.ts","include_root":false}`],
   },
   {
     command_id: "context.touched-paths",

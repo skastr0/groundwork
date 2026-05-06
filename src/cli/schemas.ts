@@ -206,12 +206,14 @@ export const ContextDiscoverInputSchema = z.object({
   target_path: z.string().min(1),
   directory: DirectorySchema,
   root_dir: RootDirSchema,
+  include_root: z.boolean().optional(),
 }).strict();
 
 export const ContextTouchedPathsInputSchema = z.object({
   root_dir: RootDirSchema,
   directory: DirectorySchema,
   session_id: z.string().min(1),
+  include_root: z.boolean().optional(),
   tool: z.string().min(1).optional(),
   args: z.record(z.string(), z.unknown()).optional(),
   targets: z.array(z.record(z.string(), z.unknown())).optional(),
@@ -540,7 +542,7 @@ export const SCHEMA_CONTRACTS = [
     schema_id: "groundwork.context.discover.input/v1",
     command_id: "context.discover",
     command: "context discover",
-    description: "Discover inherited AGENTS.md / CLAUDE.md instruction files for a target path.",
+    description: "Discover inherited AGENTS.md / CLAUDE.md instruction files for a target path. Root-level files are included only when include_root is true.",
     schema: {
       type: "object",
       required: ["target_path"],
@@ -549,6 +551,7 @@ export const SCHEMA_CONTRACTS = [
         target_path: { type: "string", minLength: 1 },
         directory: { type: "string", minLength: 1 },
         root_dir: { type: "string", minLength: 1 },
+        include_root: { type: "boolean" },
       },
     },
   },
@@ -556,7 +559,7 @@ export const SCHEMA_CONTRACTS = [
     schema_id: "groundwork.context.touched-paths.input/v1",
     command_id: "context.touched-paths",
     command: "context touched-paths",
-    description: "Discover inherited instruction files for hook-style touched paths with session dedupe.",
+    description: "Discover inherited instruction files for hook-style touched paths with session dedupe. Root-level files are included only when include_root is true.",
     schema: {
       type: "object",
       required: ["session_id"],
@@ -565,6 +568,7 @@ export const SCHEMA_CONTRACTS = [
         root_dir: { type: "string", minLength: 1 },
         directory: { type: "string", minLength: 1 },
         session_id: { type: "string", minLength: 1 },
+        include_root: { type: "boolean" },
         tool: { type: "string", minLength: 1 },
         args: { type: "object" },
         targets: { type: "array", items: { type: "object" } },
