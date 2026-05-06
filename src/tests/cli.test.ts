@@ -1599,6 +1599,13 @@ message = "console logging should be reviewed"
       command: "provenance file-state",
       data: {
         requestedPath: "src/index.ts",
+        base: expect.objectContaining({ confidence: expect.any(String) }),
+        head: expect.objectContaining({ confidence: expect.any(String) }),
+        index: expect.objectContaining({ confidence: expect.any(String) }),
+        worktree: expect.objectContaining({ confidence: expect.any(String) }),
+        ambiguity: expect.objectContaining({
+          level: expect.any(String),
+        }),
       },
     });
   });

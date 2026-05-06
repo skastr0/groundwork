@@ -297,6 +297,11 @@ describe("local provenance repo state helpers", () => {
 
     expect(state.requestedPath).toBe("src/worktree.ts");
     expect(state.resolvedPath).toBe("src/worktree.ts");
+    expect(state.confidence).toBe("medium");
+    expect(state.ambiguity).toMatchObject({
+      level: "low",
+      issues: [expect.objectContaining({ code: "dirty_worktree", level: "low" })],
+    });
     expect(state.base).toMatchObject({
       ref: "origin/main",
       path: "src/base.ts",

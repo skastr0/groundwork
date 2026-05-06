@@ -675,11 +675,7 @@ function parseGitTreeMetadata(raw: string): GitPathMetadata {
     .map((value) => value.trimEnd())
     .find((value) => value.length > 0);
   if (!line) {
-    return {
-      exists: false,
-      mode: null,
-      objectId: null,
-    };
+    return missingGitPathMetadata();
   }
 
   const match = line.match(/^(\d+)\s+\w+\s+([0-9a-f]+)\s+(?:-|\d+)\t.+$/i);
@@ -696,11 +692,7 @@ function parseIndexMetadata(raw: string): GitPathMetadata {
     .map((value) => value.trimEnd())
     .find((value) => value.length > 0);
   if (!line) {
-    return {
-      exists: false,
-      mode: null,
-      objectId: null,
-    };
+    return missingGitPathMetadata();
   }
 
   const match = line.match(/^(\d+)\s+([0-9a-f]+)\s+\d+\t.+$/i);
