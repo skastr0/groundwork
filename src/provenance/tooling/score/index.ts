@@ -412,6 +412,28 @@ type WindowAggregate = {
   rawTouchedPaths: number;
 };
 
+type StabilityWindows = {
+  recentWindowDays: number;
+  baselineWindowDays: number;
+};
+
+type StabilityWindowAggregates = {
+  historySummary: HistorySummary;
+  recentSince: string;
+  baselineSince: string;
+  recentAggregate: WindowAggregate;
+  baselineAggregate: WindowAggregate;
+};
+
+type StabilityPendingPaths = {
+  pendingPaths: {
+    staged: Set<string>;
+    unstaged: Set<string>;
+    untracked: Set<string>;
+  };
+  allPending: Set<string>;
+};
+
 function round(value: number): number {
   return Math.round(value * 100) / 100;
 }
@@ -1688,22 +1710,15 @@ async function executeStabilityReport(
   const resolvedPath = normalizeAnalysisPath(args.path, options.rootDir);
   const requestedPath = args.path?.trim() || ".";
   const limit = resolveBoundedNumber(args.limit, ANALYSIS_LIMIT_OPTIONS);
-  const recentWindowDays = Math.min(
-    args.recent_window_days ?? DEFAULT_STABILITY_RECENT_WINDOW_DAYS,
-    args.baseline_window_days ?? DEFAULT_STABILITY_BASELINE_WINDOW_DAYS,
-  );
-  const baselineWindowDays = Math.max(
-    args.recent_window_days ?? DEFAULT_STABILITY_RECENT_WINDOW_DAYS,
-    args.baseline_window_days ?? DEFAULT_STABILITY_BASELINE_WINDOW_DAYS,
-  );
+  const windows = resolveStabilityWindows(args);
   const [repoState, history, evidenceResult] = await Promise.all([
     resolveLocalRepoState({ shell: options.shell }),
     loadHistory({
       shell: options.shell,
       resolvedPath,
       windowDays: normalizeWindowDays(
-        [recentWindowDays, baselineWindowDays],
-        [recentWindowDays, baselineWindowDays],
+        [windows.recentWindowDays, windows.baselineWindowDays],
+        [windows.recentWindowDays, windows.baselineWindowDays],
       ),
       maxCommits: args.max_commits,
     }),
@@ -1717,23 +1732,86 @@ async function executeStabilityReport(
 
   const repo = toProvRepoStateData(repoState, limit);
   const historySourceID = `stability-history:${resolvedPath}`;
-  const historySummary = buildHistorySummary(history);
-  const anchorMs = history.headAuthoredAtMs ?? Date.now();
-  const recentSince = new Date(anchorMs - recentWindowDays * DAY_MS).toISOString();
-  const baselineSince = new Date(anchorMs - baselineWindowDays * DAY_MS).toISOString();
-  const recentAggregate = aggregateWindow({
-    commits: filterHistoryByWindow(history.commits, Date.parse(recentSince)),
-    anchorPath: resolvedPath,
-    groupBy: "file",
-    directoryDepth: 1,
-  });
-  const baselineAggregate = aggregateWindow({
-    commits: filterHistoryByWindow(history.commits, Date.parse(baselineSince)),
-    anchorPath: resolvedPath,
-    groupBy: "file",
-    directoryDepth: 1,
+  const evidenceSourceID = `evidence:${resolvedPath}`;
+  const aggregates = buildStabilityWindowAggregates({ history, resolvedPath, windows });
+  const pending = collectStabilityPendingPaths(repoState, resolvedPath);
+  const evidence = buildEvidenceSummary(evidenceResult);
+  const scores = buildStabilityScores({
+    baselineAggregate: aggregates.baselineAggregate,
+    recentAggregate: aggregates.recentAggregate,
+    windows,
+    pendingCount: pending.allPending.size,
+    evidence,
+    historySourceID,
+    evidenceSourceID,
   });
 
+  return {
+    data: buildStabilityReportData({
+      requestedPath,
+      resolvedPath,
+      repo,
+      history,
+      windows,
+      aggregates,
+      pending,
+      evidence,
+      scores,
+    }),
+    evidenceResult,
+    historySourceID,
+  };
+}
+
+function resolveStabilityWindows(args: {
+  recent_window_days?: number;
+  baseline_window_days?: number;
+}): StabilityWindows {
+  const recentWindowDays = Math.min(
+    args.recent_window_days ?? DEFAULT_STABILITY_RECENT_WINDOW_DAYS,
+    args.baseline_window_days ?? DEFAULT_STABILITY_BASELINE_WINDOW_DAYS,
+  );
+  const baselineWindowDays = Math.max(
+    args.recent_window_days ?? DEFAULT_STABILITY_RECENT_WINDOW_DAYS,
+    args.baseline_window_days ?? DEFAULT_STABILITY_BASELINE_WINDOW_DAYS,
+  );
+  return { recentWindowDays, baselineWindowDays };
+}
+
+function buildStabilityWindowAggregates(options: {
+  history: LoadedHistory;
+  resolvedPath: string;
+  windows: StabilityWindows;
+}): StabilityWindowAggregates {
+  const anchorMs = options.history.headAuthoredAtMs ?? Date.now();
+  const recentSince = new Date(anchorMs - options.windows.recentWindowDays * DAY_MS).toISOString();
+  const baselineSince = new Date(
+    anchorMs - options.windows.baselineWindowDays * DAY_MS,
+  ).toISOString();
+
+  return {
+    historySummary: buildHistorySummary(options.history),
+    recentSince,
+    baselineSince,
+    recentAggregate: aggregateWindow({
+      commits: filterHistoryByWindow(options.history.commits, Date.parse(recentSince)),
+      anchorPath: options.resolvedPath,
+      groupBy: "file",
+      directoryDepth: 1,
+    }),
+    baselineAggregate: aggregateWindow({
+      commits: filterHistoryByWindow(options.history.commits, Date.parse(baselineSince)),
+      anchorPath: options.resolvedPath,
+      groupBy: "file",
+      directoryDepth: 1,
+    }),
+  };
+}
+
+function collectStabilityPendingPaths(
+  repoState: Awaited<ReturnType<typeof resolveLocalRepoState>>,
+  resolvedPath: string,
+): StabilityPendingPaths {
   const pendingPaths = {
     staged: new Set<string>(),
     unstaged: new Set<string>(),
@@ -1756,14 +1834,18 @@ async function executeStabilityReport(
     }
   }
 
-  const allPending = new Set<string>([
-    ...pendingPaths.staged,
-    ...pendingPaths.unstaged,
-    ...pendingPaths.untracked,
-  ]);
+  return {
+    pendingPaths,
+    allPending: new Set<string>([
+      ...pendingPaths.staged,
+      ...pendingPaths.unstaged,
+      ...pendingPaths.untracked,
+    ]),
+  };
+}
 
-  const evidence = buildEvidenceSummary(evidenceResult);
-  const topAuthor = baselineAggregate.authorStats.sort((left, right) => {
+function selectTopAuthor(aggregate: WindowAggregate): AuthorStats | undefined {
+  return [...aggregate.authorStats].sort((left, right) => {
     if (right.commits !== left.commits) {
       return right.commits - left.commits;
     }
@@ -1771,23 +1853,30 @@ async function executeStabilityReport(
       `${right.authorName}<${right.authorEmail}>`,
     );
   })[0];
-  const ownershipClarity = createScore({
+}
+
+function buildOwnershipClarityScore(options: {
+  baselineAggregate: WindowAggregate;
+  historySourceID: string;
+}): ExplainableScore {
+  const topAuthor = selectTopAuthor(options.baselineAggregate);
+  return createScore({
     key: "ownership_clarity",
     label: "Ownership clarity",
     formula: "100 * (top_author_commits / total_commits)",
     interpretation: describeOwnershipClarity(
-      toPercent((topAuthor?.commits ?? 0) / Math.max(1, baselineAggregate.commits)),
+      toPercent((topAuthor?.commits ?? 0) / Math.max(1, options.baselineAggregate.commits)),
     ),
     factors: [
       shareFactor({
         key: "top_author_commit_share",
         label: "Top-author commit share",
         numerator: topAuthor?.commits ?? 0,
-        denominator: baselineAggregate.commits,
+        denominator: options.baselineAggregate.commits,
         numeratorLabel: "Top-author commits",
         denominatorLabel: "Baseline commits",
         weight: 1,
-        sourceIDs: [historySourceID],
+        sourceIDs: [options.historySourceID],
         unit: "commits",
         detail: topAuthor
           ? `${topAuthor.authorName} <${topAuthor.authorEmail}>`
@@ -1795,12 +1884,20 @@ async function executeStabilityReport(
       }),
     ],
   });
-  const recentChangePressure = createScore({
+}
+
+function buildRecentChangePressureScore(options: {
+  baselineAggregate: WindowAggregate;
+  recentAggregate: WindowAggregate;
+  windows: StabilityWindows;
+  historySourceID: string;
+}): ExplainableScore {
+  return createScore({
     key: "recent_change_pressure",
     label: "Recent change pressure",
     formula: "100 * (recent_window_commits / baseline_window_commits)",
     interpretation: describePressure(
-      toPercent(recentAggregate.commits / Math.max(1, baselineAggregate.commits)),
+      toPercent(options.recentAggregate.commits / Math.max(1, options.baselineAggregate.commits)),
       "pressure is concentrated in the recent window",
       "pressure is moderate across recent and baseline windows",
     ),
@@ -1808,24 +1905,33 @@ async function executeStabilityReport(
       shareFactor({
         key: "recent_commit_share",
         label: "Recent commit share",
-        numerator: recentAggregate.commits,
-        denominator: baselineAggregate.commits,
-        numeratorLabel: `Recent commits (${recentWindowDays}d)`,
-        denominatorLabel: `Baseline commits (${baselineWindowDays}d)`,
+        numerator: options.recentAggregate.commits,
+        denominator: options.baselineAggregate.commits,
+        numeratorLabel: `Recent commits (${options.windows.recentWindowDays}d)`,
+        denominatorLabel: `Baseline commits (${options.windows.baselineWindowDays}d)`,
         weight: 1,
-        sourceIDs: [historySourceID],
+        sourceIDs: [options.historySourceID],
         unit: "commits",
       }),
     ],
   });
-  const pendingChangePressure = createScore({
+}
+
+function buildPendingChangePressureScore(options: {
+  baselineAggregate: WindowAggregate;
+  pendingCount: number;
+  historySourceID: string;
+}): ExplainableScore {
+  const denominator = Math.max(
+    1,
+    options.baselineAggregate.rawTouchedPaths || options.pendingCount || 1,
+  );
+  return createScore({
     key: "pending_change_pressure",
     label: "Pending change pressure",
     formula: "100 * (pending_paths / max(1, baseline_touched_paths))",
     interpretation: describePressure(
-      toPercent(
-        allPending.size / Math.max(1, baselineAggregate.rawTouchedPaths || allPending.size || 1),
-      ),
+      toPercent(options.pendingCount / denominator),
       "current uncommitted changes cover most recently touched paths",
       "current uncommitted changes cover part of the recently touched paths",
     ),
@@ -1833,39 +1939,58 @@ async function executeStabilityReport(
       shareFactor({
         key: "pending_path_share",
         label: "Pending-path share",
-        numerator: allPending.size,
-        denominator: Math.max(1, baselineAggregate.rawTouchedPaths || allPending.size || 1),
+        numerator: options.pendingCount,
+        denominator,
         numeratorLabel: "Pending paths",
         denominatorLabel: "Baseline touched paths",
         weight: 1,
-        sourceIDs: ["index", "worktree", "untracked", historySourceID],
+        sourceIDs: ["index", "worktree", "untracked", options.historySourceID],
         unit: "paths",
       }),
     ],
   });
-  const evidenceSourceID = `evidence:${resolvedPath}`;
-  const evidenceCoverage = createScore({
+}
+
+function buildEvidenceCoverageScore(options: {
+  baselineAggregate: WindowAggregate;
+  evidence: EvidenceSummary;
+  evidenceSourceID: string;
+}): ExplainableScore {
+  return createScore({
     key: "evidence_coverage",
     label: "Evidence coverage",
     formula: "100 * min(1, linked_evidence_items / max(1, baseline_commits))",
     interpretation: describeCoverage(
-      toPercent(Math.min(1, evidence.rankedItems / Math.max(1, baselineAggregate.commits))),
+      toPercent(
+        Math.min(1, options.evidence.rankedItems / Math.max(1, options.baselineAggregate.commits)),
+      ),
     ),
     factors: [
       shareFactor({
         key: "linked_evidence_share",
         label: "Linked evidence per baseline commit",
-        numerator: Math.min(evidence.rankedItems, Math.max(1, baselineAggregate.commits)),
-        denominator: Math.max(1, baselineAggregate.commits),
+        numerator: Math.min(
+          options.evidence.rankedItems,
+          Math.max(1, options.baselineAggregate.commits),
+        ),
+        denominator: Math.max(1, options.baselineAggregate.commits),
         numeratorLabel: "Linked evidence items",
         denominatorLabel: "Baseline commits",
         weight: 1,
-        sourceIDs: [evidenceSourceID],
+        sourceIDs: [options.evidenceSourceID],
         unit: "items",
       }),
     ],
   });
-  const stability = createScore({
+}
+
+function buildCompositeStabilityScore(scores: {
+  ownershipClarity: ExplainableScore;
+  evidenceCoverage: ExplainableScore;
+  recentChangePressure: ExplainableScore;
+  pendingChangePressure: ExplainableScore;
+}): ExplainableScore {
+  return createScore({
     key: "stability",
     label: "Stability",
     formula:
@@ -1876,96 +2001,129 @@ async function executeStabilityReport(
         key: "ownership_clarity_factor",
         label: "Ownership clarity",
         weight: 0.25,
-        value: ownershipClarity.value,
-        contribution: round(ownershipClarity.value * 0.25),
+        value: scores.ownershipClarity.value,
+        contribution: round(scores.ownershipClarity.value * 0.25),
         explanation: "Higher recent ownership clarity improves stability.",
-        signals: ownershipClarity.signals,
+        signals: scores.ownershipClarity.signals,
       },
       {
         key: "evidence_coverage_factor",
         label: "Evidence coverage",
         weight: 0.25,
-        value: evidenceCoverage.value,
-        contribution: round(evidenceCoverage.value * 0.25),
+        value: scores.evidenceCoverage.value,
+        contribution: round(scores.evidenceCoverage.value * 0.25),
         explanation: "More linked local evidence improves explainability and stability.",
-        signals: evidenceCoverage.signals,
+        signals: scores.evidenceCoverage.signals,
       },
       {
         key: "change_calmness_factor",
         label: "Change calmness",
         weight: 0.25,
-        value: round(100 - recentChangePressure.value),
-        contribution: round((100 - recentChangePressure.value) * 0.25),
+        value: round(100 - scores.recentChangePressure.value),
+        contribution: round((100 - scores.recentChangePressure.value) * 0.25),
         explanation: "Less short-window concentration improves stability.",
-        signals: recentChangePressure.signals,
+        signals: scores.recentChangePressure.signals,
       },
       {
         key: "clean_worktree_factor",
         label: "Clean worktree",
         weight: 0.25,
-        value: round(100 - pendingChangePressure.value),
-        contribution: round((100 - pendingChangePressure.value) * 0.25),
+        value: round(100 - scores.pendingChangePressure.value),
+        contribution: round((100 - scores.pendingChangePressure.value) * 0.25),
         explanation: "Fewer pending changes on recently touched paths improves stability.",
-        signals: pendingChangePressure.signals,
+        signals: scores.pendingChangePressure.signals,
       },
     ],
   });
-  const scores = {
+}
+
+function interpretStabilityScore(value: number): string {
+  return value >= 70
+    ? "steady recent history"
+    : value >= 45
+      ? "mixed recent stability"
+      : "fragile recent stability";
+}
+
+function buildStabilityScores(options: {
+  baselineAggregate: WindowAggregate;
+  recentAggregate: WindowAggregate;
+  windows: StabilityWindows;
+  pendingCount: number;
+  evidence: EvidenceSummary;
+  historySourceID: string;
+  evidenceSourceID: string;
+}): z.infer<typeof ProvStabilityReportDataSchema>["scores"] {
+  const ownershipClarity = buildOwnershipClarityScore(options);
+  const recentChangePressure = buildRecentChangePressureScore(options);
+  const pendingChangePressure = buildPendingChangePressureScore(options);
+  const evidenceCoverage = buildEvidenceCoverageScore(options);
+  const stability = buildCompositeStabilityScore({
+    ownershipClarity,
+    evidenceCoverage,
+    recentChangePressure,
+    pendingChangePressure,
+  });
+
+  return {
     stability: {
       ...stability,
-      interpretation:
-        stability.value >= 70
-          ? "steady recent history"
-          : stability.value >= 45
-            ? "mixed recent stability"
-            : "fragile recent stability",
+      interpretation: interpretStabilityScore(stability.value),
     },
     ownershipClarity,
     recentChangePressure,
     pendingChangePressure,
     evidenceCoverage,
-  } satisfies z.infer<typeof ProvStabilityReportDataSchema>["scores"];
+  };
+}
 
+function buildStabilityReportData(options: {
+  requestedPath: string;
+  resolvedPath: string;
+  repo: z.infer<typeof ProvRepoStateDataSchema>;
+  history: LoadedHistory;
+  windows: StabilityWindows;
+  aggregates: StabilityWindowAggregates;
+  pending: StabilityPendingPaths;
+  evidence: EvidenceSummary;
+  scores: z.infer<typeof ProvStabilityReportDataSchema>["scores"];
+}): z.infer<typeof ProvStabilityReportDataSchema> {
   return {
-    data: {
-      anchor: {
-        requestedPath,
-        resolvedPath,
-      },
-      repo,
-      history: historySummary,
-      windows: {
-        recent: {
-          days: recentWindowDays,
-          since: recentSince,
-          until: history.headAuthoredAt ?? recentSince,
-          commits: recentAggregate.commits,
-        },
-        baseline: {
-          days: baselineWindowDays,
-          since: baselineSince,
-          until: history.headAuthoredAt ?? baselineSince,
-          commits: baselineAggregate.commits,
-          touchedPaths: baselineAggregate.rawTouchedPaths,
-          uniqueAuthors: baselineAggregate.uniqueAuthors,
-          additions: baselineAggregate.additions,
-          deletions: baselineAggregate.deletions,
-          churn: baselineAggregate.churn,
-          lastTouchedAt: baselineAggregate.lastTouchedAt,
-        },
-      },
-      pending: {
-        staged: pendingPaths.staged.size,
-        unstaged: pendingPaths.unstaged.size,
-        untracked: pendingPaths.untracked.size,
-        totalPaths: allPending.size,
-      },
-      evidence,
-      scores,
-      assessment: buildAssessment(scores),
+    anchor: {
+      requestedPath: options.requestedPath,
+      resolvedPath: options.resolvedPath,
     },
-    evidenceResult,
-    historySourceID,
+    repo: options.repo,
+    history: options.aggregates.historySummary,
+    windows: {
+      recent: {
+        days: options.windows.recentWindowDays,
+        since: options.aggregates.recentSince,
+        until: options.history.headAuthoredAt ?? options.aggregates.recentSince,
+        commits: options.aggregates.recentAggregate.commits,
+      },
+      baseline: {
+        days: options.windows.baselineWindowDays,
+        since: options.aggregates.baselineSince,
+        until: options.history.headAuthoredAt ?? options.aggregates.baselineSince,
+        commits: options.aggregates.baselineAggregate.commits,
+        touchedPaths: options.aggregates.baselineAggregate.rawTouchedPaths,
+        uniqueAuthors: options.aggregates.baselineAggregate.uniqueAuthors,
+        additions: options.aggregates.baselineAggregate.additions,
+        deletions: options.aggregates.baselineAggregate.deletions,
+        churn: options.aggregates.baselineAggregate.churn,
+        lastTouchedAt: options.aggregates.baselineAggregate.lastTouchedAt,
+      },
+    },
+    pending: {
+      staged: options.pending.pendingPaths.staged.size,
+      unstaged: options.pending.pendingPaths.unstaged.size,
+      untracked: options.pending.pendingPaths.untracked.size,
+      totalPaths: options.pending.allPending.size,
+    },
+    evidence: options.evidence,
+    scores: options.scores,
+    assessment: buildAssessment(options.scores),
   };
 }
 
