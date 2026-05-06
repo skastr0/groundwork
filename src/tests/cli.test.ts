@@ -2236,6 +2236,166 @@ mode = "block"
     });
   }, 30_000);
 
+  it("dedupes inject prompt policy messages across repeated evaluations", async () => {
+    const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "groundwork-policy-inject-"));
+    await fs.writeFile(
+      path.join(rootDir, "groundwork.toml"),
+      `version = 1
+
+[[rules]]
+id = "inject-guidance"
+match = ["src/**"]
+
+[[rules.actions]]
+type = "inject_prompt"
+text = "Use the repository policy checklist."
+`,
+      "utf8",
+    );
+
+    const first = await runGroundwork([
+      "policy",
+      "evaluate-tool-call",
+      JSON.stringify({
+        root_dir: rootDir,
+        session_id: "inject-session",
+        tool: "edit",
+        call_id: "inject-1",
+        args: { filePath: "src/main.ts" },
+      }),
+    ]);
+    expect(first.exitCode).toBe(0);
+    expect(parseJson(first.stdout)).toMatchObject({
+      ok: true,
+      data: {
+        decision: "allow",
+        messages: [
+          expect.objectContaining({
+            rule_id: "inject-guidance",
+            action_type: "inject_prompt",
+            text: "[groundwork:policy] Use the repository policy checklist.",
+          }),
+        ],
+      },
+    });
+
+    const second = await runGroundwork([
+      "policy",
+      "evaluate-tool-call",
+      JSON.stringify({
+        root_dir: rootDir,
+        session_id: "inject-session",
+        tool: "edit",
+        call_id: "inject-2",
+        args: { filePath: "src/main.ts" },
+      }),
+    ]);
+    expect(second.exitCode).toBe(0);
+    expect(parseJson(second.stdout)).toMatchObject({
+      ok: true,
+      data: {
+        decision: "allow",
+        messages: [],
+        violations: [],
+      },
+    });
+  }, 30_000);
+
+  it("records warn-only human override artifacts without locking mutating tools", async () => {
+    const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "groundwork-policy-warn-override-"));
+    await fs.writeFile(
+      path.join(rootDir, "groundwork.toml"),
+      `version = 1
+
+[[rules]]
+id = "warn-human-override"
+match = ["ops/**"]
+severity = "warn"
+
+[[rules.actions]]
+type = "require_human_override"
+message = "operator review recommended"
+`,
+      "utf8",
+    );
+
+    const warned = await runGroundwork([
+      "policy",
+      "evaluate-tool-call",
+      JSON.stringify({
+        root_dir: rootDir,
+        session_id: "warn-override-session",
+        tool: "edit",
+        call_id: "warn-human-1",
+        args: { filePath: "ops/deploy.yml" },
+      }),
+    ]);
+    expect(warned.exitCode).toBe(0);
+    expect(parseJson(warned.stdout)).toMatchObject({
+      ok: true,
+      data: {
+        decision: "warn",
+        violations: [
+          expect.objectContaining({
+            rule_id: "warn-human-override",
+            action_type: "require_human_override",
+            severity: "warn",
+            blocking: false,
+            text: "operator review recommended",
+          }),
+        ],
+      },
+    });
+
+    const allowedAfterWarn = await runGroundwork([
+      "policy",
+      "evaluate-tool-call",
+      JSON.stringify({
+        root_dir: rootDir,
+        session_id: "warn-override-session",
+        tool: "write",
+        call_id: "warn-human-2",
+        args: { filePath: "README.md" },
+      }),
+    ]);
+    expect(parseJson(allowedAfterWarn.stdout)).toMatchObject({
+      ok: true,
+      data: {
+        decision: "allow",
+        messages: [],
+        violations: [],
+      },
+    });
+
+    const artifactFiles = await fs.readdir(path.join(rootDir, ".agents", "messages"));
+    const artifact = artifactFiles.find((name) =>
+      name.includes("groundwork-policy-warn-human-override"),
+    );
+    expect(artifact).toBeTruthy();
+    const packet = JSON.parse(
+      await fs.readFile(path.join(rootDir, ".agents", "messages", artifact!), "utf8"),
+    );
+    expect(packet).toMatchObject({
+      from: "groundwork-policy",
+      content: {
+        data: {
+          kind: "policy_violation",
+          rule_id: "warn-human-override",
+          severity: "warn",
+          action_type: "require_human_override",
+          phase: "before",
+          call_id: "warn-human-1",
+          message: "operator review recommended",
+          paths: ["ops/deploy.yml"],
+        },
+      },
+      metadata: {
+        schema_id: "groundwork/policy-violation/v1",
+        blocking: false,
+      },
+    });
+  }, 30_000);
+
   it("uses policy override locks and post-tool result evaluation", async () => {
     const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "groundwork-policy-cli-"));
     await fs.mkdir(path.join(rootDir, "src"), { recursive: true });

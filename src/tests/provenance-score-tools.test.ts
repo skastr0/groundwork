@@ -259,6 +259,9 @@ describe("provenance score tools", () => {
     const result = JSON.parse(raw);
 
     expect(result.ok).toBe(true);
+    expect(result.summary).toBe(
+      "Hotspots for src: 30d top activity src/a.ts (2 commit(s)), top churn src/c.ts (25 changed line(s)).",
+    );
     expect(result.meta).toMatchObject({
       tool: "gw_hotspots",
       mode: "local",
@@ -366,6 +369,7 @@ describe("provenance score tools", () => {
       const result = JSON.parse(raw);
 
       expect(result.ok).toBe(false);
+      expect(result.summary).toBe(`Unsupported provenance mode '${mode}' for gw_hotspots.`);
       expect(result.meta).toMatchObject({
         tool: "gw_hotspots",
         mode,
