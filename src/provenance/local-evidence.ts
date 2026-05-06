@@ -279,6 +279,16 @@ type LocalTraceRecordMatch = {
   observedMatches: LocalTraceObservedPathMatch[];
 };
 
+type SpanTraceEvidenceCommonFields = Omit<
+  LocalSpanTraceEvidenceItem,
+  "id" | "matchKind" | "confidence" | "heuristic" | "ranges" | "score" | "reasons"
+>;
+
+type SpanTraceEvidenceBuckets = {
+  exactItems: LocalSpanTraceEvidenceItem[];
+  heuristicItems: LocalSpanTraceEvidenceItem[];
+};
+
 type Packet = {
   from?: unknown;
   phase?: unknown;
@@ -1278,26 +1288,10 @@ export async function loadLocalSpanTraceEvidence(
   const availability = await readDirectory(tracesDirectory);
 
   if (availability.status === "unavailable") {
-    return {
-      anchor,
-      span: {
-        startLine: options.startLine,
-        endLine: options.endLine,
-      },
-      source: {
-        source: "traces",
-        directory,
-        status: "unavailable",
-        code: "directory_missing",
-        message: `Local evidence source '${directory}' is not available in this workspace.`,
-      },
-    };
+    return createUnavailableSpanTraceEvidenceResult({ options, anchor, directory });
   }
 
-  const exactItems: LocalSpanTraceEvidenceItem[] = [];
-  const heuristicItems: LocalSpanTraceEvidenceItem[] = [];
   const warnings: ProvenanceWarning[] = [];
-
   const traceMatches = await readLocalTraceRecordMatches({
     rootDir: options.rootDir,
     tracesDirectory,
@@ -1305,91 +1299,191 @@ export async function loadLocalSpanTraceEvidence(
     aliases: anchor.aliases,
     warnings,
   });
-
-  for (const match of traceMatches) {
-    for (const matchedPath of match.matchedPaths) {
-      const candidates = toSpanTraceCandidates({
-        record: match.record,
-        matchedPath,
-        startLine: options.startLine,
-        endLine: options.endLine,
-      });
-      const common = {
-        kind: "trace" as const,
-        traceFile: match.traceFile,
-        recordID: match.record.id,
-        matchedPath,
-        timestamp: match.record.timestamp,
-        sessionID: toTraceSessionID(match.record),
-        vcsRevision: match.record.vcs?.revision,
-        agent: toTraceAgent(match.record),
-        model: toModelID(match.record),
-        contributor: candidates.contributor,
-      };
-
-      if (candidates.exactRanges.length > 0) {
-        exactItems.push({
-          ...common,
-          id: `${common.traceFile}:${match.record.id}:${matchedPath}:exact`,
-          matchKind: "exact_span",
-          confidence: "high",
-          heuristic: false,
-          ranges: candidates.exactRanges,
-          score: 400 + candidates.exactRanges.length * 10,
-          reasons: ["exact_path_match", "exact_line_overlap"],
-        });
-        continue;
-      }
-
-      if (candidates.heuristicRanges.length === 0) continue;
-
-      heuristicItems.push({
-        ...common,
-        id: `${common.traceFile}:${match.record.id}:${matchedPath}:heuristic`,
-        matchKind: "path_only",
-        confidence: "low",
-        heuristic: true,
-        ranges: candidates.heuristicRanges,
-        score: 150 - Math.min(candidates.distance, 100),
-        reasons: ["exact_path_match", "path_only_heuristic"],
-      });
-    }
-  }
-
-  exactItems.sort(compareSpanTraceEvidence);
-  heuristicItems.sort(compareSpanTraceEvidence);
-
-  let matchMode: LocalSpanTraceMatchMode = "none";
-  let selectedItems: LocalSpanTraceEvidenceItem[] = [];
-
-  if (exactItems.length > 0) {
-    matchMode = "exact";
-    selectedItems = exactItems;
-  } else if (heuristicItems.length > 0) {
-    matchMode = "heuristic";
-    selectedItems = heuristicItems;
-  }
-
-  const bounded = applyBoundedLimit(selectedItems, options.limit, DEFAULT_PROVENANCE_ITEM_LIMIT);
+  const { exactItems, heuristicItems } = collectSpanTraceEvidenceItems({
+    traceMatches,
+    startLine: options.startLine,
+    endLine: options.endLine,
+  });
+  const selection = selectSpanTraceEvidenceItems({ exactItems, heuristicItems });
+  const source = createAvailableSpanTraceEvidenceSource({
+    directory,
+    exactItems,
+    heuristicItems,
+    selectedItems: selection.items,
+    matchMode: selection.matchMode,
+    limit: options.limit,
+    warnings,
+  });
 
   return {
     anchor,
-    span: {
-      startLine: options.startLine,
-      endLine: options.endLine,
-    },
+    span: toRequestedSpan(options),
+    source,
+  };
+}
+
+function createUnavailableSpanTraceEvidenceResult(params: {
+  options: LocalSpanTraceEvidenceOptions;
+  anchor: LocalPathEvidenceAnchor;
+  directory: string;
+}): LocalSpanTraceEvidenceResult {
+  return {
+    anchor: params.anchor,
+    span: toRequestedSpan(params.options),
     source: {
       source: "traces",
-      directory,
-      status: "available",
-      matchMode,
-      items: bounded.items,
-      totalMatches: selectedItems.length,
-      exactMatches: exactItems.length,
-      heuristicMatches: heuristicItems.length,
-      bounds: bounded.bounds,
-      warnings,
+      directory: params.directory,
+      status: "unavailable",
+      code: "directory_missing",
+      message: `Local evidence source '${params.directory}' is not available in this workspace.`,
     },
+  };
+}
+
+function toRequestedSpan(options: Pick<LocalSpanTraceEvidenceOptions, "startLine" | "endLine">): {
+  startLine: number;
+  endLine: number;
+} {
+  return {
+    startLine: options.startLine,
+    endLine: options.endLine,
+  };
+}
+
+function collectSpanTraceEvidenceItems(params: {
+  traceMatches: LocalTraceRecordMatch[];
+  startLine: number;
+  endLine: number;
+}): SpanTraceEvidenceBuckets {
+  const exactItems: LocalSpanTraceEvidenceItem[] = [];
+  const heuristicItems: LocalSpanTraceEvidenceItem[] = [];
+
+  for (const match of params.traceMatches) {
+    collectSpanTraceMatchItems({
+      match,
+      startLine: params.startLine,
+      endLine: params.endLine,
+      exactItems,
+      heuristicItems,
+    });
+  }
+
+  return { exactItems, heuristicItems };
+}
+
+function collectSpanTraceMatchItems(params: {
+  match: LocalTraceRecordMatch;
+  startLine: number;
+  endLine: number;
+  exactItems: LocalSpanTraceEvidenceItem[];
+  heuristicItems: LocalSpanTraceEvidenceItem[];
+}): void {
+  const { match, exactItems, heuristicItems } = params;
+  for (const matchedPath of match.matchedPaths) {
+    const candidates = toSpanTraceCandidates({
+      record: match.record,
+      matchedPath,
+      startLine: params.startLine,
+      endLine: params.endLine,
+    });
+    const common = createSpanTraceCommonFields({
+      match,
+      matchedPath,
+      contributor: candidates.contributor,
+    });
+
+    if (candidates.exactRanges.length > 0) {
+      exactItems.push({
+        ...common,
+        id: `${common.traceFile}:${match.record.id}:${matchedPath}:exact`,
+        matchKind: "exact_span",
+        confidence: "high",
+        heuristic: false,
+        ranges: candidates.exactRanges,
+        score: 400 + candidates.exactRanges.length * 10,
+        reasons: ["exact_path_match", "exact_line_overlap"],
+      });
+      continue;
+    }
+
+    if (candidates.heuristicRanges.length === 0) continue;
+
+    heuristicItems.push({
+      ...common,
+      id: `${common.traceFile}:${match.record.id}:${matchedPath}:heuristic`,
+      matchKind: "path_only",
+      confidence: "low",
+      heuristic: true,
+      ranges: candidates.heuristicRanges,
+      score: 150 - Math.min(candidates.distance, 100),
+      reasons: ["exact_path_match", "path_only_heuristic"],
+    });
+  }
+}
+
+function createSpanTraceCommonFields(params: {
+  match: LocalTraceRecordMatch;
+  matchedPath: string;
+  contributor?: LocalTraceContributorSnapshot;
+}): SpanTraceEvidenceCommonFields {
+  return {
+    kind: "trace",
+    traceFile: params.match.traceFile,
+    recordID: params.match.record.id,
+    matchedPath: params.matchedPath,
+    timestamp: params.match.record.timestamp,
+    sessionID: toTraceSessionID(params.match.record),
+    vcsRevision: params.match.record.vcs?.revision,
+    agent: toTraceAgent(params.match.record),
+    model: toModelID(params.match.record),
+    contributor: params.contributor,
+  };
+}
+
+function selectSpanTraceEvidenceItems(buckets: SpanTraceEvidenceBuckets): {
+  matchMode: LocalSpanTraceMatchMode;
+  items: LocalSpanTraceEvidenceItem[];
+} {
+  const { exactItems, heuristicItems } = buckets;
+  exactItems.sort(compareSpanTraceEvidence);
+  heuristicItems.sort(compareSpanTraceEvidence);
+
+  if (exactItems.length > 0) {
+    return { matchMode: "exact", items: exactItems };
+  }
+
+  if (heuristicItems.length > 0) {
+    return { matchMode: "heuristic", items: heuristicItems };
+  }
+
+  return { matchMode: "none", items: [] };
+}
+
+function createAvailableSpanTraceEvidenceSource(params: {
+  directory: string;
+  exactItems: LocalSpanTraceEvidenceItem[];
+  heuristicItems: LocalSpanTraceEvidenceItem[];
+  selectedItems: LocalSpanTraceEvidenceItem[];
+  matchMode: LocalSpanTraceMatchMode;
+  limit: number | undefined;
+  warnings: ProvenanceWarning[];
+}): LocalSpanTraceEvidenceSourceResult {
+  const bounded = applyBoundedLimit(
+    params.selectedItems,
+    params.limit,
+    DEFAULT_PROVENANCE_ITEM_LIMIT,
+  );
+  return {
+    source: "traces",
+    directory: params.directory,
+    status: "available",
+    matchMode: params.matchMode,
+    items: bounded.items,
+    totalMatches: params.selectedItems.length,
+    exactMatches: params.exactItems.length,
+    heuristicMatches: params.heuristicItems.length,
+    bounds: bounded.bounds,
+    warnings: params.warnings,
   };
 }
 

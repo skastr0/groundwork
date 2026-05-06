@@ -524,6 +524,30 @@ describe("loadLocalPathEvidence", () => {
     );
   });
 
+  it("returns unavailable span trace evidence when traces are missing", async () => {
+    const result = await loadLocalSpanTraceEvidence({
+      rootDir: tempRoot,
+      path: "src/example.ts",
+      startLine: 5,
+      endLine: 6,
+    });
+
+    expect(result.anchor).toMatchObject({
+      path: "src/example.ts",
+      aliases: expect.arrayContaining(["src/example.ts"]),
+    });
+    expect(result.span).toEqual({
+      startLine: 5,
+      endLine: 6,
+    });
+    expect(result.source).toMatchObject({
+      source: "traces",
+      directory: ".agents/traces",
+      status: "unavailable",
+      code: "directory_missing",
+    });
+  });
+
   it("returns exact span trace matches for traced ranges", async () => {
     await fs.mkdir(path.join(tempRoot, ".agents", "traces"), { recursive: true });
     await fs.writeFile(
