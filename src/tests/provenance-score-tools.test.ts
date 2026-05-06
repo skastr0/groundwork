@@ -284,6 +284,74 @@ describe("provenance score tools", () => {
     );
   });
 
+  it("reports unsupported hotspots modes and logs the mode rejection", async () => {
+    const warn = vi.spyOn(logger, "warn");
+    const { createScoreTools } = await import("../provenance/tooling/score/index.ts");
+    const toolDef = createScoreTools({ shell: createShellStub([]), rootDir: tempRoot }).gw_hotspots;
+    if (!toolDef) {
+      throw new Error("expected gw_hotspots tool");
+    }
+    const raw = await toolDef.execute(
+      {
+        path: "src",
+        mode: "remote",
+      },
+      {} as never,
+    );
+    const result = JSON.parse(raw);
+
+    expect(result.ok).toBe(false);
+    expect(result.error).toMatchObject({
+      code: "MODE_NOT_SUPPORTED",
+      message: "gw_hotspots currently supports only local mode.",
+    });
+    expect(warn).toHaveBeenCalledWith(
+      "gw_hotspots unsupported mode",
+      expect.objectContaining({ tool: "gw_hotspots", mode: "remote" }),
+    );
+  });
+
+  it("returns hotspots failure envelopes and logs execution failures", async () => {
+    const error = vi.spyOn(logger, "error");
+    const { createScoreTools } = await import("../provenance/tooling/score/index.ts");
+    const toolDef = createScoreTools({
+      shell: createShellStub([
+        {
+          pattern: "git branch --show-current",
+          output: "branch lookup failed",
+          shouldError: true,
+        },
+      ]),
+      rootDir: tempRoot,
+    }).gw_hotspots;
+    if (!toolDef) {
+      throw new Error("expected gw_hotspots tool");
+    }
+    const raw = await toolDef.execute(
+      {
+        path: "src",
+        windows: [7],
+      },
+      {} as never,
+    );
+    const result = JSON.parse(raw);
+
+    expect(result.ok).toBe(false);
+    expect(result.summary).toBe("Failed to resolve hotspots for 'src'.");
+    expect(result.error).toMatchObject({
+      code: "HOTSPOTS_UNAVAILABLE",
+    });
+    expect(result.error.message).toContain("branch lookup failed");
+    expect(error).toHaveBeenCalledWith(
+      "gw_hotspots failed",
+      expect.objectContaining({
+        tool: "gw_hotspots",
+        path: "src",
+        error: expect.stringContaining("branch lookup failed"),
+      }),
+    );
+  });
+
   it("ranks recent author authority with explicit factor breakdowns", async () => {
     const shell = createShellStub([
       ...createRepoResponses(),
