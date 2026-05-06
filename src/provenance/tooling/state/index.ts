@@ -499,200 +499,226 @@ export function createStateTools(options: CreateStateToolsOptions): Record<strin
   const runtimeOptions = normalizeCreateStateToolsOptions(options);
 
   return {
-    [GW_REPO_STATE_TOOL]: tool({
-      description:
-        "Report local repository branch, base, HEAD, staged, unstaged, and untracked summaries with confidence and detection methods.",
-      args: {
-        base: provenanceBaseArg,
-        mode: provenanceModeArg,
-        limit: repoStateLimitArg,
-      },
-      async execute({ base, mode, limit }) {
-        const resolvedMode = mode ?? "local";
-
-        if (resolvedMode !== "local") {
-          logger.warn("gw_repo_state unsupported mode", {
-            tool: GW_REPO_STATE_TOOL,
-            mode: resolvedMode,
-          });
-          return createUnsupportedModeFailure(GW_REPO_STATE_TOOL, resolvedMode);
-        }
-
-        logger.info("gw_repo_state start", {
-          tool: GW_REPO_STATE_TOOL,
-          mode: resolvedMode,
-          base,
-          limit,
-        });
-
-        try {
-          const state = await resolveLocalRepoState({
-            shell: runtimeOptions.shell,
-            explicitBase: base,
-          });
-          const data = toProvRepoStateData(state, limit);
-          const response = createProvenanceSuccess({
-            tool: GW_REPO_STATE_TOOL,
-            mode: "local",
-            confidence: state.confidence,
-            ambiguity: state.ambiguity.level,
-            summary: createRepoStateSummary(data),
-            warnings: toRepoStateWarnings(state),
-            sources: toRepoStateSources(state),
-            data,
-          });
-
-          logger.info("gw_repo_state end", {
-            tool: GW_REPO_STATE_TOOL,
-            confidence: response.meta.confidence,
-            ambiguity: response.meta.ambiguity,
-            branch: data.branch.name,
-            base: data.base.ref,
-            staged: data.staged.count,
-            unstaged: data.unstaged.count,
-            untracked: data.untracked.count,
-          });
-
-          return JSON.stringify(response, null, 2);
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : String(error);
-          logger.error("gw_repo_state failed", {
-            tool: GW_REPO_STATE_TOOL,
-            mode: resolvedMode,
-            base,
-            error: errorMessage,
-          });
-
-          return JSON.stringify(
-            createProvenanceFailure({
-              tool: GW_REPO_STATE_TOOL,
-              mode: "local",
-              confidence: "unknown",
-              ambiguity: "high",
-              summary: "Failed to resolve local repo state.",
-              error: {
-                code: "REPO_STATE_UNAVAILABLE",
-                message: errorMessage,
-              },
-            }),
-            null,
-            2,
-          );
-        }
-      },
-    }),
-    [GW_FILE_STATE_TOOL]: tool({
-      description:
-        "Report one path's existence and change status across base, HEAD, index, and worktree, including rename metadata when detectable.",
-      args: {
-        path: provenancePathArg,
-        base: provenanceBaseArg,
-        mode: provenanceModeArg,
-      },
-      async execute({ path: requestedPath, base, mode }) {
-        const resolvedMode = mode ?? "local";
-
-        if (resolvedMode !== "local") {
-          logger.warn("gw_file_state unsupported mode", {
-            tool: GW_FILE_STATE_TOOL,
-            mode: resolvedMode,
-          });
-          return createUnsupportedModeFailure(GW_FILE_STATE_TOOL, resolvedMode);
-        }
-
-        let normalizedPath: string;
-        try {
-          normalizedPath = normalizeRequestedPath(requestedPath, runtimeOptions.rootDir);
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : String(error);
-          logger.error("gw_file_state invalid path", {
-            tool: GW_FILE_STATE_TOOL,
-            path: requestedPath,
-            error: errorMessage,
-          });
-
-          return JSON.stringify(
-            createProvenanceFailure({
-              tool: GW_FILE_STATE_TOOL,
-              mode: "local",
-              confidence: "unknown",
-              ambiguity: "high",
-              summary: `Failed to normalize path '${requestedPath}'.`,
-              error: {
-                code: "FILE_STATE_PATH_INVALID",
-                message: errorMessage,
-              },
-            }),
-            null,
-            2,
-          );
-        }
-
-        logger.info("gw_file_state start", {
-          tool: GW_FILE_STATE_TOOL,
-          mode: resolvedMode,
-          base,
-          path: normalizedPath,
-        });
-
-        try {
-          const state = await resolveLocalFileState({
-            shell: runtimeOptions.shell,
-            requestedPath: normalizedPath,
-            explicitBase: base,
-          });
-          const data = toProvFileStateData(state);
-          const response = createProvenanceSuccess({
-            tool: GW_FILE_STATE_TOOL,
-            mode: "local",
-            confidence: state.confidence,
-            ambiguity: state.ambiguity.level,
-            summary: createFileStateSummary(data),
-            warnings: toFileStateWarnings(state),
-            sources: toFileStateSources(data),
-            data,
-          });
-
-          logger.info("gw_file_state end", {
-            tool: GW_FILE_STATE_TOOL,
-            confidence: response.meta.confidence,
-            ambiguity: response.meta.ambiguity,
-            path: data.requestedPath,
-            resolvedPath: data.resolvedPath,
-            baseExists: data.base.exists,
-            headExists: data.head.exists,
-            indexExists: data.index.exists,
-            worktreeExists: data.worktree.exists,
-          });
-
-          return JSON.stringify(response, null, 2);
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : String(error);
-          logger.error("gw_file_state failed", {
-            tool: GW_FILE_STATE_TOOL,
-            mode: resolvedMode,
-            base,
-            path: normalizedPath,
-            error: errorMessage,
-          });
-
-          return JSON.stringify(
-            createProvenanceFailure({
-              tool: GW_FILE_STATE_TOOL,
-              mode: "local",
-              confidence: "unknown",
-              ambiguity: "high",
-              summary: `Failed to resolve file state for '${normalizedPath}'.`,
-              error: {
-                code: "FILE_STATE_UNAVAILABLE",
-                message: errorMessage,
-              },
-            }),
-            null,
-            2,
-          );
-        }
-      },
-    }),
+    [GW_REPO_STATE_TOOL]: createRepoStateTool(runtimeOptions),
+    [GW_FILE_STATE_TOOL]: createFileStateTool(runtimeOptions),
   };
+}
+
+function createRepoStateTool(runtimeOptions: CreateStateToolsOptions): ToolDefinition {
+  return tool({
+    description:
+      "Report local repository branch, base, HEAD, staged, unstaged, and untracked summaries with confidence and detection methods.",
+    args: {
+      base: provenanceBaseArg,
+      mode: provenanceModeArg,
+      limit: repoStateLimitArg,
+    },
+    execute: (args) => executeRepoStateTool(runtimeOptions, args),
+  });
+}
+
+async function executeRepoStateTool(
+  runtimeOptions: CreateStateToolsOptions,
+  args: {
+    base?: string;
+    mode?: string;
+    limit?: number;
+  },
+): Promise<string> {
+  const resolvedMode = args.mode ?? "local";
+
+  if (resolvedMode !== "local") {
+    logger.warn("gw_repo_state unsupported mode", {
+      tool: GW_REPO_STATE_TOOL,
+      mode: resolvedMode,
+    });
+    return createUnsupportedModeFailure(GW_REPO_STATE_TOOL, resolvedMode);
+  }
+
+  logger.info("gw_repo_state start", {
+    tool: GW_REPO_STATE_TOOL,
+    mode: resolvedMode,
+    base: args.base,
+    limit: args.limit,
+  });
+
+  try {
+    const state = await resolveLocalRepoState({
+      shell: runtimeOptions.shell,
+      explicitBase: args.base,
+    });
+    const data = toProvRepoStateData(state, args.limit);
+    const response = createProvenanceSuccess({
+      tool: GW_REPO_STATE_TOOL,
+      mode: "local",
+      confidence: state.confidence,
+      ambiguity: state.ambiguity.level,
+      summary: createRepoStateSummary(data),
+      warnings: toRepoStateWarnings(state),
+      sources: toRepoStateSources(state),
+      data,
+    });
+
+    logger.info("gw_repo_state end", {
+      tool: GW_REPO_STATE_TOOL,
+      confidence: response.meta.confidence,
+      ambiguity: response.meta.ambiguity,
+      branch: data.branch.name,
+      base: data.base.ref,
+      staged: data.staged.count,
+      unstaged: data.unstaged.count,
+      untracked: data.untracked.count,
+    });
+
+    return JSON.stringify(response, null, 2);
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    logger.error("gw_repo_state failed", {
+      tool: GW_REPO_STATE_TOOL,
+      mode: resolvedMode,
+      base: args.base,
+      error: errorMessage,
+    });
+
+    return JSON.stringify(
+      createProvenanceFailure({
+        tool: GW_REPO_STATE_TOOL,
+        mode: "local",
+        confidence: "unknown",
+        ambiguity: "high",
+        summary: "Failed to resolve local repo state.",
+        error: {
+          code: "REPO_STATE_UNAVAILABLE",
+          message: errorMessage,
+        },
+      }),
+      null,
+      2,
+    );
+  }
+}
+
+function createFileStateTool(runtimeOptions: CreateStateToolsOptions): ToolDefinition {
+  return tool({
+    description:
+      "Report one path's existence and change status across base, HEAD, index, and worktree, including rename metadata when detectable.",
+    args: {
+      path: provenancePathArg,
+      base: provenanceBaseArg,
+      mode: provenanceModeArg,
+    },
+    execute: (args) => executeFileStateTool(runtimeOptions, args),
+  });
+}
+
+async function executeFileStateTool(
+  runtimeOptions: CreateStateToolsOptions,
+  args: {
+    path: string;
+    base?: string;
+    mode?: string;
+  },
+): Promise<string> {
+  const resolvedMode = args.mode ?? "local";
+
+  if (resolvedMode !== "local") {
+    logger.warn("gw_file_state unsupported mode", {
+      tool: GW_FILE_STATE_TOOL,
+      mode: resolvedMode,
+    });
+    return createUnsupportedModeFailure(GW_FILE_STATE_TOOL, resolvedMode);
+  }
+
+  let normalizedPath: string;
+  try {
+    normalizedPath = normalizeRequestedPath(args.path, runtimeOptions.rootDir);
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    logger.error("gw_file_state invalid path", {
+      tool: GW_FILE_STATE_TOOL,
+      path: args.path,
+      error: errorMessage,
+    });
+
+    return JSON.stringify(
+      createProvenanceFailure({
+        tool: GW_FILE_STATE_TOOL,
+        mode: "local",
+        confidence: "unknown",
+        ambiguity: "high",
+        summary: `Failed to normalize path '${args.path}'.`,
+        error: {
+          code: "FILE_STATE_PATH_INVALID",
+          message: errorMessage,
+        },
+      }),
+      null,
+      2,
+    );
+  }
+
+  logger.info("gw_file_state start", {
+    tool: GW_FILE_STATE_TOOL,
+    mode: resolvedMode,
+    base: args.base,
+    path: normalizedPath,
+  });
+
+  try {
+    const state = await resolveLocalFileState({
+      shell: runtimeOptions.shell,
+      requestedPath: normalizedPath,
+      explicitBase: args.base,
+    });
+    const data = toProvFileStateData(state);
+    const response = createProvenanceSuccess({
+      tool: GW_FILE_STATE_TOOL,
+      mode: "local",
+      confidence: state.confidence,
+      ambiguity: state.ambiguity.level,
+      summary: createFileStateSummary(data),
+      warnings: toFileStateWarnings(state),
+      sources: toFileStateSources(data),
+      data,
+    });
+
+    logger.info("gw_file_state end", {
+      tool: GW_FILE_STATE_TOOL,
+      confidence: response.meta.confidence,
+      ambiguity: response.meta.ambiguity,
+      path: data.requestedPath,
+      resolvedPath: data.resolvedPath,
+      baseExists: data.base.exists,
+      headExists: data.head.exists,
+      indexExists: data.index.exists,
+      worktreeExists: data.worktree.exists,
+    });
+
+    return JSON.stringify(response, null, 2);
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    logger.error("gw_file_state failed", {
+      tool: GW_FILE_STATE_TOOL,
+      mode: resolvedMode,
+      base: args.base,
+      path: normalizedPath,
+      error: errorMessage,
+    });
+
+    return JSON.stringify(
+      createProvenanceFailure({
+        tool: GW_FILE_STATE_TOOL,
+        mode: "local",
+        confidence: "unknown",
+        ambiguity: "high",
+        summary: `Failed to resolve file state for '${normalizedPath}'.`,
+        error: {
+          code: "FILE_STATE_UNAVAILABLE",
+          message: errorMessage,
+        },
+      }),
+      null,
+      2,
+    );
+  }
 }
