@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 
-import { mkdtemp, realpath, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import { arch, platform, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
@@ -82,6 +82,7 @@ const platformArch = detectPlatform();
 const standaloneBinary = join(REPO_ROOT, "dist", `${BINARY_NAME}-${platformArch}`);
 const installRoot = await mkdtemp(join(tmpdir(), "groundwork-local-install-"));
 const projectRoot = await mkdtemp(join(tmpdir(), "groundwork-local-install-project-"));
+const contextRoot = await mkdtemp(join(tmpdir(), "groundwork-local-install-context-"));
 
 try {
   await run("standalone binary doctor", [standaloneBinary, "doctor"]);
@@ -94,6 +95,42 @@ try {
   await run("installed binary doctor", [installedBinary, "doctor"], {
     env: { PATH: "/usr/bin:/bin" },
   });
+
+  await mkdir(join(contextRoot, "src"), { recursive: true });
+  await writeFile(join(contextRoot, "AGENTS.md"), "Use installed context guidance.\n", "utf8");
+  await writeFile(join(contextRoot, "README.md"), "# Installed Context\n", "utf8");
+  const contextResult = await run(
+    "installed binary context discover include_root",
+    [
+      installedBinary,
+      "context",
+      "discover",
+      JSON.stringify({
+        target_path: "README.md",
+        directory: contextRoot,
+        root_dir: contextRoot,
+        include_root: true,
+      }),
+    ],
+    { env: { PATH: "/usr/bin:/bin" } },
+  );
+  const contextData = readData(
+    "installed binary context discover include_root",
+    parseJson("installed binary context discover include_root", contextResult.stdout),
+  );
+  const contextFiles = contextData["files"];
+  if (
+    !Array.isArray(contextFiles) ||
+    !contextFiles.some(
+      (file) =>
+        file &&
+        typeof file === "object" &&
+        (file as Record<string, unknown>)["fileName"] === "AGENTS.md" &&
+        (file as Record<string, unknown>)["content"] === "Use installed context guidance.\n",
+    )
+  ) {
+    fail("installed binary context discover did not include root AGENTS.md with include_root.");
+  }
 
   const installResult = await run(
     "installed binary codex install-project",
@@ -136,4 +173,5 @@ try {
 } finally {
   await rm(installRoot, { recursive: true, force: true });
   await rm(projectRoot, { recursive: true, force: true });
+  await rm(contextRoot, { recursive: true, force: true });
 }

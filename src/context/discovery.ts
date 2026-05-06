@@ -59,9 +59,12 @@ export async function discoverFrameworkContextFiles(
 
   const results: FrameworkDiscoveredContextFile[] = [];
   let currentDir = startDir;
-  const stopDir = options.includeRoot ? path.dirname(rootDir) : rootDir;
 
-  while (currentDir !== stopDir && currentDir !== path.dirname(currentDir)) {
+  while (true) {
+    if (!options.includeRoot && currentDir === rootDir) {
+      break;
+    }
+
     for (const fileName of FRAMEWORK_CONTEXT_RULE_FILES) {
       const candidatePath = path.join(currentDir, fileName);
       if (!(await fileExists(candidatePath))) {
@@ -77,6 +80,10 @@ export async function discoverFrameworkContextFiles(
         });
       }
 
+      break;
+    }
+
+    if (currentDir === rootDir || currentDir === path.dirname(currentDir)) {
       break;
     }
 

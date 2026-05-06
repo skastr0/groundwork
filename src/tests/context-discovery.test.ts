@@ -133,6 +133,28 @@ describe("framework context discovery", () => {
     ]);
   });
 
+  it("includes filesystem root context files when requested", async () => {
+    const rootDir = path.parse(process.cwd()).root;
+    const rootContextPath = path.join(rootDir, "CLAUDE.md");
+
+    await expect(
+      discoverFrameworkContextFiles({
+        targetPath: path.join(rootDir, "tmp", "index.ts"),
+        directory: rootDir,
+        rootDir,
+        includeRoot: true,
+        fileExists: async (filePath) => filePath === rootContextPath,
+        readText: async () => "root filesystem instructions",
+      }),
+    ).resolves.toEqual([
+      {
+        path: rootContextPath,
+        content: "root filesystem instructions",
+        fileName: "CLAUDE.md",
+      },
+    ]);
+  });
+
   it("keeps the first matching context file per directory, even when it is empty", async () => {
     const { rootDir, directory } = await createFixture();
     const targetFile = path.join(rootDir, "plugin", "feature", "src", "index.ts");

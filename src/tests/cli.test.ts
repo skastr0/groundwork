@@ -1133,6 +1133,7 @@ message = "console logging should be reviewed"
       "discover",
       JSON.stringify({
         target_path: "README.md",
+        directory: rootDir,
         root_dir: rootDir,
       }),
     ]);
@@ -1149,6 +1150,7 @@ message = "console logging should be reviewed"
       "discover",
       JSON.stringify({
         target_path: "README.md",
+        directory: rootDir,
         root_dir: rootDir,
         include_root: true,
       }),
@@ -1164,6 +1166,28 @@ message = "console logging should be reviewed"
             content: "Use root guidance.\n",
           }),
         ],
+      },
+    });
+  });
+
+  it("uses cwd as the default context discovery directory", async () => {
+    const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "groundwork-context-cwd-"));
+
+    const result = await runGroundwork([
+      "context",
+      "discover",
+      JSON.stringify({
+        target_path: "README.md",
+        root_dir: rootDir,
+        include_root: true,
+      }),
+    ]);
+    expect(result.exitCode).toBe(0);
+    expect(parseJson(result.stdout)).toMatchObject({
+      ok: true,
+      data: {
+        directory: process.cwd(),
+        files: [],
       },
     });
   });
