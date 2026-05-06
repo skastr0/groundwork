@@ -32,21 +32,75 @@ export type CodexInstallProjectInput = z.infer<typeof CodexInstallProjectInputSc
 export type CodexInstallUserInput = z.infer<typeof CodexInstallUserInputSchema>;
 
 export async function renderCodexDoctor() {
-  const cwd = process.cwd();
-  const projectCodexDir = path.join(cwd, ".codex");
-  const pluginManifestPath = path.join(cwd, ".codex-plugin", "plugin.json");
-  const bundledHooksPath = path.join(cwd, "hooks", "hooks.json");
+  const cwd = path.resolve(process.cwd());
+  const projectRoot = await findNearestCodexRoot(cwd);
+  const projectCodexDir = path.join(projectRoot, ".codex");
+  const pluginManifestPath = path.join(projectRoot, ".codex-plugin", "plugin.json");
+  const bundledHooksPath = path.join(projectRoot, "hooks", "hooks.json");
+  const projectConfigPath = path.join(projectCodexDir, "config.toml");
+  const projectHooksPath = path.join(projectCodexDir, "hooks.json");
+  const checks = [
+    await fileCheck("plugin.manifest", pluginManifestPath),
+    await fileCheck("plugin.hooks", bundledHooksPath),
+    await fileCheck("project.codex_config", projectConfigPath),
+    await fileCheck("project.codex_hooks", projectHooksPath),
+  ];
 
   return {
     integration: "codex",
-    status: "ok",
-    checks: [
-      await fileCheck("plugin.manifest", pluginManifestPath),
-      await fileCheck("plugin.hooks", bundledHooksPath),
-      await fileCheck("project.codex_dir", projectCodexDir),
-    ],
+    project_root: projectRoot,
+    status: resolveDoctorStatus(checks),
+    checks,
     limitations: codexLimitations(),
   };
+}
+
+async function findNearestCodexRoot(startDir: string): Promise<string> {
+  const resolvedStartDir = await realpathOrResolve(startDir);
+  let currentDir = resolvedStartDir;
+  const homeDir = await realpathOrResolve(os.homedir());
+  const codexHomeParent = await realpathOrResolve(
+    path.dirname(path.resolve(process.env["CODEX_HOME"] ?? path.join(homeDir, ".codex"))),
+  );
+  const stopDirs = new Set([homeDir, codexHomeParent]);
+
+  while (true) {
+    if (stopDirs.has(currentDir)) {
+      return resolvedStartDir;
+    }
+
+    if (await fileExists(path.join(currentDir, ".codex"))) {
+      return currentDir;
+    }
+
+    const parentDir = path.dirname(currentDir);
+    if (parentDir === currentDir) {
+      return resolvedStartDir;
+    }
+    currentDir = parentDir;
+  }
+}
+
+async function realpathOrResolve(filePath: string): Promise<string> {
+  try {
+    return await fs.realpath(filePath);
+  } catch {
+    return path.resolve(filePath);
+  }
+}
+
+function resolveDoctorStatus(
+  checks: Array<{ name: string; ok: boolean }>,
+): "ok" | "partial" | "missing" {
+  if (checks.every((check) => check.ok)) {
+    return "ok";
+  }
+
+  if (checks.some((check) => check.ok)) {
+    return "partial";
+  }
+
+  return "missing";
 }
 
 export async function installCodexProject(input: CodexInstallProjectInput) {

@@ -15,9 +15,16 @@ interface CommandResult {
   stderr: string;
 }
 
-async function runGroundwork(args: string[], stdin?: string): Promise<CommandResult> {
-  const proc = spawn("bun", ["./src/cli.ts", ...args], {
-    cwd: process.cwd(),
+const CLI_ENTRY = path.resolve(process.cwd(), "src", "cli.ts");
+
+async function runGroundwork(
+  args: string[],
+  stdin?: string,
+  options: { cwd?: string; env?: Record<string, string> } = {},
+): Promise<CommandResult> {
+  const proc = spawn("bun", [CLI_ENTRY, ...args], {
+    cwd: options.cwd ?? process.cwd(),
+    env: { ...process.env, ...options.env },
     stdio: ["pipe", "pipe", "pipe"],
   });
 
@@ -161,9 +168,125 @@ describe("groundwork CLI", () => {
         checks: expect.arrayContaining([
           expect.objectContaining({ name: "plugin.manifest", ok: true }),
           expect.objectContaining({ name: "plugin.hooks", ok: true }),
+          expect.objectContaining({ name: "project.codex_config", ok: true }),
+          expect.objectContaining({ name: "project.codex_hooks", ok: true }),
         ]),
       },
     });
+  });
+
+  it("reports missing Codex integration readiness outside configured projects", async () => {
+    const targetDir = await fs.mkdtemp(path.join(os.tmpdir(), "groundwork-codex-doctor-"));
+
+    const missingResult = await runGroundwork(["codex", "doctor"], undefined, {
+      cwd: targetDir,
+    });
+    expect(missingResult.exitCode).toBe(0);
+    expect(parseJson(missingResult.stdout)).toMatchObject({
+      ok: true,
+      command: "codex doctor",
+      data: {
+        integration: "codex",
+        status: "missing",
+        checks: expect.arrayContaining([
+          expect.objectContaining({ name: "plugin.manifest", ok: false }),
+          expect.objectContaining({ name: "plugin.hooks", ok: false }),
+          expect.objectContaining({ name: "project.codex_config", ok: false }),
+          expect.objectContaining({ name: "project.codex_hooks", ok: false }),
+        ]),
+      },
+    });
+
+    await fs.mkdir(path.join(targetDir, ".codex"), { recursive: true });
+    const emptyCodexResult = await runGroundwork(["codex", "doctor"], undefined, {
+      cwd: targetDir,
+    });
+    expect(parseJson(emptyCodexResult.stdout)).toMatchObject({
+      data: {
+        status: "missing",
+        checks: expect.arrayContaining([
+          expect.objectContaining({ name: "project.codex_config", ok: false }),
+          expect.objectContaining({ name: "project.codex_hooks", ok: false }),
+        ]),
+      },
+    });
+
+    await runGroundwork(
+      ["codex", "install-project", JSON.stringify({ target_dir: targetDir })],
+      undefined,
+    );
+    const nestedDir = path.join(targetDir, "nested", "package");
+    await fs.mkdir(nestedDir, { recursive: true });
+    const installedResult = await runGroundwork(["codex", "doctor"], undefined, {
+      cwd: nestedDir,
+    });
+    expect(parseJson(installedResult.stdout)).toMatchObject({
+      data: {
+        project_root: await fs.realpath(targetDir),
+        status: "partial",
+        checks: expect.arrayContaining([
+          expect.objectContaining({ name: "plugin.manifest", ok: false }),
+          expect.objectContaining({ name: "plugin.hooks", ok: false }),
+          expect.objectContaining({ name: "project.codex_config", ok: true }),
+          expect.objectContaining({ name: "project.codex_hooks", ok: true }),
+        ]),
+      },
+    });
+  });
+
+  it("does not treat user Codex home as project-local readiness", async () => {
+    const targetDir = await fs.mkdtemp(path.join(os.homedir(), ".groundwork-codex-doctor-"));
+
+    try {
+      const result = await runGroundwork(["codex", "doctor"], undefined, {
+        cwd: targetDir,
+      });
+      expect(result.exitCode).toBe(0);
+      expect(parseJson(result.stdout)).toMatchObject({
+        data: {
+          project_root: await fs.realpath(targetDir),
+          status: "missing",
+          checks: expect.arrayContaining([
+            expect.objectContaining({ name: "project.codex_config", ok: false }),
+            expect.objectContaining({ name: "project.codex_hooks", ok: false }),
+          ]),
+        },
+      });
+    } finally {
+      await fs.rm(targetDir, { recursive: true, force: true });
+    }
+  });
+
+  it("canonicalizes user Codex home boundaries before project readiness discovery", async () => {
+    const homeDir = await fs.mkdtemp(path.join(os.tmpdir(), "groundwork-codex-home-"));
+    const childDir = path.join(homeDir, "workspace", "child");
+    await fs.mkdir(path.join(homeDir, ".codex"), { recursive: true });
+    await fs.writeFile(path.join(homeDir, ".codex", "config.toml"), "codex_hooks = true\n", "utf8");
+    await fs.writeFile(path.join(homeDir, ".codex", "hooks.json"), '{"hooks":{}}\n', "utf8");
+    await fs.mkdir(childDir, { recursive: true });
+
+    try {
+      const result = await runGroundwork(["codex", "doctor"], undefined, {
+        cwd: await fs.realpath(childDir),
+        env: {
+          HOME: homeDir,
+          CODEX_HOME: path.join(homeDir, ".codex"),
+        },
+      });
+      expect(result.exitCode).toBe(0);
+      expect(parseJson(result.stdout)).toMatchObject({
+        data: {
+          project_root: await fs.realpath(childDir),
+          status: "missing",
+          checks: expect.arrayContaining([
+            expect.objectContaining({ name: "project.codex_config", ok: false }),
+            expect.objectContaining({ name: "project.codex_hooks", ok: false }),
+          ]),
+        },
+      });
+    } finally {
+      await fs.rm(homeDir, { recursive: true, force: true });
+    }
   });
 
   it("installs project-local Codex hooks and config files", async () => {
@@ -868,9 +991,24 @@ message = "console logging should be reviewed"
   });
 
   it("lists and shows examples", async () => {
+    const capabilitiesResult = await runGroundwork(["capabilities"]);
+    const advertisedCommandIDs = (
+      parseJson(capabilitiesResult.stdout) as {
+        data: { commands: Array<{ command_id: string }> };
+      }
+    ).data.commands.map((command) => command.command_id);
+
     const listResult = await runGroundwork(["examples", "list"]);
     expect(listResult.exitCode).toBe(0);
     expect(listResult.stderr).toBe("");
+    const listedExampleIDs = new Set(
+      (
+        parseJson(listResult.stdout) as {
+          data: { examples: Array<{ command_id: string }> };
+        }
+      ).data.examples.map((example) => example.command_id),
+    );
+    expect(advertisedCommandIDs.filter((commandID) => !listedExampleIDs.has(commandID))).toEqual([]);
     expect(parseJson(listResult.stdout)).toMatchObject({
       ok: true,
       command: "examples list",
@@ -891,7 +1029,21 @@ message = "console logging should be reviewed"
         command_id: "risk.evaluate-command",
       },
     });
-  });
+    for (const commandID of advertisedCommandIDs) {
+      const commandShowResult = await runGroundwork(["examples", "show", commandID]);
+      expect(commandShowResult.exitCode, commandID).toBe(0);
+      expect(parseJson(commandShowResult.stdout)).toMatchObject({
+        ok: true,
+        command: "examples show",
+        data: {
+          command_id: commandID,
+          examples: expect.arrayContaining([
+            expect.objectContaining({ command_id: commandID }),
+          ]),
+        },
+      });
+    }
+  }, 60_000);
 
   it("evaluates risky commands through the risk foundation", async () => {
     const result = await runGroundwork([
@@ -1357,7 +1509,7 @@ message = "console logging should be reviewed"
         },
       },
     });
-  });
+  }, 30_000);
 
   it("runs arbitrary gw_* provenance tools through provenance run", async () => {
     const result = await runGroundwork([
@@ -1754,7 +1906,7 @@ message = "infra needs override"
         text: expect.stringContaining("infra needs override"),
       },
     });
-  });
+  }, 30_000);
 
   it("renders empty compact session context", async () => {
     const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "groundwork-compaction-empty-"));

@@ -17,6 +17,30 @@ export const COMMAND_CAPABILITIES = [
     description: "Describe supported protocol conventions and commands.",
   },
   {
+    command_id: "schema.list",
+    command: "schema list",
+    category: "discovery",
+    description: "List published JSON input schema contracts.",
+  },
+  {
+    command_id: "schema.show",
+    command: "schema show",
+    category: "discovery",
+    description: "Show one published JSON input schema contract by schema id, command id, or command.",
+  },
+  {
+    command_id: "examples.list",
+    command: "examples list",
+    category: "discovery",
+    description: "List available command examples.",
+  },
+  {
+    command_id: "examples.show",
+    command: "examples show",
+    category: "discovery",
+    description: "Show command examples by command id or command.",
+  },
+  {
     command_id: "codex.doctor",
     command: "codex doctor",
     category: "diagnostic",
@@ -179,6 +203,48 @@ export const COMMAND_CAPABILITIES = [
 
 export const EXAMPLES = [
   {
+    command_id: "doctor",
+    command: "doctor",
+    name: "Inspect runtime health",
+    args: [],
+  },
+  {
+    command_id: "capabilities",
+    command: "capabilities",
+    name: "Inspect supported command protocol",
+    args: [],
+  },
+  {
+    command_id: "schema.list",
+    command: "schema list",
+    name: "List input schemas",
+    args: [],
+  },
+  {
+    command_id: "schema.show",
+    command: "schema show",
+    name: "Show one input schema",
+    args: ["groundwork.risk.evaluate-command.input/v1"],
+  },
+  {
+    command_id: "examples.list",
+    command: "examples list",
+    name: "List examples",
+    args: [],
+  },
+  {
+    command_id: "examples.show",
+    command: "examples show",
+    name: "Show examples for one command",
+    args: ["risk.evaluate-command"],
+  },
+  {
+    command_id: "codex.doctor",
+    command: "codex doctor",
+    name: "Inspect Codex integration readiness",
+    args: [],
+  },
+  {
     command_id: "risk.evaluate-command",
     command: "risk evaluate-command",
     name: "Block risky git checkout",
@@ -194,7 +260,37 @@ export const EXAMPLES = [
     command_id: "codex.install-user",
     command: "codex install-user",
     name: "Install user-level Codex integration",
-    args: [`{"hook_command":"/absolute/path/to/groundwork codex hook","force":false}`],
+    args: [
+      `{"codex_home":"/tmp/example-codex-home","hook_command":"/absolute/path/to/groundwork codex hook","force":false}`,
+    ],
+  },
+  {
+    command_id: "codex.hook",
+    command: "codex hook",
+    name: "Run Codex hook stdin payloads for SessionStart, PreToolUse, PostToolUse, and Stop",
+    args: [],
+    stdin: `{"hook_event_name":"SessionStart","cwd":"/path/to/project","session_id":"example"}`,
+  },
+  {
+    command_id: "codex.hook",
+    command: "codex hook",
+    name: "Run a Codex PreToolUse risk check from stdin",
+    args: [],
+    stdin: `{"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"git reset --hard"}}`,
+  },
+  {
+    command_id: "codex.hook",
+    command: "codex hook",
+    name: "Run a Codex PostToolUse context check from stdin",
+    args: [],
+    stdin: `{"hook_event_name":"PostToolUse","cwd":"/path/to/project","session_id":"example","tool_name":"apply_patch","tool_use_id":"call-1","tool_input":{"patchText":"*** Begin Patch\\n*** Update File: src/index.ts\\n@@\\n-old\\n+new\\n*** End Patch\\n"},"tool_response":{"ok":true}}`,
+  },
+  {
+    command_id: "codex.hook",
+    command: "codex hook",
+    name: "Run a Codex Stop hook payload from stdin",
+    args: [],
+    stdin: `{"hook_event_name":"Stop","stop_hook_active":false}`,
   },
   {
     command_id: "context.discover",
@@ -207,7 +303,7 @@ export const EXAMPLES = [
     command: "context touched-paths",
     name: "Render new context reminders for touched paths",
     args: [
-      `{"session_id":"example","tool":"edit","args":{"path":"src/index.ts"}}`,
+      `{"session_id":"example","tool":"edit","args":{"path":"src/index.ts"},"include_root":true}`,
     ],
   },
   {
@@ -223,6 +319,18 @@ export const EXAMPLES = [
     args: [
       `{"session_id":"example","tool":"edit","call_id":"call-1","args":{"path":"src/index.ts"}}`,
     ],
+  },
+  {
+    command_id: "policy.evaluate-tool-result",
+    command: "policy evaluate-tool-result",
+    name: "Evaluate a completed tool call against post-tool policy",
+    args: [`{"session_id":"example","call_id":"call-1","tool":"edit"}`],
+  },
+  {
+    command_id: "policy.override",
+    command: "policy override",
+    name: "Record a human policy override",
+    args: [`{"session_id":"example","reason":"Approved by maintainer","rule_id":"strict-skill"}`],
   },
   {
     command_id: "policy.skill-loaded",
@@ -243,16 +351,122 @@ export const EXAMPLES = [
     args: [`{"tool":"gw_worktree_overview","args":{"limit":10}}`],
   },
   {
+    command_id: "provenance.span-history",
+    command: "provenance span-history",
+    name: "Inspect lineage for a line span",
+    args: [`{"path":"src/index.ts","start_line":1,"end_line":20,"limit":5}`],
+  },
+  {
+    command_id: "provenance.diff-expand",
+    command: "provenance diff-expand",
+    name: "Expand local diff context for a file",
+    args: [`{"path":"src/index.ts","limit":5,"include_patch":false}`],
+  },
+  {
+    command_id: "provenance.commit-materialize",
+    command: "provenance commit-materialize",
+    name: "Materialize one commit summary",
+    args: [`{"commit":"HEAD","limit":10,"include_patch":false}`],
+  },
+  {
+    command_id: "provenance.commit-expand",
+    command: "provenance commit-expand",
+    name: "Expand one commit with surrounding evidence",
+    args: [`{"commit":"HEAD","limit":5,"include_patch":false}`],
+  },
+  {
+    command_id: "provenance.pr-materialize",
+    command: "provenance pr-materialize",
+    name: "Materialize the current branch as pull-request-like context",
+    args: [`{"mode":"local","limit":10}`],
+  },
+  {
+    command_id: "provenance.pr-expand",
+    command: "provenance pr-expand",
+    name: "Expand the current branch as pull-request-like context",
+    args: [`{"mode":"local","limit":5}`],
+  },
+  {
+    command_id: "provenance.tree-expand",
+    command: "provenance tree-expand",
+    name: "Expand file tree context",
+    args: [`{"path":"src","scope":"worktree","max_depth":2,"limit":10}`],
+  },
+  {
+    command_id: "provenance.worktree-overview",
+    command: "provenance worktree-overview",
+    name: "Summarize worktree changes",
+    args: [`{"scope":"worktree","limit":10}`],
+  },
+  {
+    command_id: "provenance.hotspots",
+    command: "provenance hotspots",
+    name: "Find recent change hotspots",
+    args: [`{"path":"src","group_by":"file","limit":10,"max_commits":100}`],
+  },
+  {
+    command_id: "provenance.authority",
+    command: "provenance authority",
+    name: "Estimate code ownership authority",
+    args: [`{"path":"src","window_days":90,"limit":10,"max_commits":100}`],
+  },
+  {
+    command_id: "provenance.stability-report",
+    command: "provenance stability-report",
+    name: "Compare recent and baseline change stability",
+    args: [`{"path":"src","recent_window_days":30,"baseline_window_days":180,"limit":10}`],
+  },
+  {
     command_id: "provenance.read",
     command: "provenance read",
     name: "Read a file with provenance evidence",
     args: [`{"path":"src/index.ts","max_bytes":4000}`],
   },
   {
+    command_id: "provenance.block-read",
+    command: "provenance block-read",
+    name: "Read a line block with lineage and diff context",
+    args: [`{"path":"src/index.ts","start_line":1,"end_line":20,"radius":3,"max_bytes":4000}`],
+  },
+  {
+    command_id: "session.get",
+    command: "session get",
+    name: "Read one durable session artifact",
+    args: [`{"session_id":"example"}`],
+  },
+  {
     command_id: "session.skill-loaded",
     command: "session skill-loaded",
     name: "Confirm skills for a hook session",
     args: [`{"session_id":"example","skills":["groundwork"]}`],
+  },
+  {
+    command_id: "session.override",
+    command: "session override",
+    name: "Record a session override",
+    args: [`{"session_id":"example","reason":"Maintainer approved","rule_id":"manual-review"}`],
+  },
+  {
+    command_id: "session.remember-action",
+    command: "session remember-action",
+    name: "Remember an action dedupe key",
+    args: [`{"session_id":"example","key":"call-1","source":"codex","action":"context-reminder"}`],
+  },
+  {
+    command_id: "session.put-pending-tool",
+    command: "session put-pending-tool",
+    name: "Persist a pending tool snapshot",
+    args: [
+      `{"session_id":"example","call_id":"call-1","tool_name":"apply_patch","phase":"before","args":{"path":"src/index.ts"}}`,
+    ],
+  },
+  {
+    command_id: "session.append-trace",
+    command: "session append-trace",
+    name: "Append a trace record",
+    args: [
+      `{"session_id":"example","trace":{"type":"tool","tool":"edit","target":"src/index.ts","timestamp":"2026-05-06T00:00:00Z"}}`,
+    ],
   },
   {
     command_id: "session.cleanup",
@@ -327,8 +541,21 @@ export function showSchema(target: string) {
 }
 
 export function listExamples() {
+  const seen = new Set<string>();
   return {
-    examples: EXAMPLES.map(({ args, ...example }) => example),
+    examples: EXAMPLES.flatMap((entry) => {
+      if (seen.has(entry.command_id)) {
+        return [];
+      }
+      seen.add(entry.command_id);
+      return [
+        {
+          command_id: entry.command_id,
+          command: entry.command,
+          name: entry.name,
+        },
+      ];
+    }),
   };
 }
 
