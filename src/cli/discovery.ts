@@ -120,6 +120,7 @@ export const COMMAND_CAPABILITIES = [
     command: "provenance repo-state",
     category: "workflow",
     description: "Inspect local repository state.",
+    output_shape: "direct_provenance_state",
     schemas: ["groundwork.provenance.repo-state.input/v1"],
   },
   {
@@ -127,6 +128,7 @@ export const COMMAND_CAPABILITIES = [
     command: "provenance file-state",
     category: "workflow",
     description: "Inspect one file across local git layers.",
+    output_shape: "direct_provenance_state",
     schemas: ["groundwork.provenance.file-state.input/v1"],
   },
   {
@@ -134,6 +136,7 @@ export const COMMAND_CAPABILITIES = [
     command: "provenance run",
     category: "workflow",
     description: "Run any registered gw_* provenance tool through the shared local registry.",
+    output_shape: "provenance_result",
     schemas: ["groundwork.provenance.run.input/v1"],
   },
   ...DIRECT_PROVENANCE_CLI_COMMAND_NAMES.map((name) => ({
@@ -141,6 +144,7 @@ export const COMMAND_CAPABILITIES = [
     command: `provenance ${name}`,
     category: "workflow",
     description: `Run gw_${name.replace(/-/g, "_")} through the shared local provenance registry.`,
+    output_shape: "provenance_result",
     schemas: [`groundwork.provenance.${name}.input/v1`],
   })),
   {
@@ -493,6 +497,12 @@ export function renderCapabilities() {
     output: {
       success: { stream: "stdout", envelope: "{ ok: true, command, data }" },
       failure: { stream: "stderr", envelope: "{ ok: false, command, error }" },
+      data_shapes: {
+        direct_provenance_state:
+          "Direct provenance state commands place local state DTOs directly in the CLI data field.",
+        provenance_result:
+          "Registry-backed provenance commands place the nested gw_* provenance result envelope in the CLI data field.",
+      },
     },
     commands: COMMAND_CAPABILITIES,
     ambient_integrations: {

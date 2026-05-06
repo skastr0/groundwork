@@ -151,6 +151,30 @@ describe("groundwork CLI", () => {
       data: {
         cli: { name: "groundwork" },
         protocol_version: "groundwork-cli/v1",
+        output: {
+          data_shapes: {
+            direct_provenance_state: expect.stringContaining("local state DTOs"),
+            provenance_result: expect.stringContaining("nested gw_* provenance result envelope"),
+          },
+        },
+        commands: expect.arrayContaining([
+          expect.objectContaining({
+            command: "provenance repo-state",
+            output_shape: "direct_provenance_state",
+          }),
+          expect.objectContaining({
+            command: "provenance file-state",
+            output_shape: "direct_provenance_state",
+          }),
+          expect.objectContaining({
+            command: "provenance worktree-overview",
+            output_shape: "provenance_result",
+          }),
+          expect.objectContaining({
+            command: "provenance run",
+            output_shape: "provenance_result",
+          }),
+        ]),
       },
     });
   });
