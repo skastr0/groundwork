@@ -348,7 +348,6 @@ function sessionStartContext(): string {
   return [
     "Groundwork is available through the `groundwork` CLI for policy, provenance, context, and risk evidence.",
     "Prefer JSON CLI calls over ad hoc reasoning when checking risky shell commands, inherited context files, or local git state.",
-    "Codex hooks are best-effort guardrails; they do not cover every tool path and do not provide full OpenCode prompt-injection parity.",
   ].join("\n");
 }
 

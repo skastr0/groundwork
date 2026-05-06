@@ -1,0 +1,4 @@
+# Groundwork Codex integration
+# Project hooks load only when this project is trusted by Codex.
+[features]
+codex_hooks = true

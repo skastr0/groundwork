@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "epistemology-framework",
+      "name": "groundwork",
       "dependencies": {
         "@effect/cli": "^0.75.1",
         "@effect/platform-bun": "^0.89.0",
