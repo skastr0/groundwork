@@ -10,9 +10,9 @@ The `taste` CLI scan found several local reasoning and function-size hotspots. T
 
 ## Acceptance Criteria
 
-- [ ] AC-1: Re-run `taste score .` and confirm the current top Groundwork quality findings.
-- [ ] AC-2: Choose one high-impact refactor target with a narrow write scope and measurable before/after shape.
-- [ ] AC-3: Preserve public CLI/provenance/policy behavior with targeted tests before and after the refactor.
+- [x] AC-1: Re-run `taste score .` and confirm the current top Groundwork quality findings.
+- [x] AC-2: Choose one high-impact refactor target with a narrow write scope and measurable before/after shape.
+- [x] AC-3: Preserve public CLI/provenance/policy behavior with targeted tests before and after the refactor.
 - [ ] AC-4: Commit each refactor slice separately and review for simplicity/consolidation regressions.
 
 ## Candidate Findings
@@ -26,3 +26,4 @@ The `taste` CLI scan found several local reasoning and function-size hotspots. T
 ## Notes
 
 [2026-05-06]: Sidecar scan used `taste score .` and `taste score --signal TS-LD-02 .`.
+[2026-05-06]: Slice 1 targets `src/provenance/tooling/query/index.ts`. Before: `createQueryTools` 474 LOC and `gw_block_read` execute body 258 LOC. After extracting query tool factories and block-read assembly helpers, both dropped from TS-LD-02 diagnostics; residual query outlier is `executeReadTool` at 155 LOC. Targeted validation: `bun run typecheck`; `bun run test src/tests/provenance-query-tools.test.ts --reporter=verbose`; `bun run test src/tests/provenance-query-tools.test.ts src/tests/cli.test.ts -t "gw_read|gw_block_read|provenance" --reporter=verbose`; direct `bun ./src/cli.ts provenance block-read ...` smoke. Added representative `gw_block_read` payload coverage for block window/focus lines, range lineage, local diff overlap, and linked message evidence.
