@@ -261,6 +261,24 @@ export interface LocalSpanTraceEvidenceResult {
   source: LocalSpanTraceEvidenceSourceResult;
 }
 
+type LocalTraceObservedPathMatch = {
+  matchedPath: string;
+  toolName?: string;
+  callID?: string;
+  strategy?: string;
+  budget?: {
+    maxBytes: number;
+    usedBytes: number;
+  };
+};
+
+type LocalTraceRecordMatch = {
+  traceFile: string;
+  record: TraceRecord;
+  matchedPaths: string[];
+  observedMatches: LocalTraceObservedPathMatch[];
+};
+
 type Packet = {
   from?: unknown;
   phase?: unknown;
@@ -718,16 +736,7 @@ const toTraceAgent = (record: TraceRecord): string | undefined => {
 const toTraceObservedPathMatches = (
   record: TraceRecord,
   aliases: readonly string[],
-): Array<{
-  matchedPath: string;
-  toolName?: string;
-  callID?: string;
-  strategy?: string;
-  budget?: {
-    maxBytes: number;
-    usedBytes: number;
-  };
-}> => {
+): LocalTraceObservedPathMatch[] => {
   const metadata = isRecord(record.metadata) ? record.metadata : undefined;
   const session = metadata && isRecord(metadata["session"]) ? metadata["session"] : undefined;
   const observedTools = Array.isArray(session?.["observedTools"]) ? session["observedTools"] : [];
@@ -1184,6 +1193,82 @@ const toSpanTraceCandidates = (options: {
   };
 };
 
+function selectTraceEntries(
+  entries: Dirent[],
+  warnings: ProvenanceWarning[],
+): Dirent[] {
+  const selectedEntries = takeEvidenceEntries(
+    entries.filter((entry) => entry.isFile() && entry.name.endsWith(".jsonl")),
+    MAX_TRACE_FILES_SCANNED,
+  );
+
+  if (selectedEntries.truncated) {
+    warnings.push({
+      code: "trace_scan_limited",
+      message: `Trace evidence scan stopped after ${MAX_TRACE_FILES_SCANNED} file(s) to stay bounded.`,
+      ambiguity: "low",
+    });
+  }
+
+  return selectedEntries.entries;
+}
+
+async function readLocalTraceRecordMatches(options: {
+  rootDir: string;
+  tracesDirectory: string;
+  entries: Dirent[];
+  aliases: string[];
+  warnings: ProvenanceWarning[];
+}): Promise<LocalTraceRecordMatch[]> {
+  const matches: LocalTraceRecordMatch[] = [];
+
+  for (const entry of selectTraceEntries(options.entries, options.warnings)) {
+    const absolutePath = path.join(options.tracesDirectory, entry.name);
+    const raw = await safeReadFile(absolutePath);
+    if (raw.status === "missing") continue;
+    if (raw.status === "too_large") {
+      options.warnings.push({
+        code: "trace_file_skipped_large",
+        message: `Skipped oversized trace file '${entry.name}' (${raw.size} byte(s)).`,
+        ambiguity: "low",
+      });
+      continue;
+    }
+
+    for (const line of raw.content
+      .split("\n")
+      .map((value) => value.trim())
+      .filter(Boolean)) {
+      const record = parseTraceRecord(line);
+      if (!record) {
+        options.warnings.push({
+          code: "invalid_trace_record",
+          message: `Skipped unreadable trace record from '${entry.name}'.`,
+          ambiguity: "low",
+        });
+        continue;
+      }
+
+      const matchedPaths = record.files
+        .map((file) => toNormalizedPath(file.path))
+        .filter((filePath) => options.aliases.includes(filePath));
+      const observedMatches = toTraceObservedPathMatches(record, options.aliases);
+      if (matchedPaths.length === 0 && observedMatches.length === 0) {
+        continue;
+      }
+
+      matches.push({
+        traceFile: path.relative(options.rootDir, absolutePath),
+        record,
+        matchedPaths,
+        observedMatches,
+      });
+    }
+  }
+
+  return matches;
+}
+
 export async function loadLocalSpanTraceEvidence(
   options: LocalSpanTraceEvidenceOptions,
 ): Promise<LocalSpanTraceEvidenceResult> {
@@ -1212,97 +1297,62 @@ export async function loadLocalSpanTraceEvidence(
   const exactItems: LocalSpanTraceEvidenceItem[] = [];
   const heuristicItems: LocalSpanTraceEvidenceItem[] = [];
   const warnings: ProvenanceWarning[] = [];
-  const selectedEntries = takeEvidenceEntries(
-    availability.entries.filter((entry) => entry.isFile() && entry.name.endsWith(".jsonl")),
-    MAX_TRACE_FILES_SCANNED,
-  );
 
-  if (selectedEntries.truncated) {
-    warnings.push({
-      code: "trace_scan_limited",
-      message: `Trace evidence scan stopped after ${MAX_TRACE_FILES_SCANNED} file(s) to stay bounded.`,
-      ambiguity: "low",
-    });
-  }
+  const traceMatches = await readLocalTraceRecordMatches({
+    rootDir: options.rootDir,
+    tracesDirectory,
+    entries: availability.entries,
+    aliases: anchor.aliases,
+    warnings,
+  });
 
-  for (const entry of selectedEntries.entries) {
-    const absolutePath = path.join(tracesDirectory, entry.name);
-    const raw = await safeReadFile(absolutePath);
-    if (raw.status === "missing") continue;
-    if (raw.status === "too_large") {
-      warnings.push({
-        code: "trace_file_skipped_large",
-        message: `Skipped oversized trace file '${entry.name}' (${raw.size} byte(s)).`,
-        ambiguity: "low",
+  for (const match of traceMatches) {
+    for (const matchedPath of match.matchedPaths) {
+      const candidates = toSpanTraceCandidates({
+        record: match.record,
+        matchedPath,
+        startLine: options.startLine,
+        endLine: options.endLine,
       });
-      continue;
-    }
+      const common = {
+        kind: "trace" as const,
+        traceFile: match.traceFile,
+        recordID: match.record.id,
+        matchedPath,
+        timestamp: match.record.timestamp,
+        sessionID: toTraceSessionID(match.record),
+        vcsRevision: match.record.vcs?.revision,
+        agent: toTraceAgent(match.record),
+        model: toModelID(match.record),
+        contributor: candidates.contributor,
+      };
 
-    for (const line of raw.content
-      .split("\n")
-      .map((value) => value.trim())
-      .filter(Boolean)) {
-      const record = parseTraceRecord(line);
-      if (!record) {
-        warnings.push({
-          code: "invalid_trace_record",
-          message: `Skipped unreadable trace record from '${entry.name}'.`,
-          ambiguity: "low",
+      if (candidates.exactRanges.length > 0) {
+        exactItems.push({
+          ...common,
+          id: `${common.traceFile}:${match.record.id}:${matchedPath}:exact`,
+          matchKind: "exact_span",
+          confidence: "high",
+          heuristic: false,
+          ranges: candidates.exactRanges,
+          score: 400 + candidates.exactRanges.length * 10,
+          reasons: ["exact_path_match", "exact_line_overlap"],
         });
         continue;
       }
 
-      const matchedPaths = record.files
-        .map((file) => toNormalizedPath(file.path))
-        .filter((filePath) => anchor.aliases.includes(filePath));
+      if (candidates.heuristicRanges.length === 0) continue;
 
-      for (const matchedPath of matchedPaths) {
-        const candidates = toSpanTraceCandidates({
-          record,
-          matchedPath,
-          startLine: options.startLine,
-          endLine: options.endLine,
-        });
-        const common = {
-          kind: "trace" as const,
-          traceFile: path.relative(options.rootDir, absolutePath),
-          recordID: record.id,
-          matchedPath,
-          timestamp: record.timestamp,
-          sessionID: toTraceSessionID(record),
-          vcsRevision: record.vcs?.revision,
-          agent: toTraceAgent(record),
-          model: toModelID(record),
-          contributor: candidates.contributor,
-        };
-
-        if (candidates.exactRanges.length > 0) {
-          exactItems.push({
-            ...common,
-            id: `${common.traceFile}:${record.id}:${matchedPath}:exact`,
-            matchKind: "exact_span",
-            confidence: "high",
-            heuristic: false,
-            ranges: candidates.exactRanges,
-            score: 400 + candidates.exactRanges.length * 10,
-            reasons: ["exact_path_match", "exact_line_overlap"],
-          });
-          continue;
-        }
-
-        if (candidates.heuristicRanges.length === 0) continue;
-
-        heuristicItems.push({
-          ...common,
-          id: `${common.traceFile}:${record.id}:${matchedPath}:heuristic`,
-          matchKind: "path_only",
-          confidence: "low",
-          heuristic: true,
-          ranges: candidates.heuristicRanges,
-          score: 150 - Math.min(candidates.distance, 100),
-          reasons: ["exact_path_match", "path_only_heuristic"],
-        });
-      }
+      heuristicItems.push({
+        ...common,
+        id: `${common.traceFile}:${match.record.id}:${matchedPath}:heuristic`,
+        matchKind: "path_only",
+        confidence: "low",
+        heuristic: true,
+        ranges: candidates.heuristicRanges,
+        score: 150 - Math.min(candidates.distance, 100),
+        reasons: ["exact_path_match", "path_only_heuristic"],
+      });
     }
   }
 
@@ -1362,97 +1412,60 @@ const loadTraceEvidence = async (options: {
 
   const items: LocalTraceEvidenceItem[] = [];
   const warnings: ProvenanceWarning[] = [];
-  const selectedEntries = takeEvidenceEntries(
-    availability.entries.filter((entry) => entry.isFile() && entry.name.endsWith(".jsonl")),
-    MAX_TRACE_FILES_SCANNED,
-  );
 
-  if (selectedEntries.truncated) {
-    warnings.push({
-      code: "trace_scan_limited",
-      message: `Trace evidence scan stopped after ${MAX_TRACE_FILES_SCANNED} file(s) to stay bounded.`,
-      ambiguity: "low",
-    });
-  }
+  const traceMatches = await readLocalTraceRecordMatches({
+    rootDir: options.rootDir,
+    tracesDirectory,
+    entries: availability.entries,
+    aliases: options.anchor.aliases,
+    warnings,
+  });
 
-  for (const entry of selectedEntries.entries) {
-    const absolutePath = path.join(tracesDirectory, entry.name);
-    const raw = await safeReadFile(absolutePath);
-    if (raw.status === "missing") continue;
-    if (raw.status === "too_large") {
-      warnings.push({
-        code: "trace_file_skipped_large",
-        message: `Skipped oversized trace file '${entry.name}' (${raw.size} byte(s)).`,
-        ambiguity: "low",
+  for (const match of traceMatches) {
+    const matchedPathSet = new Set(match.matchedPaths);
+
+    for (const matchedPath of match.matchedPaths) {
+      const ranges = toTraceRanges(match.record, matchedPath);
+      items.push({
+        kind: "trace",
+        id: `${match.traceFile}:${match.record.id}:${matchedPath}`,
+        traceFile: match.traceFile,
+        recordID: match.record.id,
+        matchedPath,
+        timestamp: match.record.timestamp,
+        sessionID: toTraceSessionID(match.record),
+        vcsRevision: match.record.vcs?.revision,
+        agent: toTraceAgent(match.record),
+        model: toModelID(match.record),
+        ranges,
+        score: 300 + ranges.length * 5,
+        reasons: ["exact_path_match", "trace_ranges"],
       });
-      continue;
     }
 
-    for (const line of raw.content
-      .split("\n")
-      .map((value) => value.trim())
-      .filter(Boolean)) {
-      const record = parseTraceRecord(line);
-      if (!record) {
-        warnings.push({
-          code: "invalid_trace_record",
-          message: `Skipped unreadable trace record from '${entry.name}'.`,
-          ambiguity: "low",
-        });
+    for (const [index, observedMatch] of match.observedMatches.entries()) {
+      if (matchedPathSet.has(observedMatch.matchedPath)) {
         continue;
       }
 
-      const matchedPaths = record.files
-        .map((file) => toNormalizedPath(file.path))
-        .filter((filePath) => options.anchor.aliases.includes(filePath));
-      const matchedPathSet = new Set(matchedPaths);
-
-      for (const matchedPath of matchedPaths) {
-        const ranges = toTraceRanges(record, matchedPath);
-        items.push({
-          kind: "trace",
-          id: `${path.relative(options.rootDir, absolutePath)}:${record.id}:${matchedPath}`,
-          traceFile: path.relative(options.rootDir, absolutePath),
-          recordID: record.id,
-          matchedPath,
-          timestamp: record.timestamp,
-          sessionID: toTraceSessionID(record),
-          vcsRevision: record.vcs?.revision,
-          agent: toTraceAgent(record),
-          model: toModelID(record),
-          ranges,
-          score: 300 + ranges.length * 5,
-          reasons: ["exact_path_match", "trace_ranges"],
-        });
-      }
-
-      for (const [index, observedMatch] of toTraceObservedPathMatches(
-        record,
-        options.anchor.aliases,
-      ).entries()) {
-        if (matchedPathSet.has(observedMatch.matchedPath)) {
-          continue;
-        }
-
-        items.push({
-          kind: "trace",
-          id: `${path.relative(options.rootDir, absolutePath)}:${record.id}:${observedMatch.matchedPath}:${observedMatch.callID ?? `observed-${index}`}`,
-          traceFile: path.relative(options.rootDir, absolutePath),
-          recordID: record.id,
-          matchedPath: observedMatch.matchedPath,
-          timestamp: record.timestamp,
-          sessionID: toTraceSessionID(record),
-          vcsRevision: record.vcs?.revision,
-          agent: toTraceAgent(record),
-          model: toModelID(record),
-          observedTool: observedMatch.toolName,
-          strategy: observedMatch.strategy,
-          budget: observedMatch.budget,
-          ranges: [],
-          score: 260,
-          reasons: ["exact_path_match", "observed_tool_metadata"],
-        });
-      }
+      items.push({
+        kind: "trace",
+        id: `${match.traceFile}:${match.record.id}:${observedMatch.matchedPath}:${observedMatch.callID ?? `observed-${index}`}`,
+        traceFile: match.traceFile,
+        recordID: match.record.id,
+        matchedPath: observedMatch.matchedPath,
+        timestamp: match.record.timestamp,
+        sessionID: toTraceSessionID(match.record),
+        vcsRevision: match.record.vcs?.revision,
+        agent: toTraceAgent(match.record),
+        model: toModelID(match.record),
+        observedTool: observedMatch.toolName,
+        strategy: observedMatch.strategy,
+        budget: observedMatch.budget,
+        ranges: [],
+        score: 260,
+        reasons: ["exact_path_match", "observed_tool_metadata"],
+      });
     }
   }
 
