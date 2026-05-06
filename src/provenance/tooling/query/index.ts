@@ -1057,6 +1057,11 @@ interface BlockReadToolInput extends ReadToolInput {
   window_end?: number;
 }
 
+type ReadToolState = {
+  repoState: Awaited<ReturnType<typeof resolveLocalRepoState>>;
+  fileState: Awaited<ReturnType<typeof resolveLocalFileState>>;
+};
+
 function createReadTool(runtimeOptions: QueryToolRuntimeOptions): ToolDefinition {
   return tool({
     description:
@@ -1115,21 +1120,7 @@ async function executeReadTool(
   try {
     normalizedPath = normalizeRequestedPath(requestedPath, runtimeOptions.rootDir);
   } catch (error) {
-    return JSON.stringify(
-      createProvenanceFailure({
-        tool: GW_READ_TOOL,
-        mode: "local",
-        confidence: "unknown",
-        ambiguity: "high",
-        summary: `Failed to normalize path '${requestedPath}'.`,
-        error: {
-          code: "GW_READ_PATH_INVALID",
-          message: toErrorMessage(error),
-        },
-      }),
-      null,
-      2,
-    );
+    return createReadPathInvalidFailure(requestedPath, error);
   }
 
   logger.info("gw_read start", {
@@ -1144,85 +1135,30 @@ async function executeReadTool(
   });
 
   try {
-    const [repoState, fileState] = await Promise.all([
-      resolveLocalRepoState({
-        shell: runtimeOptions.shell,
-        explicitBase: base,
-      }),
-      resolveLocalFileState({
-        shell: runtimeOptions.shell,
-        requestedPath: normalizedPath,
-        explicitBase: base,
-      }),
-    ]);
-
-    const selectedLayer = getSelectedLayerState(fileState, selectedLayerName);
-    const rawText = await readSelectedLayerText({
-      shell: runtimeOptions.shell,
-      rootDir: runtimeOptions.rootDir ?? process.cwd(),
-      layer: selectedLayerName,
-      selectedLayer,
+    const { repoState, fileState } = await loadReadToolState(runtimeOptions, normalizedPath, base);
+    const content = await buildReadContent({
+      runtimeOptions,
+      fileState,
+      selectedLayerName,
+      maxBytes: max_bytes,
     });
-    const boundedContent = applyTextBudget(rawText, max_bytes);
-    const content: ProvReadData["content"] = {
-      layer: selectedLayerName,
-      ref: selectedLayer.ref,
-      path: selectedLayer.path,
-      exists: selectedLayer.exists,
-      text: boundedContent.text,
-      bounds: boundedContent.bounds,
-      byteCount: boundedContent.byteCount,
-      hints: buildContentHints({
-        layer: selectedLayerName,
-        selectedLayer,
-        bounds: boundedContent.bounds,
-        byteCount: boundedContent.byteCount,
-      }),
-      confidence: selectedLayer.confidence,
-      detectionMethod: selectedLayer.detectionMethod,
-    };
-
-    const evidenceResult = await loadLocalPathEvidence({
-      rootDir: runtimeOptions.rootDir ?? process.cwd(),
-      path: normalizedPath,
-      aliases: buildEvidenceAliases(normalizedPath, fileState),
-      perSourceLimit: limit,
+    const evidenceResult = await loadReadToolEvidence({
+      runtimeOptions,
+      normalizedPath,
+      fileState,
+      limit,
       maxItems: max_items,
     });
-
     const evidence = buildReadEvidence(evidenceResult);
-    const data: ProvReadData = {
+    const data = buildReadData({
       requestedPath: requestedPath.trim(),
-      resolvedPath: fileState.resolvedPath,
-      repo: toProvRepoStateData(repoState, limit),
-      file: toProvFileStateData(fileState),
+      repoState,
+      fileState,
       content,
       evidence,
-    };
-    const warnings = dedupeWarnings([
-      ...toAmbiguityWarnings(repoState.ambiguity),
-      ...toAmbiguityWarnings(fileState.ambiguity),
-      ...createContentWarning(content),
-      ...createEvidenceWarnings(evidence),
-    ]);
-    const response = createProvenanceSuccess({
-      tool: GW_READ_TOOL,
-      mode: "local",
-      confidence: getLowestConfidence([repoState.confidence, fileState.confidence, content.confidence]),
-      ambiguity: getHighestAmbiguity([
-        repoState.ambiguity.level,
-        fileState.ambiguity.level,
-        getHighestAmbiguityFromWarnings(warnings),
-      ]),
-      bounds: content.bounds,
-      summary: buildReadSummary(data),
-      warnings,
-      sources: [
-        buildContentSource(content),
-        ...toProvenanceEvidenceSources(evidenceResult.ranked.items),
-      ],
-      data,
+      limit,
     });
+    const response = buildReadResponse({ repoState, fileState, content, evidence, evidenceResult, data });
 
     logger.info("gw_read end", {
       tool: GW_READ_TOOL,
@@ -1263,6 +1199,151 @@ async function executeReadTool(
       2,
     );
   }
+}
+
+function createReadPathInvalidFailure(requestedPath: string, error: unknown): string {
+  return JSON.stringify(
+    createProvenanceFailure({
+      tool: GW_READ_TOOL,
+      mode: "local",
+      confidence: "unknown",
+      ambiguity: "high",
+      summary: `Failed to normalize path '${requestedPath}'.`,
+      error: {
+        code: "GW_READ_PATH_INVALID",
+        message: toErrorMessage(error),
+      },
+    }),
+    null,
+    2,
+  );
+}
+
+async function loadReadToolState(
+  runtimeOptions: QueryToolRuntimeOptions,
+  normalizedPath: string,
+  base: string | undefined,
+): Promise<ReadToolState> {
+  const [repoState, fileState] = await Promise.all([
+    resolveLocalRepoState({
+      shell: runtimeOptions.shell,
+      explicitBase: base,
+    }),
+    resolveLocalFileState({
+      shell: runtimeOptions.shell,
+      requestedPath: normalizedPath,
+      explicitBase: base,
+    }),
+  ]);
+
+  return { repoState, fileState };
+}
+
+async function buildReadContent(options: {
+  runtimeOptions: QueryToolRuntimeOptions;
+  fileState: ReadToolState["fileState"];
+  selectedLayerName: ProvenanceContentLayer;
+  maxBytes: number | undefined;
+}): Promise<ProvReadData["content"]> {
+  const selectedLayer = getSelectedLayerState(options.fileState, options.selectedLayerName);
+  const rawText = await readSelectedLayerText({
+    shell: options.runtimeOptions.shell,
+    rootDir: options.runtimeOptions.rootDir ?? process.cwd(),
+    layer: options.selectedLayerName,
+    selectedLayer,
+  });
+  const boundedContent = applyTextBudget(rawText, options.maxBytes);
+
+  return {
+    layer: options.selectedLayerName,
+    ref: selectedLayer.ref,
+    path: selectedLayer.path,
+    exists: selectedLayer.exists,
+    text: boundedContent.text,
+    bounds: boundedContent.bounds,
+    byteCount: boundedContent.byteCount,
+    hints: buildContentHints({
+      layer: options.selectedLayerName,
+      selectedLayer,
+      bounds: boundedContent.bounds,
+      byteCount: boundedContent.byteCount,
+    }),
+    confidence: selectedLayer.confidence,
+    detectionMethod: selectedLayer.detectionMethod,
+  };
+}
+
+async function loadReadToolEvidence(options: {
+  runtimeOptions: QueryToolRuntimeOptions;
+  normalizedPath: string;
+  fileState: ReadToolState["fileState"];
+  limit: number | undefined;
+  maxItems: number | undefined;
+}): Promise<Awaited<ReturnType<typeof loadLocalPathEvidence>>> {
+  return loadLocalPathEvidence({
+    rootDir: options.runtimeOptions.rootDir ?? process.cwd(),
+    path: options.normalizedPath,
+    aliases: buildEvidenceAliases(options.normalizedPath, options.fileState),
+    perSourceLimit: options.limit,
+    maxItems: options.maxItems,
+  });
+}
+
+function buildReadData(options: {
+  requestedPath: string;
+  repoState: ReadToolState["repoState"];
+  fileState: ReadToolState["fileState"];
+  content: ProvReadData["content"];
+  evidence: ProvReadData["evidence"];
+  limit: number | undefined;
+}): ProvReadData {
+  return {
+    requestedPath: options.requestedPath,
+    resolvedPath: options.fileState.resolvedPath,
+    repo: toProvRepoStateData(options.repoState, options.limit),
+    file: toProvFileStateData(options.fileState),
+    content: options.content,
+    evidence: options.evidence,
+  };
+}
+
+function buildReadResponse(options: {
+  repoState: ReadToolState["repoState"];
+  fileState: ReadToolState["fileState"];
+  content: ProvReadData["content"];
+  evidence: ProvReadData["evidence"];
+  evidenceResult: Awaited<ReturnType<typeof loadLocalPathEvidence>>;
+  data: ProvReadData;
+}): ReturnType<typeof createProvenanceSuccess<ProvReadData>> {
+  const warnings = dedupeWarnings([
+    ...toAmbiguityWarnings(options.repoState.ambiguity),
+    ...toAmbiguityWarnings(options.fileState.ambiguity),
+    ...createContentWarning(options.content),
+    ...createEvidenceWarnings(options.evidence),
+  ]);
+
+  return createProvenanceSuccess({
+    tool: GW_READ_TOOL,
+    mode: "local",
+    confidence: getLowestConfidence([
+      options.repoState.confidence,
+      options.fileState.confidence,
+      options.content.confidence,
+    ]),
+    ambiguity: getHighestAmbiguity([
+      options.repoState.ambiguity.level,
+      options.fileState.ambiguity.level,
+      getHighestAmbiguityFromWarnings(warnings),
+    ]),
+    bounds: options.content.bounds,
+    summary: buildReadSummary(options.data),
+    warnings,
+    sources: [
+      buildContentSource(options.content),
+      ...toProvenanceEvidenceSources(options.evidenceResult.ranked.items),
+    ],
+    data: options.data,
+  });
 }
 
 async function executeBlockReadTool(
