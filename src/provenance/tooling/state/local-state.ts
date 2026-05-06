@@ -212,6 +212,22 @@ type LocalFilePathResolution = {
   };
 };
 
+type LocalFileDiffEntries = {
+  baseToHead: LocalDiffEntry[];
+  headToIndex: LocalDiffEntry[];
+  indexToWorktree: LocalDiffEntry[];
+};
+
+type LocalFileMetadataLayers = {
+  base: GitPathMetadata;
+  head: GitPathMetadata;
+  index: GitPathMetadata;
+};
+
+type LocalFileComparisonLayers = LocalFileState["comparisons"];
+
+type LocalFileTrackedLayers = Pick<LocalFileState, "base" | "head" | "index">;
+
 const DEFAULT_BASE_BRANCHES = ["main", "master", "develop", "development"] as const;
 
 const STATUS_PRIORITY: Record<LocalRepoFileStatusKind, number> = {
@@ -1245,6 +1261,180 @@ export async function resolveLocalRepoState(options: {
   };
 }
 
+function missingGitPathMetadata(): GitPathMetadata {
+  return {
+    exists: false,
+    mode: null,
+    objectId: null,
+  };
+}
+
+async function readLocalFileDiffEntries(
+  shell: Shell,
+  baseRef: string | null,
+): Promise<LocalFileDiffEntries> {
+  const [baseToHead, headToIndex, indexToWorktree] = await Promise.all([
+    baseRef
+      ? readNameStatusEntries(shell, ["git", "diff", "--name-status", "-M", `${baseRef}..HEAD`, "--"])
+      : Promise.resolve([]),
+    readNameStatusEntries(shell, ["git", "diff", "--cached", "--name-status", "-M", "--"]),
+    readNameStatusEntries(shell, ["git", "diff", "--name-status", "-M", "--"]),
+  ]);
+
+  return {
+    baseToHead,
+    headToIndex,
+    indexToWorktree,
+  };
+}
+
+async function readLocalFileMetadataLayers(options: {
+  shell: Shell;
+  repoState: LocalRepoState;
+  resolvedPaths: LocalFilePathResolution;
+}): Promise<LocalFileMetadataLayers> {
+  const [base, head, index] = await Promise.all([
+    options.repoState.base.ref
+      ? readGitTreeMetadata(
+          options.shell,
+          options.repoState.base.ref,
+          options.resolvedPaths.paths.base,
+        )
+      : Promise.resolve(missingGitPathMetadata()),
+    readGitTreeMetadata(options.shell, "HEAD", options.resolvedPaths.paths.head),
+    readIndexMetadata(options.shell, options.resolvedPaths.paths.index),
+  ]);
+
+  return {
+    base,
+    head,
+    index,
+  };
+}
+
+function resolveIndexToWorktreeFileEntry(options: {
+  resolvedPaths: LocalFilePathResolution;
+  untrackedFiles: readonly string[];
+}): LocalDiffEntry | null {
+  if (options.resolvedPaths.entries.indexToWorktree) {
+    return options.resolvedPaths.entries.indexToWorktree;
+  }
+
+  if (!options.untrackedFiles.includes(options.resolvedPaths.paths.worktree)) {
+    return null;
+  }
+
+  return {
+    status: "added",
+    path: options.resolvedPaths.paths.worktree,
+  };
+}
+
+function createTrackedFileLayers(options: {
+  repoState: LocalRepoState;
+  resolvedPaths: LocalFilePathResolution;
+  metadata: LocalFileMetadataLayers;
+}): LocalFileTrackedLayers {
+  return {
+    base: toFileLayerState({
+      ref: options.repoState.base.ref,
+      path: options.resolvedPaths.paths.base,
+      metadata: options.metadata.base,
+      confidence: options.repoState.base.confidence,
+      detectionMethod: BASE_FILE_DETECTION_METHOD,
+    }),
+    head: toFileLayerState({
+      ref: "HEAD",
+      path: options.resolvedPaths.paths.head,
+      metadata: options.metadata.head,
+      confidence: options.repoState.head.confidence,
+      detectionMethod: HEAD_FILE_DETECTION_METHOD,
+    }),
+    index: toFileLayerState({
+      ref: "index",
+      path: options.resolvedPaths.paths.index,
+      metadata: options.metadata.index,
+      confidence: options.repoState.index.confidence,
+      detectionMethod: INDEX_FILE_DETECTION_METHOD,
+    }),
+  };
+}
+
+function createLocalFileComparisonLayers(options: {
+  repoState: LocalRepoState;
+  resolvedPaths: LocalFilePathResolution;
+  indexToWorktreeEntry: LocalDiffEntry | null;
+}): LocalFileComparisonLayers {
+  return {
+    baseToHead: toFileComparison({
+      fromRef: options.repoState.base.ref,
+      toRef: "HEAD",
+      fromPath: options.resolvedPaths.paths.base,
+      toPath: options.resolvedPaths.paths.head,
+      entry: options.resolvedPaths.entries.baseToHead,
+      detectionMethod: BASE_TO_HEAD_FILE_DIFF_METHOD,
+    }),
+    headToIndex: toFileComparison({
+      fromRef: "HEAD",
+      toRef: "index",
+      fromPath: options.resolvedPaths.paths.head,
+      toPath: options.resolvedPaths.paths.index,
+      entry: options.resolvedPaths.entries.headToIndex,
+      detectionMethod: HEAD_TO_INDEX_FILE_DIFF_METHOD,
+    }),
+    indexToWorktree: toFileComparison({
+      fromRef: "index",
+      toRef: "worktree",
+      fromPath: options.resolvedPaths.paths.index,
+      toPath: options.resolvedPaths.paths.worktree,
+      entry: options.indexToWorktreeEntry,
+      detectionMethod: INDEX_TO_WORKTREE_FILE_DIFF_METHOD,
+    }),
+  };
+}
+
+function createWorktreeFileLayer(options: {
+  repoState: LocalRepoState;
+  resolvedPaths: LocalFilePathResolution;
+  index: LocalFileLayerState;
+  indexToWorktree: LocalFileComparison;
+}): LocalFileLayerState {
+  return {
+    ref: "worktree",
+    path: options.resolvedPaths.paths.worktree,
+    exists: worktreeExists({
+      path: options.resolvedPaths.paths.worktree,
+      index: options.index,
+      comparison: options.indexToWorktree,
+      untrackedFiles: options.repoState.untracked.files,
+    }),
+    mode: null,
+    objectId: null,
+    confidence: options.repoState.worktree.confidence,
+    detectionMethod: WORKTREE_FILE_DETECTION_METHOD,
+  };
+}
+
+function createLocalFileState(options: {
+  requestedPath: string;
+  repoState: LocalRepoState;
+  layers: LocalFileTrackedLayers & { worktree: LocalFileLayerState };
+  comparisons: LocalFileComparisonLayers;
+}): LocalFileState {
+  return {
+    requestedPath: options.requestedPath,
+    resolvedPath: resolveLatestPath(options.layers),
+    confidence: options.repoState.confidence,
+    ambiguity: options.repoState.ambiguity,
+    detectionMethod: FILE_STATE_DETECTION_METHOD,
+    base: options.layers.base,
+    head: options.layers.head,
+    index: options.layers.index,
+    worktree: options.layers.worktree,
+    comparisons: options.comparisons,
+  };
+}
+
 export async function resolveLocalFileState(options: {
   shell: Shell;
   requestedPath: string;
@@ -1255,120 +1445,46 @@ export async function resolveLocalFileState(options: {
     explicitBase: options.explicitBase,
   });
 
-  const [baseToHeadEntries, headToIndexEntries, indexToWorktreeEntries] = await Promise.all([
-    repoState.base.ref
-      ? readNameStatusEntries(options.shell, [
-          "git",
-          "diff",
-          "--name-status",
-          "-M",
-          `${repoState.base.ref}..HEAD`,
-          "--",
-        ])
-      : Promise.resolve([]),
-    readNameStatusEntries(options.shell, ["git", "diff", "--cached", "--name-status", "-M", "--"]),
-    readNameStatusEntries(options.shell, ["git", "diff", "--name-status", "-M", "--"]),
-  ]);
+  const diffEntries = await readLocalFileDiffEntries(options.shell, repoState.base.ref);
   const resolvedPaths = resolveFilePaths({
     requestedPath: options.requestedPath,
-    baseToHeadEntries,
-    headToIndexEntries,
-    indexToWorktreeEntries,
+    baseToHeadEntries: diffEntries.baseToHead,
+    headToIndexEntries: diffEntries.headToIndex,
+    indexToWorktreeEntries: diffEntries.indexToWorktree,
   });
-  const [baseMetadata, headMetadata, indexMetadata] = await Promise.all([
-    repoState.base.ref
-      ? readGitTreeMetadata(options.shell, repoState.base.ref, resolvedPaths.paths.base)
-      : Promise.resolve({ exists: false, mode: null, objectId: null }),
-    readGitTreeMetadata(options.shell, "HEAD", resolvedPaths.paths.head),
-    readIndexMetadata(options.shell, resolvedPaths.paths.index),
-  ]);
-  let indexToWorktreeEntry = resolvedPaths.entries.indexToWorktree;
-  if (!indexToWorktreeEntry && repoState.untracked.files.includes(resolvedPaths.paths.worktree)) {
-    indexToWorktreeEntry = {
-      status: "added",
-      path: resolvedPaths.paths.worktree,
-    };
-  }
+  const metadata = await readLocalFileMetadataLayers({
+    shell: options.shell,
+    repoState,
+    resolvedPaths,
+  });
+  const indexToWorktreeEntry = resolveIndexToWorktreeFileEntry({
+    resolvedPaths,
+    untrackedFiles: repoState.untracked.files,
+  });
+  const trackedLayers = createTrackedFileLayers({
+    repoState,
+    resolvedPaths,
+    metadata,
+  });
+  const comparisons = createLocalFileComparisonLayers({
+    repoState,
+    resolvedPaths,
+    indexToWorktreeEntry,
+  });
+  const worktree = createWorktreeFileLayer({
+    repoState,
+    resolvedPaths,
+    index: trackedLayers.index,
+    indexToWorktree: comparisons.indexToWorktree,
+  });
 
-  const base = toFileLayerState({
-    ref: repoState.base.ref,
-    path: resolvedPaths.paths.base,
-    metadata: baseMetadata,
-    confidence: repoState.base.confidence,
-    detectionMethod: BASE_FILE_DETECTION_METHOD,
-  });
-  const head = toFileLayerState({
-    ref: "HEAD",
-    path: resolvedPaths.paths.head,
-    metadata: headMetadata,
-    confidence: repoState.head.confidence,
-    detectionMethod: HEAD_FILE_DETECTION_METHOD,
-  });
-  const index = toFileLayerState({
-    ref: "index",
-    path: resolvedPaths.paths.index,
-    metadata: indexMetadata,
-    confidence: repoState.index.confidence,
-    detectionMethod: INDEX_FILE_DETECTION_METHOD,
-  });
-  const baseToHead = toFileComparison({
-    fromRef: repoState.base.ref,
-    toRef: "HEAD",
-    fromPath: resolvedPaths.paths.base,
-    toPath: resolvedPaths.paths.head,
-    entry: resolvedPaths.entries.baseToHead,
-    detectionMethod: BASE_TO_HEAD_FILE_DIFF_METHOD,
-  });
-  const headToIndex = toFileComparison({
-    fromRef: "HEAD",
-    toRef: "index",
-    fromPath: resolvedPaths.paths.head,
-    toPath: resolvedPaths.paths.index,
-    entry: resolvedPaths.entries.headToIndex,
-    detectionMethod: HEAD_TO_INDEX_FILE_DIFF_METHOD,
-  });
-  const indexToWorktree = toFileComparison({
-    fromRef: "index",
-    toRef: "worktree",
-    fromPath: resolvedPaths.paths.index,
-    toPath: resolvedPaths.paths.worktree,
-    entry: indexToWorktreeEntry,
-    detectionMethod: INDEX_TO_WORKTREE_FILE_DIFF_METHOD,
-  });
-  const worktree: LocalFileLayerState = {
-    ref: "worktree",
-    path: resolvedPaths.paths.worktree,
-    exists: worktreeExists({
-      path: resolvedPaths.paths.worktree,
-      index,
-      comparison: indexToWorktree,
-      untrackedFiles: repoState.untracked.files,
-    }),
-    mode: null,
-    objectId: null,
-    confidence: repoState.worktree.confidence,
-    detectionMethod: WORKTREE_FILE_DETECTION_METHOD,
-  };
-
-  return {
+  return createLocalFileState({
     requestedPath: options.requestedPath,
-    resolvedPath: resolveLatestPath({
-      base,
-      head,
-      index,
+    repoState,
+    layers: {
+      ...trackedLayers,
       worktree,
-    }),
-    confidence: repoState.confidence,
-    ambiguity: repoState.ambiguity,
-    detectionMethod: FILE_STATE_DETECTION_METHOD,
-    base,
-    head,
-    index,
-    worktree,
-    comparisons: {
-      baseToHead,
-      headToIndex,
-      indexToWorktree,
     },
-  };
+    comparisons,
+  });
 }
