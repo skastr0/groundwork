@@ -651,8 +651,8 @@ function invalidateContentMatchCache(
   }
 }
 
-async function executeAction(params: {
-  action: GuardrailAction;
+type ExecuteActionParams<TAction extends GuardrailAction = GuardrailAction> = {
+  action: TAction;
   actionIndex: number;
   phase: EvaluationPhase;
   tool: string;
@@ -666,211 +666,188 @@ async function executeAction(params: {
   sessionStore: ReturnType<typeof createSessionKernelStore>;
   state: FrameworkSessionKernelState;
   runtimeState: PolicyRuntimeState;
-}): Promise<void> {
-  const {
-    action,
-    actionIndex,
-    phase,
-    tool,
-    callID,
-    sessionID,
-    rule,
-    ruleSeverity,
-    normalizedPaths,
-    rootDir,
-    client,
-    sessionStore,
-    state,
-    runtimeState,
-  } = params;
+};
 
-  if (action.type === "inject_prompt") {
-    const hit = rememberFrameworkAction(state, {
+type PolicyActionOf<TType extends GuardrailAction["type"]> = Extract<
+  GuardrailAction,
+  { type: TType }
+>;
+
+async function executeAction(params: ExecuteActionParams): Promise<void> {
+  switch (params.action.type) {
+    case "inject_prompt":
+      return executeInjectPromptAction(params as ExecuteActionParams<PolicyActionOf<"inject_prompt">>);
+    case "ensure_skill_loaded":
+      return executeEnsureSkillLoadedAction(
+        params as ExecuteActionParams<PolicyActionOf<"ensure_skill_loaded">>,
+      );
+    case "require_work_item":
+      return executeRequireWorkItemAction(
+        params as ExecuteActionParams<PolicyActionOf<"require_work_item">>,
+      );
+    case "block_tool":
+      return executeBlockToolAction(params as ExecuteActionParams<PolicyActionOf<"block_tool">>);
+    case "require_human_override":
+      return executeRequireHumanOverrideAction(
+        params as ExecuteActionParams<PolicyActionOf<"require_human_override">>,
+      );
+    case "stop_session":
+      return executeStopSessionAction(params as ExecuteActionParams<PolicyActionOf<"stop_session">>);
+  }
+}
+
+async function executeInjectPromptAction(
+  params: ExecuteActionParams<PolicyActionOf<"inject_prompt">>,
+): Promise<void> {
+  const { action, actionIndex, tool, sessionID, rule, client, state, runtimeState } = params;
+  const hit = rememberFrameworkAction(state, {
       source: SERVICE,
       action: "inject_prompt",
       parts: [rule.id, actionIndex, action.text],
       now: new Date().toISOString(),
     });
-    if (hit.duplicate) {
-      return;
-    }
-
-    await injectPolicyPrompt(client, state, runtimeState, sessionID, action.text);
-
-    await log(client, "info", "Injected policy guidance", {
-      tool,
-      sessionID,
-      rule_id: rule.id,
-      action_index: actionIndex,
-      once_per_session: action.once_per_session ?? false,
-    });
-
+  if (hit.duplicate) {
     return;
   }
 
-  if (action.type === "ensure_skill_loaded") {
-    const missingSkills = action.skills.filter(
-      (skill) => !runtimeState.confirmedSkills.has(normalizeSkillName(skill)),
+  await injectPolicyPrompt(client, state, runtimeState, sessionID, action.text);
+  await log(client, "info", "Injected policy guidance", {
+    tool,
+    sessionID,
+    rule_id: rule.id,
+    action_index: actionIndex,
+    once_per_session: action.once_per_session ?? false,
+  });
+}
+
+async function executeEnsureSkillLoadedAction(
+  params: ExecuteActionParams<PolicyActionOf<"ensure_skill_loaded">>,
+): Promise<void> {
+  const { action, actionIndex, sessionID, rule, state, runtimeState, client } = params;
+  const missingSkills = action.skills.filter(
+    (skill) => !runtimeState.confirmedSkills.has(normalizeSkillName(skill)),
+  );
+  if (missingSkills.length === 0) {
+    return;
+  }
+
+  const mode = action.mode ?? "prompt";
+  const message =
+    action.message ??
+    `[groundwork:policy] Required skills missing for rule '${rule.id}': ${missingSkills.join(", ")}. Confirm with '/policy skill-loaded ${missingSkills.join(" ")}'.`;
+
+  const guidanceHit = rememberFrameworkAction(state, {
+    source: SERVICE,
+    action: "ensure_skill_loaded_guidance",
+    parts: [rule.id, actionIndex, ...missingSkills.map(normalizeSkillName).sort()],
+    now: new Date().toISOString(),
+  });
+  if (!guidanceHit.duplicate) {
+    await injectPolicyPrompt(
+      client,
+      state,
+      runtimeState,
+      sessionID,
+      `${message} Load the required skills before continuing.`,
     );
-    if (missingSkills.length === 0) {
-      return;
+  }
+
+  if (mode === "prompt") {
+    return;
+  }
+
+  await enforceViolationForAction(params, message);
+}
+
+async function executeRequireWorkItemAction(
+  params: ExecuteActionParams<PolicyActionOf<"require_work_item">>,
+): Promise<void> {
+  const { action, normalizedPaths, rootDir, rule } = params;
+  for (const normalizedPath of normalizedPaths) {
+    const covered = await hasMatchingWorkItem(rootDir, normalizedPath);
+    if (covered) {
+      continue;
     }
 
-    const mode = action.mode ?? "prompt";
-    const message =
+    await enforceViolationForAction(
+      params,
       action.message ??
-      `[groundwork:policy] Required skills missing for rule '${rule.id}': ${missingSkills.join(", ")}. Confirm with '/policy skill-loaded ${missingSkills.join(" ")}'.`;
-
-    const guidanceHit = rememberFrameworkAction(state, {
-      source: SERVICE,
-      action: "ensure_skill_loaded_guidance",
-      parts: [rule.id, actionIndex, ...missingSkills.map(normalizeSkillName).sort()],
-      now: new Date().toISOString(),
-    });
-    if (!guidanceHit.duplicate) {
-      await injectPolicyPrompt(
-        client,
-        state,
-        runtimeState,
-        sessionID,
-        `${message} Load the required skills before continuing.`,
-      );
-    }
-
-    if (mode === "prompt") {
-      return;
-    }
-
-    await enforceViolation({
-      phase,
-      tool,
-      callID,
-      sessionID,
-      rule,
-      actionType: action.type,
-      severity: ruleSeverity,
-      message,
-      normalizedPaths,
-      rootDir,
-      client,
-      sessionStore,
-      state,
-      runtimeState,
-    });
-
+        `[groundwork:policy] Path '${normalizedPath}' requires a matching active work item before tool execution (rule: ${rule.id})`,
+      [normalizedPath],
+    );
     return;
   }
+}
 
-  if (action.type === "require_work_item") {
-    for (const normalizedPath of normalizedPaths) {
-      const covered = await hasMatchingWorkItem(rootDir, normalizedPath);
-      if (covered) {
-        continue;
-      }
+async function executeBlockToolAction(
+  params: ExecuteActionParams<PolicyActionOf<"block_tool">>,
+): Promise<void> {
+  const { action, normalizedPaths, rule } = params;
+  await enforceViolationForAction(
+    params,
+    action.message ??
+      `[groundwork:policy] Tool execution blocked by policy rule '${rule.id}' for paths: ${normalizedPaths.join(", ")}`,
+  );
+}
 
-      await enforceViolation({
-        phase,
-        tool,
-        callID,
-        sessionID,
-        rule,
-        actionType: action.type,
-        severity: ruleSeverity,
-        message:
-          action.message ??
-          `[groundwork:policy] Path '${normalizedPath}' requires a matching active work item before tool execution (rule: ${rule.id})`,
-        normalizedPaths: [normalizedPath],
-        rootDir,
-        client,
-        sessionStore,
-        state,
-        runtimeState,
-      });
-
-      return;
-    }
-
-    return;
-  }
-
-  if (action.type === "block_tool") {
-    await enforceViolation({
-      phase,
-      tool,
-      callID,
-      sessionID,
-      rule,
-      actionType: action.type,
-      severity: ruleSeverity,
+async function executeRequireHumanOverrideAction(
+  params: ExecuteActionParams<PolicyActionOf<"require_human_override">>,
+): Promise<void> {
+  const { action, normalizedPaths, rule, ruleSeverity, state } = params;
+  if (isBlockingSeverity(ruleSeverity)) {
+    setPendingHumanOverrideLock(state, {
+      ruleId: rule.id,
       message:
         action.message ??
-        `[groundwork:policy] Tool execution blocked by policy rule '${rule.id}' for paths: ${normalizedPaths.join(", ")}`,
-      normalizedPaths,
-      rootDir,
-      client,
-      sessionStore,
-      state,
-      runtimeState,
-    });
-
-    return;
-  }
-
-  if (action.type === "require_human_override") {
-    if (isBlockingSeverity(ruleSeverity)) {
-      setPendingHumanOverrideLock(state, {
-        ruleId: rule.id,
-        message:
-          action.message ??
-          `Rule '${rule.id}' requires explicit human override. Use '/policy override <reason>' to unlock mutating tools.`,
-        paths: [...normalizedPaths],
-        createdAt: new Date().toISOString(),
-      });
-    }
-
-    await enforceViolation({
-      phase,
-      tool,
-      callID,
-      sessionID,
-      rule,
-      actionType: action.type,
-      severity: ruleSeverity,
-      message:
-        action.message ??
-        `[groundwork:policy] Rule '${rule.id}' requires explicit human override. Use '/policy override <reason>' to continue.`,
-      normalizedPaths,
-      rootDir,
-      client,
-      sessionStore,
-      state,
-      runtimeState,
-    });
-
-    return;
-  }
-
-  if (action.type === "stop_session") {
-    await enforceViolation({
-      phase,
-      tool,
-      callID,
-      sessionID,
-      rule,
-      actionType: action.type,
-      severity: "terminate",
-      message:
-        action.message ??
-        `[groundwork:policy] Session terminated due to critical policy violation in rule '${rule.id}'.`,
-      normalizedPaths,
-      rootDir,
-      client,
-      sessionStore,
-      state,
-      runtimeState,
-      forceTerminate: true,
+        `Rule '${rule.id}' requires explicit human override. Use '/policy override <reason>' to unlock mutating tools.`,
+      paths: [...normalizedPaths],
+      createdAt: new Date().toISOString(),
     });
   }
+
+  await enforceViolationForAction(
+    params,
+    action.message ??
+      `[groundwork:policy] Rule '${rule.id}' requires explicit human override. Use '/policy override <reason>' to continue.`,
+  );
+}
+
+async function executeStopSessionAction(
+  params: ExecuteActionParams<PolicyActionOf<"stop_session">>,
+): Promise<void> {
+  const { action, rule } = params;
+  await enforceViolationForAction(
+    params,
+    action.message ??
+      `[groundwork:policy] Session terminated due to critical policy violation in rule '${rule.id}'.`,
+    undefined,
+    { severity: "terminate", forceTerminate: true },
+  );
+}
+
+async function enforceViolationForAction(
+  params: ExecuteActionParams,
+  message: string,
+  normalizedPaths = params.normalizedPaths,
+  options: { severity?: GuardrailSeverity; forceTerminate?: boolean } = {},
+): Promise<void> {
+  await enforceViolation({
+    phase: params.phase,
+    tool: params.tool,
+    callID: params.callID,
+    sessionID: params.sessionID,
+    rule: params.rule,
+    actionType: params.action.type,
+    severity: options.severity ?? params.ruleSeverity,
+    message,
+    normalizedPaths,
+    rootDir: params.rootDir,
+    client: params.client,
+    sessionStore: params.sessionStore,
+    state: params.state,
+    runtimeState: params.runtimeState,
+    forceTerminate: options.forceTerminate,
+  });
 }
 
 async function enforceViolation(params: {
