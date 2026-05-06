@@ -1174,6 +1174,37 @@ message = "console logging should be reviewed"
     expect(result.stdout).toContain("groundwork 0.1.0");
   });
 
+  it("renders discoverable help for agent-facing commands", async () => {
+    const root = await runGroundwork(["--help"]);
+    expect(root.exitCode).toBe(0);
+    expect(root.stderr).toBe("");
+    expect(root.stdout).toContain("groundwork capabilities");
+    expect(root.stdout).toContain("groundwork schema show <command>");
+    expect(root.stdout).toContain("groundwork examples show <command>");
+    expect(root.stdout).toContain(
+      "Describe the Groundwork CLI protocol and command surface",
+    );
+
+    const policy = await runGroundwork(["policy", "--help"]);
+    expect(policy.exitCode).toBe(0);
+    expect(policy.stdout).toContain("Evaluate one pre-tool call against Groundwork policy.");
+    expect(policy.stdout).toContain("Accept a human policy override and clear pending override locks.");
+
+    const provenance = await runGroundwork(["provenance", "--help"]);
+    expect(provenance.exitCode).toBe(0);
+    expect(provenance.stdout).toContain("Inspect local repository state.");
+    expect(provenance.stdout).toContain(
+      "Run gw_span_history through the shared local provenance registry.",
+    );
+
+    const schema = await runGroundwork(["schema", "--help"]);
+    expect(schema.exitCode).toBe(0);
+    expect(schema.stdout).toContain("List published JSON input schema contracts.");
+    expect(schema.stdout).toContain(
+      "Show one published JSON input schema contract by schema id, command id, or command.",
+    );
+  });
+
   it("allows root log-level before JSON commands without weakening preflight", async () => {
     const success = await runGroundwork(["--log-level", "none", "doctor"]);
     expect(success.exitCode).toBe(0);

@@ -24,6 +24,7 @@ import {
   runProvenanceTool,
 } from "../provenance/cli-service.ts";
 import {
+  COMMAND_CAPABILITIES,
   listExamples,
   listSchemas,
   renderCapabilities,
@@ -80,6 +81,14 @@ const targetArg = Args.text({ name: "target" }).pipe(
   Args.withDescription("Schema id, command id, or command name"),
 );
 
+const COMMAND_DESCRIPTIONS = new Map(
+  COMMAND_CAPABILITIES.map((entry) => [entry.command, entry.description] as const),
+);
+
+function commandDescription(command: string): string {
+  return COMMAND_DESCRIPTIONS.get(command) ?? "";
+}
+
 function toEffect(run: () => Promise<void>): Effect.Effect<void> {
   return Effect.promise(run);
 }
@@ -102,11 +111,11 @@ const capabilitiesCommand = Command.make("capabilities", {}, () =>
 
 const schemaListCommand = Command.make("list", {}, () =>
   toEffect(() => executeJsonCommand("schema list", async () => listSchemas())),
-);
+).pipe(Command.withDescription(commandDescription("schema list")));
 
 const schemaShowCommand = Command.make("show", { target: targetArg }, ({ target }) =>
   toEffect(() => executeJsonCommand("schema show", async () => showSchema(target))),
-);
+).pipe(Command.withDescription(commandDescription("schema show")));
 
 const schemaCommand = Command.make("schema").pipe(
   Command.withDescription("Schema discovery commands"),
@@ -115,11 +124,11 @@ const schemaCommand = Command.make("schema").pipe(
 
 const examplesListCommand = Command.make("list", {}, () =>
   toEffect(() => executeJsonCommand("examples list", async () => listExamples())),
-);
+).pipe(Command.withDescription(commandDescription("examples list")));
 
 const examplesShowCommand = Command.make("show", { target: targetArg }, ({ target }) =>
   toEffect(() => executeJsonCommand("examples show", async () => showExamples(target))),
-);
+).pipe(Command.withDescription(commandDescription("examples show")));
 
 const examplesCommand = Command.make("examples").pipe(
   Command.withDescription("Example discovery commands"),
@@ -139,7 +148,7 @@ const riskEvaluateCommandCommand = Command.make(
         });
       }),
     ),
-);
+).pipe(Command.withDescription(commandDescription("risk evaluate-command")));
 
 const riskCommand = Command.make("risk").pipe(
   Command.withDescription("Risk guardrail commands"),
@@ -167,7 +176,7 @@ const contextDiscoverCommand = Command.make("discover", { input: inputArg }, ({ 
       };
     }),
   ),
-);
+).pipe(Command.withDescription(commandDescription("context discover")));
 
 const contextTouchedPathsCommand = Command.make("touched-paths", { input: inputArg }, ({ input }) =>
   toEffect(() =>
@@ -176,7 +185,7 @@ const contextTouchedPathsCommand = Command.make("touched-paths", { input: inputA
       return evaluateContextTouchedPaths(payload);
     }),
   ),
-);
+).pipe(Command.withDescription(commandDescription("context touched-paths")));
 
 const contextCommand = Command.make("context").pipe(
   Command.withDescription("Context foundation commands"),
@@ -193,7 +202,7 @@ const policyEvaluateToolCallCommand = Command.make(
         return evaluatePolicyToolCall(payload);
       }),
     ),
-);
+).pipe(Command.withDescription(commandDescription("policy evaluate-tool-call")));
 
 const policyEvaluateToolResultCommand = Command.make(
   "evaluate-tool-result",
@@ -205,7 +214,7 @@ const policyEvaluateToolResultCommand = Command.make(
         return evaluatePolicyToolResult(payload);
       }),
     ),
-);
+).pipe(Command.withDescription(commandDescription("policy evaluate-tool-result")));
 
 const policyOverrideCommand = Command.make("override", { input: inputArg }, ({ input }) =>
   toEffect(() =>
@@ -214,7 +223,7 @@ const policyOverrideCommand = Command.make("override", { input: inputArg }, ({ i
       return acceptPolicyOverride(payload);
     }),
   ),
-);
+).pipe(Command.withDescription(commandDescription("policy override")));
 
 const policySkillLoadedCommand = Command.make("skill-loaded", { input: inputArg }, ({ input }) =>
   toEffect(() =>
@@ -223,7 +232,7 @@ const policySkillLoadedCommand = Command.make("skill-loaded", { input: inputArg 
       return confirmPolicySkillsLoaded(payload);
     }),
   ),
-);
+).pipe(Command.withDescription(commandDescription("policy skill-loaded")));
 
 const policyCommand = Command.make("policy").pipe(
   Command.withDescription("Policy foundation commands"),
@@ -237,7 +246,7 @@ const policyCommand = Command.make("policy").pipe(
 
 const codexDoctorCommand = Command.make("doctor", {}, () =>
   toEffect(() => executeJsonCommand("codex doctor", async () => renderCodexDoctor())),
-);
+).pipe(Command.withDescription(commandDescription("codex doctor")));
 
 const codexInstallProjectCommand = Command.make(
   "install-project",
@@ -249,7 +258,7 @@ const codexInstallProjectCommand = Command.make(
         return installCodexProject(payload);
       }),
     ),
-);
+).pipe(Command.withDescription(commandDescription("codex install-project")));
 
 const codexInstallUserCommand = Command.make("install-user", { input: inputArg }, ({ input }) =>
   toEffect(() =>
@@ -258,9 +267,11 @@ const codexInstallUserCommand = Command.make("install-user", { input: inputArg }
       return installCodexUser(payload);
     }),
   ),
-);
+).pipe(Command.withDescription(commandDescription("codex install-user")));
 
-const codexHookCommand = Command.make("hook", {}, () => toEffect(() => runCodexHook()));
+const codexHookCommand = Command.make("hook", {}, () => toEffect(() => runCodexHook())).pipe(
+  Command.withDescription(commandDescription("codex hook")),
+);
 
 const codexCommand = Command.make("codex").pipe(
   Command.withDescription("Codex integration commands"),
@@ -284,7 +295,7 @@ const provenanceRepoStateCommand = Command.make("repo-state", { input: inputArg 
       return toRepoStateData(state, payload.limit);
     }),
   ),
-);
+).pipe(Command.withDescription(commandDescription("provenance repo-state")));
 
 const provenanceFileStateCommand = Command.make("file-state", { input: inputArg }, ({ input }) =>
   toEffect(() =>
@@ -299,7 +310,7 @@ const provenanceFileStateCommand = Command.make("file-state", { input: inputArg 
       return toFileStateData(state);
     }),
   ),
-);
+).pipe(Command.withDescription(commandDescription("provenance file-state")));
 
 const provenanceRunCommand = Command.make("run", { input: inputArg }, ({ input }) =>
   toEffect(() =>
@@ -308,7 +319,7 @@ const provenanceRunCommand = Command.make("run", { input: inputArg }, ({ input }
       return runProvenanceTool(payload);
     }),
   ),
-);
+).pipe(Command.withDescription(commandDescription("provenance run")));
 
 const provenanceRegistryCommands = Object.entries(PROVENANCE_CLI_COMMANDS)
   .filter(([command]) => command !== "repo-state" && command !== "file-state")
@@ -324,7 +335,7 @@ const provenanceRegistryCommands = Object.entries(PROVENANCE_CLI_COMMANDS)
           return runProvenanceTool({ tool: toolID, root_dir: rootDir, args });
         }),
       ),
-    ),
+    ).pipe(Command.withDescription(commandDescription(`provenance ${command}`))),
   );
 
 const provenanceCommand = Command.make("provenance").pipe(
@@ -344,7 +355,7 @@ const sessionGetCommand = Command.make("get", { input: inputArg }, ({ input }) =
       return getSessionArtifact(payload);
     }),
   ),
-);
+).pipe(Command.withDescription(commandDescription("session get")));
 
 const sessionSkillLoadedCommand = Command.make("skill-loaded", { input: inputArg }, ({ input }) =>
   toEffect(() =>
@@ -353,7 +364,7 @@ const sessionSkillLoadedCommand = Command.make("skill-loaded", { input: inputArg
       return markSessionSkillsLoaded(payload);
     }),
   ),
-);
+).pipe(Command.withDescription(commandDescription("session skill-loaded")));
 
 const sessionOverrideCommand = Command.make("override", { input: inputArg }, ({ input }) =>
   toEffect(() =>
@@ -362,7 +373,7 @@ const sessionOverrideCommand = Command.make("override", { input: inputArg }, ({ 
       return recordSessionOverride(payload);
     }),
   ),
-);
+).pipe(Command.withDescription(commandDescription("session override")));
 
 const sessionRememberActionCommand = Command.make(
   "remember-action",
@@ -374,7 +385,7 @@ const sessionRememberActionCommand = Command.make(
         return rememberSessionAction(payload);
       }),
     ),
-);
+).pipe(Command.withDescription(commandDescription("session remember-action")));
 
 const sessionPutPendingToolCommand = Command.make(
   "put-pending-tool",
@@ -386,7 +397,7 @@ const sessionPutPendingToolCommand = Command.make(
         return putPendingSessionTool(payload);
       }),
     ),
-);
+).pipe(Command.withDescription(commandDescription("session put-pending-tool")));
 
 const sessionAppendTraceCommand = Command.make("append-trace", { input: inputArg }, ({ input }) =>
   toEffect(() =>
@@ -395,7 +406,7 @@ const sessionAppendTraceCommand = Command.make("append-trace", { input: inputArg
       return appendSessionTrace(payload);
     }),
   ),
-);
+).pipe(Command.withDescription(commandDescription("session append-trace")));
 
 const sessionCleanupCommand = Command.make("cleanup", { input: inputArg }, ({ input }) =>
   toEffect(() =>
@@ -404,7 +415,7 @@ const sessionCleanupCommand = Command.make("cleanup", { input: inputArg }, ({ in
       return cleanupSessionArtifacts(payload);
     }),
   ),
-);
+).pipe(Command.withDescription(commandDescription("session cleanup")));
 
 const sessionRenderCompactionCommand = Command.make(
   "render-compaction",
@@ -416,7 +427,7 @@ const sessionRenderCompactionCommand = Command.make(
         return renderSessionCompaction(payload);
       }),
     ),
-);
+).pipe(Command.withDescription(commandDescription("session render-compaction")));
 
 const sessionCommand = Command.make("session").pipe(
   Command.withDescription("Session artifact commands"),
@@ -433,7 +444,9 @@ const sessionCommand = Command.make("session").pipe(
 );
 
 export const rootCommand = Command.make("groundwork").pipe(
-  Command.withDescription("JSON-first Groundwork CLI for agent guardrails and evidence"),
+  Command.withDescription(
+    "JSON-first Groundwork CLI for agent guardrails and evidence. Run `groundwork capabilities`, `groundwork schema show <command>`, and `groundwork examples show <command>` for machine-readable contracts and examples.",
+  ),
   Command.withSubcommands([
     capabilitiesCommand,
     codexCommand,

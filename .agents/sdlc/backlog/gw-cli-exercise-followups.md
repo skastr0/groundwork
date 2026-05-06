@@ -15,9 +15,10 @@ The CLI surface exercise found no broad command-family functional failures, but 
 - [ ] AC-3: Clarify `policy override` semantics: one-shot lock clearing vs durable approval with scope/TTL.
 - [x] AC-4: Prevent or clearly mark pending tool snapshots for pre-tool calls that policy already blocked.
 - [ ] AC-5: Evaluate compact output modes for noisy session/context commands, especially `session get` mutation responses and `context discover` full-content output.
-- [ ] AC-6: Improve terminal `--help` discoverability or make help text point directly to `capabilities`, `schema show`, and `examples show`.
+- [x] AC-6: Improve terminal `--help` discoverability or make help text point directly to `capabilities`, `schema show`, and `examples show`.
 
 ## Notes
 
 [2026-05-06]: Created from side-agent CLI exercise findings. Provenance commands were exercised against `/Users/guilhermecastro/Projects/Voyager/playground/todo-playground` and `/Users/guilhermecastro/Projects/opencode-plugin-prompt-skill-pill`; policy/context/session and Codex paths were exercised against temp fixtures plus `/Users/guilhermecastro/Projects/agentpkg`.
 [2026-05-06]: AC-4 completed in `.agents/sdlc/done/gw-policy-blocked-pending-tools.md`.
+[2026-05-06]: AC-6 completed in `.agents/sdlc/done/gw-cli-help-discoverability.md`.
