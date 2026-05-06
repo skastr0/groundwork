@@ -154,6 +154,7 @@ describe("PRCommentsManager", () => {
       is_outdated: true,
       resolved_by: "maintainer",
     });
+    expect(result.data.get(101)).not.toBe(result.data.get(102));
     expect(seenCommands.some((command) => command.includes("pr=17"))).toBe(true);
     expect(seenCommands.some((command) => command.includes("id=THREAD_1"))).toBe(true);
   });
@@ -187,16 +188,48 @@ describe("PRCommentsManager", () => {
     });
   });
 
+  it("fails when review thread pagination exceeds the page limit", async () => {
+    const pages = Array.from({ length: 50 }, (_value, index) =>
+      createReviewThreadPage({
+        nodes: [],
+        hasNextPage: true,
+        endCursor: `cursor-${index + 1}`,
+      }),
+    );
+    const manager = new PRCommentsManager(
+      createShellStub([
+        {
+          pattern: "pr=41",
+          output: pages,
+        },
+      ]),
+    );
+
+    const result = await manager.fetchCommentStatesViaGraphQL(41);
+
+    expect(result).toEqual({
+      success: false,
+      error: "GraphQL review thread pagination exceeded 50 pages for PR #41.",
+    });
+  });
+
   it("returns the existing GraphQL parse failure envelope", async () => {
+    let expectedError = "";
+    try {
+      JSON.parse("{not-json");
+    } catch (error) {
+      expectedError = `Failed to parse GraphQL: ${error}`;
+    }
     const manager = new PRCommentsManager(
       createShellStub([{ pattern: "pr=29", output: "{not-json" }]),
     );
 
     const result = await manager.fetchCommentStatesViaGraphQL(29);
 
-    expect(result.success).toBe(false);
-    if (result.success) return;
-    expect(result.error).toContain("Failed to parse GraphQL:");
+    expect(result).toEqual({
+      success: false,
+      error: expectedError,
+    });
   });
 
   it("warns and preserves first-page states when nested comment pagination fails", async () => {

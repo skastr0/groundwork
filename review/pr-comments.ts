@@ -226,9 +226,8 @@ function applyReviewThreadState(
   thread: GraphQLReviewThread,
   commentIds: Iterable<number>,
 ): void {
-  const state = toCommentState(thread);
   for (const commentId of commentIds) {
-    stateMap.set(commentId, state);
+    stateMap.set(commentId, toCommentState(thread));
   }
 }
 
