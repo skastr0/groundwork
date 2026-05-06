@@ -29,8 +29,9 @@ type MockResponse = {
   shouldError?: boolean;
 };
 
-function createShellStub(responses: MockResponse[]) {
+function createShellStub(responses: MockResponse[], seenCommands?: string[]) {
   const executeCommand = (command: string): Promise<string> => {
+    seenCommands?.push(command);
     const matches = responses
       .map((response, index) => ({ response, index }))
       .filter(({ response }) =>
@@ -531,6 +532,60 @@ describe("PR provenance tools", () => {
         expect.objectContaining({ code: "PR_LOCAL_FALLBACK_USED" }),
       ]),
     );
+  });
+
+  it("keeps local PR materialization on the cheap no-remote path", async () => {
+    await seedEvidenceRoot(tempRoot);
+    const diffText = [
+      "diff --git a/src/auth/login.ts b/src/auth/login.ts",
+      "--- a/src/auth/login.ts",
+      "+++ b/src/auth/login.ts",
+      "@@ -1 +1 @@",
+      "-export const login = false;",
+      "+export const login = true;",
+    ].join("\n");
+    const seenCommands: string[] = [];
+    const shell = createShellStub(
+      [
+        ...createLocalRepoResponses(diffText),
+        {
+          pattern: /^gh /,
+          output: "local mode must not invoke gh",
+          shouldError: true,
+        },
+      ],
+      seenCommands,
+    );
+
+    const { createPrMaterializeTool } = await import("../provenance/tooling/expand/pr-tools.ts");
+    const toolDef = createPrMaterializeTool({ shell, rootDir: tempRoot });
+    const raw = await toolDef.execute(
+      {
+        base: "origin/main",
+        mode: "local",
+        limit: 10,
+        max_bytes: 4000,
+      },
+      {} as never,
+    );
+    const result = JSON.parse(raw);
+
+    expect(seenCommands.some((command) => command.startsWith("gh "))).toBe(false);
+    expect(result.ok).toBe(true);
+    expect(result.data.remote).toMatchObject({
+      status: "unsupported",
+      attempted: false,
+      code: "REMOTE_LOOKUP_DISABLED",
+    });
+    expect(result.data.localBranch).toMatchObject({
+      status: "available",
+      baseRef: "origin/main",
+      files: [expect.objectContaining({ path: "src/auth/login.ts" })],
+    });
+    expect(result.data.fallback).toMatchObject({
+      used: true,
+      kind: "local_branch",
+    });
   });
 
   it("fails explicitly in remote mode when gh is unauthenticated", async () => {
