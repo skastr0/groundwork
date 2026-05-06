@@ -2087,6 +2087,15 @@ pattern = "console.log($A)"
 [[rules.actions]]
 type = "block_tool"
 message = "console logging is blocked"
+
+[[rules]]
+id = "warn-review"
+match = ["src/warn.ts"]
+severity = "warn"
+
+[[rules.actions]]
+type = "block_tool"
+message = "warning-only edits should still retain a pending snapshot"
 `,
       "utf8",
     );
@@ -2106,6 +2115,27 @@ message = "console logging is blocked"
       ok: true,
       data: { decision: "block" },
     });
+    const blockedResult = await runGroundwork([
+      "policy",
+      "evaluate-tool-result",
+      JSON.stringify({
+        root_dir: rootDir,
+        session_id: "override-session",
+        call_id: "override-1",
+      }),
+    ]);
+    expect(parseJson(blockedResult.stdout)).toMatchObject({
+      ok: true,
+      command: "policy evaluate-tool-result",
+      data: {
+        decision: "allow",
+        messages: [
+          expect.objectContaining({
+            text: expect.stringContaining("No pending tool snapshot"),
+          }),
+        ],
+      },
+    });
 
     const locked = await runGroundwork([
       "policy",
@@ -2123,6 +2153,25 @@ message = "console logging is blocked"
       data: {
         decision: "block",
         messages: [expect.objectContaining({ text: expect.stringContaining("Mutating tools") })],
+      },
+    });
+    const lockedResult = await runGroundwork([
+      "policy",
+      "evaluate-tool-result",
+      JSON.stringify({
+        root_dir: rootDir,
+        session_id: "override-session",
+        call_id: "override-2",
+      }),
+    ]);
+    expect(parseJson(lockedResult.stdout)).toMatchObject({
+      data: {
+        decision: "allow",
+        messages: [
+          expect.objectContaining({
+            text: expect.stringContaining("No pending tool snapshot"),
+          }),
+        ],
       },
     });
 
@@ -2177,6 +2226,53 @@ message = "console logging is blocked"
         decision: "block",
         phase: "after",
         violations: [expect.objectContaining({ rule_id: "no-console" })],
+      },
+    });
+
+    await fs.writeFile(path.join(rootDir, "src", "warn.ts"), "const before = true;\n", "utf8");
+    const warnPatchText = `*** Begin Patch
+*** Update File: src/warn.ts
+@@
+-const before = true;
++debugger;
+*** End Patch
+`;
+    const warnBefore = await runGroundwork([
+      "policy",
+      "evaluate-tool-call",
+      JSON.stringify({
+        root_dir: rootDir,
+        session_id: "override-session",
+        tool: "edit",
+        call_id: "warn-1",
+        args: { filePath: "src/warn.ts", patchText: warnPatchText },
+      }),
+    ]);
+    expect(parseJson(warnBefore.stdout)).toMatchObject({
+      ok: true,
+      data: {
+        decision: "warn",
+        violations: [expect.objectContaining({ rule_id: "warn-review" })],
+      },
+    });
+    await fs.writeFile(path.join(rootDir, "src", "warn.ts"), "debugger;\n", "utf8");
+
+    const warnAfter = await runGroundwork([
+      "policy",
+      "evaluate-tool-result",
+      JSON.stringify({
+        root_dir: rootDir,
+        session_id: "override-session",
+        call_id: "warn-1",
+      }),
+    ]);
+    expect(parseJson(warnAfter.stdout)).toMatchObject({
+      ok: true,
+      command: "policy evaluate-tool-result",
+      data: {
+        decision: "allow",
+        messages: [],
+        violations: [],
       },
     });
   }, 120_000);

@@ -155,8 +155,12 @@ export async function evaluatePolicyToolCall(input: PolicyEvaluateToolCallInput)
     });
 
     await evaluatePolicyRules(context);
+    const result = toEvaluationResult("policy evaluate-tool-call", context, {
+      config_sources: sourceCount,
+      ignored_targets: extraction.ignoredTargets,
+    });
 
-    if (MUTATING_TOOLS.has(input.tool) && frameworkTargets.length > 0) {
+    if (result.decision !== "block" && MUTATING_TOOLS.has(input.tool) && frameworkTargets.length > 0) {
       state.session.pendingTools.calls[createPendingToolKey(callID)] = {
         callID,
         toolName: input.tool,
@@ -168,10 +172,7 @@ export async function evaluatePolicyToolCall(input: PolicyEvaluateToolCallInput)
       };
     }
 
-    return toEvaluationResult("policy evaluate-tool-call", context, {
-      config_sources: sourceCount,
-      ignored_targets: extraction.ignoredTargets,
-    });
+    return result;
   }).then(({ result }) => result);
 }
 
