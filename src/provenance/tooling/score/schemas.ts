@@ -155,11 +155,10 @@ export const ProvAuthorityDataSchema = z.object({
 export const ProvAuthorityResultSchema = createProvenanceResultSchema(ProvAuthorityDataSchema);
 
 const StabilityEvidenceSchema = z.object({
-  sources: z.object({
-    messages: EvidenceSourceSummarySchema,
-    workItems: EvidenceSourceSummarySchema,
-    traces: EvidenceSourceSummarySchema,
-  }),
+	  sources: z.object({
+	    messages: EvidenceSourceSummarySchema,
+	    workItems: EvidenceSourceSummarySchema,
+	  }),
   rankedItems: z.number().int().nonnegative(),
   bounds: ProvenanceBoundsSchema,
   bytes: ProvenanceBoundsSchema,

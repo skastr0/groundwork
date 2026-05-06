@@ -13,7 +13,6 @@ import {
 export const SESSION_ARTIFACT_SCHEMA_VERSION = "groundwork-session-artifacts/v1";
 const STATE_FILE = "state.json";
 const EVENTS_FILE = "events.jsonl";
-const TRACES_FILE = "traces.jsonl";
 const LOCK_STALE_MS = 30_000;
 
 export const SessionArtifactRootInputSchema = z
@@ -57,11 +56,6 @@ export const SessionPutPendingToolInputSchema = SessionArtifactRootInputSchema.e
   data: z.record(z.string(), z.unknown()).optional(),
 }).strict();
 
-export const SessionAppendTraceInputSchema = SessionArtifactRootInputSchema.extend({
-  session_id: z.string().min(1),
-  trace: z.record(z.string(), z.unknown()),
-}).strict();
-
 export const SessionCleanupInputSchema = SessionArtifactRootInputSchema.extend({
   older_than_days: z.number().int().positive().optional(),
   session_id: z.string().min(1).optional(),
@@ -69,7 +63,6 @@ export const SessionCleanupInputSchema = SessionArtifactRootInputSchema.extend({
 
 export const SessionRenderCompactionInputSchema = SessionArtifactRootInputSchema.extend({
   session_id: z.string().min(1),
-  trace_limit: z.number().int().positive().max(100).optional(),
 }).strict();
 
 export type SessionGetInput = z.infer<typeof SessionGetInputSchema>;
@@ -77,7 +70,6 @@ export type SessionSkillLoadedInput = z.infer<typeof SessionSkillLoadedInputSche
 export type SessionOverrideInput = z.infer<typeof SessionOverrideInputSchema>;
 export type SessionRememberActionInput = z.infer<typeof SessionRememberActionInputSchema>;
 export type SessionPutPendingToolInput = z.infer<typeof SessionPutPendingToolInputSchema>;
-export type SessionAppendTraceInput = z.infer<typeof SessionAppendTraceInputSchema>;
 export type SessionCleanupInput = z.infer<typeof SessionCleanupInputSchema>;
 export type SessionRenderCompactionInput = z.infer<typeof SessionRenderCompactionInputSchema>;
 
@@ -219,27 +211,6 @@ export async function putPendingSessionTool(input: SessionPutPendingToolInput) {
   });
 }
 
-export async function appendSessionTrace(input: SessionAppendTraceInput) {
-  return withSessionLock(input.root_dir, input.session_id, async () => {
-    const now = new Date().toISOString();
-    const state = await readSessionState(input.root_dir, input.session_id);
-    state.session.updatedAt = now;
-    await writeSessionState(input.root_dir, input.session_id, state);
-    await appendJsonLine(resolveSessionFile(input.root_dir, input.session_id, TRACES_FILE), {
-      timestamp: now,
-      trace: input.trace,
-    });
-    return {
-      session_id: input.session_id,
-      artifact_root: resolveArtifactRoot(input.root_dir),
-      trace_file: path.relative(
-        path.resolve(input.root_dir ?? process.cwd()),
-        resolveSessionFile(input.root_dir, input.session_id, TRACES_FILE),
-      ),
-    };
-  });
-}
-
 export async function cleanupSessionArtifacts(input: SessionCleanupInput) {
   const root = resolveArtifactRoot(input.root_dir);
   const sessionsDir = path.join(root, "sessions");
@@ -271,10 +242,6 @@ export async function cleanupSessionArtifacts(input: SessionCleanupInput) {
 
 export async function renderSessionCompaction(input: SessionRenderCompactionInput) {
   const state = await readSessionState(input.root_dir, input.session_id);
-  const traces = await readRecentJsonLines(
-    resolveSessionFile(input.root_dir, input.session_id, TRACES_FILE),
-    input.trace_limit ?? 5,
-  );
   const activeLocks = Object.entries(state.session.locks.active).map(([key, lock]) => ({
     key,
     scope: lock.scope,
@@ -310,7 +277,6 @@ export async function renderSessionCompaction(input: SessionRenderCompactionInpu
           .map((action) => action.path ?? action.key)
           .join(", ")}`
       : "Context reminders seen: none",
-    traces.length > 0 ? `Recent traces: ${traces.length}` : "Recent traces: none",
   ];
 
   return {
@@ -321,7 +287,6 @@ export async function renderSessionCompaction(input: SessionRenderCompactionInpu
       overrides: state.policy.overrides,
       active_locks: activeLocks,
       context_reminders: contextActions,
-      recent_traces: traces,
     },
     text: lines.join("\n"),
   };
@@ -435,37 +400,6 @@ async function appendSessionEvent(
 async function appendJsonLine(filePath: string, value: unknown) {
   await fs.mkdir(path.dirname(filePath), { recursive: true });
   await fs.appendFile(filePath, `${JSON.stringify(value)}\n`, "utf8");
-}
-
-async function readRecentJsonLines(filePath: string, limit: number): Promise<unknown[]> {
-  const raw = await readFileTail(filePath, 128 * 1024);
-  if (!raw.trim()) return [];
-  return raw
-    .trim()
-    .split(/\r?\n/)
-    .slice(-limit)
-    .map((line) => {
-      try {
-        return JSON.parse(line) as unknown;
-      } catch {
-        return { unreadable: true };
-      }
-    });
-}
-
-async function readFileTail(filePath: string, maxBytes: number): Promise<string> {
-  const handle = await fs.open(filePath, "r").catch(() => null);
-  if (!handle) return "";
-  try {
-    const stat = await handle.stat();
-    const length = Math.min(stat.size, maxBytes);
-    const position = Math.max(0, stat.size - length);
-    const buffer = Buffer.alloc(length);
-    await handle.read(buffer, 0, length, position);
-    return buffer.toString("utf8");
-  } finally {
-    await handle.close().catch(() => undefined);
-  }
 }
 
 async function readSessionIDFromDirectory(directory: string): Promise<string> {

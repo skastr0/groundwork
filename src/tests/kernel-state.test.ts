@@ -72,7 +72,7 @@ describe("session kernel state", () => {
             unit: "count" as const,
             updatedAt: "2026-05-30T05:00:05.000Z",
           },
-          traceBytes: {
+          evidenceBytes: {
             used: 8192,
             limit: 1048576,
             unit: "bytes" as const,

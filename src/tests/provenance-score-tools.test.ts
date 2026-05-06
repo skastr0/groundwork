@@ -150,7 +150,6 @@ async function seedEvidenceRoot(rootDir: string) {
   await fs.mkdir(path.join(rootDir, "src"), { recursive: true });
   await fs.mkdir(path.join(rootDir, ".agents", "messages"), { recursive: true });
   await fs.mkdir(path.join(rootDir, ".agents", "sdlc", "done"), { recursive: true });
-  await fs.mkdir(path.join(rootDir, ".agents", "traces"), { recursive: true });
 
   await fs.writeFile(path.join(rootDir, "src", "a.ts"), "export const a = true;\n", "utf8");
   await fs.writeFile(path.join(rootDir, "src", "b.ts"), "export const b = true;\n", "utf8");
@@ -194,32 +193,6 @@ async function seedEvidenceRoot(rootDir: string) {
       "## Acceptance Criteria",
       "- [x] Explain src/a.ts changes",
     ].join("\n"),
-    "utf8",
-  );
-  await fs.writeFile(
-    path.join(rootDir, ".agents", "traces", "session-score.jsonl"),
-    `${JSON.stringify({
-      version: "0.1.0",
-      id: "trace-score-1",
-      timestamp: "2026-05-30T12:20:00Z",
-      files: [
-        {
-          path: "src/a.ts",
-          conversations: [
-            {
-              ranges: [{ start_line: 1, end_line: 1, content_hash: "hash-a" }],
-            },
-          ],
-        },
-      ],
-      metadata: {
-        session: { sessionID: "session-score" },
-        session_context: {
-          agent: "builder",
-          model: { providerID: "openai", modelID: "gpt-5.4" },
-        },
-      },
-    })}\n`,
     "utf8",
   );
 }

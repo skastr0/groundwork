@@ -3,7 +3,6 @@ import os from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import {
-  classifyFrameworkAmbientTool,
   createFrameworkCompactionContextHook,
   createFrameworkProvenanceLayer,
   createSessionKernelState,
@@ -11,12 +10,12 @@ import {
   rememberFrameworkAction,
   renderFrameworkCompactionContext,
   GroundworkPlugin,
-  FRAMEWORK_AMBIENT_BUDGET_LEDGER_KEYS,
   FRAMEWORK_COMPACTION_CONTEXT_MAX_BYTES,
   FRAMEWORK_SYSTEM_TRANSFORM_GUIDANCE,
-  FRAMEWORK_SYSTEM_TRANSFORM_MAX_BYTES,
-  renderFrameworkSystemTransformGuidance,
-} from "../index.ts";
+	  FRAMEWORK_SYSTEM_TRANSFORM_MAX_BYTES,
+	  renderFrameworkSystemTransformGuidance,
+	  type GroundworkLayerHooks,
+	} from "../index.ts";
 import { loadLocalPathEvidence } from "../provenance/index.ts";
 import { createFrameworkHookHarness } from "./framework-test-harness.ts";
 
@@ -169,84 +168,35 @@ describe("framework provenance runtime", () => {
     ]);
   });
 
-  it("captures bounded read evidence consumable by the shared provenance service", async () => {
+  it("does not persist ambient read traces", async () => {
     const sessionID = "session-provenance-read";
     const now = () => "2026-03-18T11:15:00.000Z";
     const sessionStore = createSessionKernelStore({ now });
+    let provenanceHooks: GroundworkLayerHooks | undefined;
     const harness = await createFrameworkHookHarness({
-      createHooks: async (context) =>
-        (
-          await createFrameworkProvenanceLayer({
+      createHooks: async (context) => {
+        const layer = await createFrameworkProvenanceLayer({
             directory: context.directory,
             rootDir: context.worktree,
             now,
             sessionStore,
-          })
-        ).hooks ?? {},
+        });
+        provenanceHooks = layer.hooks;
+        return layer.hooks ?? {};
+      },
     });
-    const readClassification = classifyFrameworkAmbientTool("read");
-
-    if (readClassification.status !== "supported") {
-      throw new Error("expected read ambient provenance support");
-    }
-
     try {
       await writeText(
         path.join(harness.rootDir, "src", "example.ts"),
         "export const example = 1;\n",
       );
 
-      await harness.invokeToolBefore(
-        { tool: "read", callID: "call-read-1", sessionID },
-        { filePath: "src/example.ts", offset: 1, limit: 20 },
-      );
-      await harness.invokeToolAfter(
-        { tool: "read", callID: "call-read-1", sessionID },
-        { title: "read", output: "1: export const example = 1;\n", metadata: {} },
-      );
+      expect(provenanceHooks?.["tool.execute.before"]).toBeUndefined();
+      expect(provenanceHooks?.["tool.execute.after"]).toBeUndefined();
 
-      const tracePath = path.join(
-        harness.rootDir,
-        ".agents",
-        "traces",
-        `session-${sessionID}.jsonl`,
-      );
-      const traceLines = (await fs.readFile(tracePath, "utf8")).trim().split("\n");
-      const record = JSON.parse(traceLines[0] ?? "") as {
-        files: unknown[];
-        metadata?: {
-          session?: {
-            observedTools?: Array<{
-              tool?: string;
-              callID?: string;
-              strategy?: string;
-              metadata?: { path?: string; offset?: number; limit?: number };
-              budget?: { maxBytes?: number; usedBytes?: number };
-            }>;
-          };
-        };
-      };
-      const observedTool = record.metadata?.session?.observedTools?.[0];
-
-      expect(traceLines).toHaveLength(1);
-      expect(record.files).toEqual([]);
-      expect(observedTool).toMatchObject({
-        tool: "read",
-        callID: "call-read-1",
-        strategy: "path-only",
-        metadata: {
-          path: "src/example.ts",
-          offset: 1,
-          limit: 20,
-        },
-        budget: {
-          maxBytes: readClassification.capture.budget.byteLimit,
-        },
-      });
-      expect(observedTool?.budget?.usedBytes).toBeGreaterThan(0);
-      expect(observedTool?.budget?.usedBytes).toBeLessThanOrEqual(
-        observedTool?.budget?.maxBytes ?? 0,
-      );
+      await expect(
+        fs.access(path.join(harness.rootDir, ".agents", "traces")),
+      ).rejects.toMatchObject({ code: "ENOENT" });
 
       const evidence = await loadLocalPathEvidence({
         rootDir: harness.rootDir,
@@ -260,38 +210,9 @@ describe("framework provenance runtime", () => {
       expect(evidence.sources.workItems).toMatchObject({
         status: "unavailable",
         code: "directory_missing",
-      });
-      expect(evidence.sources.traces).toMatchObject({
-        status: "available",
-        totalMatches: 1,
-      });
-      expect(evidence.ranked.items).toMatchObject([
-        expect.objectContaining({
-          kind: "trace",
-          matchedPath: "src/example.ts",
-          observedTool: "read",
-          strategy: "path-only",
-          ranges: [],
-        }),
-      ]);
-
-      const state = sessionStore.get(sessionID);
-      expect(
-        state?.budgets.ledgers[FRAMEWORK_AMBIENT_BUDGET_LEDGER_KEYS.captureItems],
-      ).toMatchObject({
-        used: 1,
-        limit: readClassification.capture.budget.itemLimit,
-        unit: "count",
-      });
-      expect(
-        state?.budgets.ledgers[FRAMEWORK_AMBIENT_BUDGET_LEDGER_KEYS.captureBytes],
-      ).toMatchObject({
-        limit: readClassification.capture.budget.byteLimit,
-        unit: "bytes",
-      });
-      expect(
-        state?.budgets.ledgers[FRAMEWORK_AMBIENT_BUDGET_LEDGER_KEYS.captureBytes]?.used,
-      ).toBeGreaterThan(0);
+	      });
+	      expect(evidence.ranked.items).toEqual([]);
+	      expect(sessionStore.get(sessionID)).toBeNull();
     } finally {
       await harness.cleanup();
     }

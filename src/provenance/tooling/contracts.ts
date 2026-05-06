@@ -19,7 +19,6 @@ export type ProvenanceAmbiguity = z.infer<typeof ProvenanceAmbiguitySchema>;
 export const PROVENANCE_SOURCE_KIND_VALUES = [
   "git",
   "message",
-  "trace",
   "session",
   "work_item",
   "review",

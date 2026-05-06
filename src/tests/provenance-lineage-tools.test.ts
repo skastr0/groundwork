@@ -163,10 +163,10 @@ describe("lineage provenance tools", () => {
     );
     const result = JSON.parse(raw);
 
-    expect(result.ok).toBe(true);
-    expect(result.summary).toBe(
-      "Span history for src/example.ts:1-2: trace evidence unavailable, 1 commit history item(s), 1 contributor(s).",
-    );
+	    expect(result.ok).toBe(true);
+	    expect(result.summary).toBe(
+	      "Span history for src/example.ts:1-2: 1 commit history item(s), 1 contributor(s).",
+	    );
     expect(result.data).toMatchObject({
       requestedPath: "src/example.ts",
       resolvedPath: "src/example.ts",
@@ -194,79 +194,6 @@ describe("lineage provenance tools", () => {
         commitStatus: "available",
         lineage: 1,
       }),
-    );
-  });
-
-  it("propagates heuristic and missing trace warnings through gw_span_history", async () => {
-    await fs.mkdir(path.join(tempRoot, ".agents", "traces"), { recursive: true });
-    await fs.writeFile(
-      path.join(tempRoot, ".agents", "traces", "session-warning.jsonl"),
-      `${JSON.stringify({
-        version: "0.1.0",
-        id: "trace-warning",
-        timestamp: "2026-05-30T12:30:00Z",
-        files: [
-          {
-            path: "src/example.ts",
-            conversations: [{ ranges: [{ start_line: 4, end_line: 8 }] }],
-          },
-        ],
-      })}\n`,
-      "utf8",
-    );
-    const toolDef = await createSpanHistoryTool(createShellStub([]), tempRoot);
-
-    const heuristic = JSON.parse(
-      await toolDef.execute(
-        {
-          path: "src/example.ts",
-          start_line: 20,
-          end_line: 22,
-          limit: 5,
-        },
-        {} as never,
-      ),
-    );
-    expect(heuristic.ok).toBe(true);
-    expect(heuristic.data.traces).toMatchObject({
-      status: "available",
-      matchMode: "heuristic",
-      bounds: { returned: 1, truncated: false },
-    });
-    expect(heuristic.meta.warnings).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          code: "trace_range_unmatched",
-          ambiguity: "medium",
-        }),
-      ]),
-    );
-
-    const missing = JSON.parse(
-      await toolDef.execute(
-        {
-          path: "src/missing.ts",
-          start_line: 20,
-          end_line: 22,
-          limit: 5,
-        },
-        {} as never,
-      ),
-    );
-    expect(missing.ok).toBe(true);
-    expect(missing.data.traces).toMatchObject({
-      status: "available",
-      matchMode: "none",
-      totalMatches: 0,
-      bounds: { returned: 0, truncated: false },
-    });
-    expect(missing.meta.warnings).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          code: "trace_not_found",
-          ambiguity: "low",
-        }),
-      ]),
     );
   });
 

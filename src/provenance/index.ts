@@ -22,11 +22,10 @@ export {
 export {
   DEFAULT_LOCAL_EVIDENCE_BYTE_LIMIT,
   DEFAULT_LOCAL_EVIDENCE_SOURCE_LIMIT,
-  LOCAL_EVIDENCE_SOURCE_VALUES,
-  LOCAL_EVIDENCE_STATUS_VALUES,
-  loadLocalPathEvidence,
-  loadLocalSpanTraceEvidence,
-} from "./local-evidence.ts";
+	  LOCAL_EVIDENCE_SOURCE_VALUES,
+	  LOCAL_EVIDENCE_STATUS_VALUES,
+	  loadLocalPathEvidence,
+	} from "./local-evidence.ts";
 export type { CreateFrameworkProvenanceLayerOptions } from "./runtime.ts";
 export type {
   ApplyFrameworkAmbientBudgetOptions,
@@ -49,18 +48,8 @@ export type {
   LocalEvidenceStatus,
   LocalMessageEvidenceItem,
   LocalPathEvidenceAnchor,
-  LocalPathEvidenceOptions,
-  LocalPathEvidenceRanking,
-  LocalPathEvidenceResult,
-  LocalSpanTraceEvidenceItem,
-  LocalSpanTraceEvidenceOptions,
-  LocalSpanTraceEvidenceResult,
-  LocalSpanTraceEvidenceSourceResult,
-  LocalSpanTraceMatchKind,
-  LocalSpanTraceMatchMode,
-  LocalSpanTraceRange,
-  LocalTraceContributorSnapshot,
-  LocalTraceContributorType,
-  LocalTraceEvidenceItem,
-  LocalWorkItemEvidenceItem,
-} from "./local-evidence.ts";
+	  LocalPathEvidenceOptions,
+	  LocalPathEvidenceRanking,
+	  LocalPathEvidenceResult,
+	  LocalWorkItemEvidenceItem,
+	} from "./local-evidence.ts";

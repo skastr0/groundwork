@@ -1,6 +1,5 @@
 export {
   SESSION_ARTIFACT_SCHEMA_VERSION,
-  SessionAppendTraceInputSchema,
   SessionCleanupInputSchema,
   SessionGetInputSchema,
   SessionOverrideInputSchema,
@@ -8,7 +7,6 @@ export {
   SessionRememberActionInputSchema,
   SessionRenderCompactionInputSchema,
   SessionSkillLoadedInputSchema,
-  appendSessionTrace,
   cleanupSessionArtifacts,
   getSessionArtifact,
   markSessionSkillsLoaded,
@@ -18,7 +16,6 @@ export {
   renderSessionCompaction,
   resolveArtifactRoot,
   updateSessionArtifactState,
-  type SessionAppendTraceInput,
   type SessionArtifactState,
   type SessionCleanupInput,
   type SessionGetInput,

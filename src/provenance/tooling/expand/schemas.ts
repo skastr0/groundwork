@@ -96,7 +96,7 @@ export const NearbyFileSummarySchema = z.object({
 });
 
 export const EvidenceItemSummarySchema = z.object({
-  kind: z.enum(["message", "work_item", "trace"]),
+  kind: z.enum(["message", "work_item"]),
   id: z.string().min(1),
   path: z.string().min(1),
   label: z.string().min(1),

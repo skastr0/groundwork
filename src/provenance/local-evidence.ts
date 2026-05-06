@@ -16,16 +16,13 @@ import {
 } from "./tooling/args.ts";
 import type {
   ProvenanceBounds,
-  ProvenanceConfidence,
   ProvenanceEvidenceSource,
   ProvenanceWarning,
 } from "./tooling/contracts.ts";
-import type { TraceContributor, TraceRecord } from "./trace/types.ts";
 
 const AGENTS_DIR = ".agents";
 const MESSAGES_DIR = path.join(AGENTS_DIR, "messages");
 const SDLC_DIR = path.join(AGENTS_DIR, "sdlc");
-const TRACES_DIR = path.join(AGENTS_DIR, "traces");
 const SDLC_PHASES = [
   "backlog",
   "exploring",
@@ -36,18 +33,13 @@ const SDLC_PHASES = [
   "abandoned",
 ] as const;
 const MAX_MESSAGE_SUMMARY_BYTES = 240;
-const MAX_TRACE_RANGES = 5;
 const MAX_MESSAGE_FILES_SCANNED = 64;
-const MAX_TRACE_FILES_SCANNED = 32;
 const MAX_WORK_ITEM_FILES_SCANNED = 64;
 const MAX_LOCAL_EVIDENCE_FILE_BYTES = 256_000;
-const SPAN_TRACE_MATCH_MODE_VALUES = ["exact", "heuristic", "none"] as const;
-const SPAN_TRACE_MATCH_KIND_VALUES = ["exact_span", "path_only"] as const;
-const TRACE_CONTRIBUTOR_TYPE_VALUES = ["human", "ai", "mixed", "unknown"] as const;
 export const LOCAL_EVIDENCE_STATUS_VALUES = ["available", "unavailable", "unsupported"] as const;
 export type LocalEvidenceStatus = (typeof LOCAL_EVIDENCE_STATUS_VALUES)[number];
 
-export const LOCAL_EVIDENCE_SOURCE_VALUES = ["messages", "work_items", "traces"] as const;
+export const LOCAL_EVIDENCE_SOURCE_VALUES = ["messages", "work_items"] as const;
 export type LocalEvidenceSourceName = (typeof LOCAL_EVIDENCE_SOURCE_VALUES)[number];
 
 export const DEFAULT_LOCAL_EVIDENCE_SOURCE_LIMIT = {
@@ -100,68 +92,9 @@ export interface LocalWorkItemEvidenceItem extends LocalEvidenceItemBase {
   matchedAliases: string[];
 }
 
-export interface LocalTraceEvidenceItem extends LocalEvidenceItemBase {
-  kind: "trace";
-  traceFile: string;
-  recordID: string;
-  matchedPath: string;
-  timestamp: string;
-  sessionID?: string;
-  vcsRevision?: string;
-  agent?: string;
-  model?: string;
-  observedTool?: string;
-  strategy?: string;
-  budget?: {
-    maxBytes: number;
-    usedBytes: number;
-  };
-  ranges: Array<{
-    startLine: number;
-    endLine: number;
-    contentHash?: string;
-  }>;
-}
-
-export type LocalSpanTraceMatchMode = (typeof SPAN_TRACE_MATCH_MODE_VALUES)[number];
-export type LocalSpanTraceMatchKind = (typeof SPAN_TRACE_MATCH_KIND_VALUES)[number];
-export type LocalTraceContributorType = (typeof TRACE_CONTRIBUTOR_TYPE_VALUES)[number];
-
-export interface LocalTraceContributorSnapshot {
-  type: LocalTraceContributorType;
-  modelID?: string;
-}
-
-export interface LocalSpanTraceRange {
-  startLine: number;
-  endLine: number;
-  overlapStartLine?: number;
-  overlapEndLine?: number;
-  contentHash?: string;
-  contributor?: LocalTraceContributorSnapshot;
-}
-
-export interface LocalSpanTraceEvidenceItem extends LocalEvidenceItemBase {
-  kind: "trace";
-  traceFile: string;
-  recordID: string;
-  matchedPath: string;
-  timestamp: string;
-  sessionID?: string;
-  vcsRevision?: string;
-  agent?: string;
-  model?: string;
-  contributor?: LocalTraceContributorSnapshot;
-  matchKind: LocalSpanTraceMatchKind;
-  confidence: ProvenanceConfidence;
-  heuristic: boolean;
-  ranges: LocalSpanTraceRange[];
-}
-
 export type LocalEvidenceMatch =
   | LocalMessageEvidenceItem
-  | LocalWorkItemEvidenceItem
-  | LocalTraceEvidenceItem;
+  | LocalWorkItemEvidenceItem;
 
 type AvailableLocalEvidenceSource<TItem extends LocalEvidenceMatch> = {
   source: LocalEvidenceSourceName;
@@ -205,7 +138,6 @@ export interface LocalPathEvidenceResult {
   sources: {
     messages: LocalEvidenceSourceResult<LocalMessageEvidenceItem>;
     workItems: LocalEvidenceSourceResult<LocalWorkItemEvidenceItem>;
-    traces: LocalEvidenceSourceResult<LocalTraceEvidenceItem>;
   };
   ranked: LocalPathEvidenceRanking;
 }
@@ -216,78 +148,10 @@ export interface LocalPathEvidenceOptions {
   aliases?: string[];
   includeMessages?: boolean;
   includeWorkItems?: boolean;
-  includeTraces?: boolean;
   perSourceLimit?: number;
   maxItems?: number;
   maxBytes?: number;
 }
-
-export type LocalSpanTraceEvidenceSourceResult =
-  | {
-      source: "traces";
-      directory: string;
-      status: "available";
-      matchMode: LocalSpanTraceMatchMode;
-      items: LocalSpanTraceEvidenceItem[];
-      totalMatches: number;
-      exactMatches: number;
-      heuristicMatches: number;
-      bounds: ProvenanceBounds;
-      warnings: ProvenanceWarning[];
-    }
-  | {
-      source: "traces";
-      directory: string;
-      status: "unavailable";
-      code: "directory_missing";
-      message: string;
-    };
-
-export interface LocalSpanTraceEvidenceOptions {
-  rootDir: string;
-  path: string;
-  aliases?: string[];
-  startLine: number;
-  endLine: number;
-  limit?: number;
-}
-
-export interface LocalSpanTraceEvidenceResult {
-  anchor: LocalPathEvidenceAnchor;
-  span: {
-    startLine: number;
-    endLine: number;
-  };
-  source: LocalSpanTraceEvidenceSourceResult;
-}
-
-type LocalTraceObservedPathMatch = {
-  matchedPath: string;
-  toolName?: string;
-  callID?: string;
-  strategy?: string;
-  budget?: {
-    maxBytes: number;
-    usedBytes: number;
-  };
-};
-
-type LocalTraceRecordMatch = {
-  traceFile: string;
-  record: TraceRecord;
-  matchedPaths: string[];
-  observedMatches: LocalTraceObservedPathMatch[];
-};
-
-type SpanTraceEvidenceCommonFields = Omit<
-  LocalSpanTraceEvidenceItem,
-  "id" | "matchKind" | "confidence" | "heuristic" | "ranges" | "score" | "reasons"
->;
-
-type SpanTraceEvidenceBuckets = {
-  exactItems: LocalSpanTraceEvidenceItem[];
-  heuristicItems: LocalSpanTraceEvidenceItem[];
-};
 
 type Packet = {
   from?: unknown;
@@ -718,85 +582,6 @@ function takeEvidenceEntries(
 
 const getPhaseWeight = (phase: string | undefined): number => PHASE_WEIGHTS[phase ?? ""] ?? 0;
 
-const toModelID = (record: TraceRecord): string | undefined => {
-  const metadata = isRecord(record.metadata) ? record.metadata : undefined;
-  const sessionContext =
-    metadata && isRecord(metadata["session_context"]) ? metadata["session_context"] : undefined;
-  const model =
-    sessionContext && isRecord(sessionContext["model"]) ? sessionContext["model"] : undefined;
-  const modelID = typeof model?.["modelID"] === "string" ? model["modelID"] : undefined;
-  const providerID = typeof model?.["providerID"] === "string" ? model["providerID"] : undefined;
-  if (!modelID) return undefined;
-  return providerID ? `${providerID}/${modelID}` : modelID;
-};
-
-const toTraceSessionID = (record: TraceRecord): string | undefined => {
-  const metadata = isRecord(record.metadata) ? record.metadata : undefined;
-  const session = metadata && isRecord(metadata["session"]) ? metadata["session"] : undefined;
-  return typeof session?.["sessionID"] === "string" ? session["sessionID"] : undefined;
-};
-
-const toTraceAgent = (record: TraceRecord): string | undefined => {
-  const metadata = isRecord(record.metadata) ? record.metadata : undefined;
-  const sessionContext =
-    metadata && isRecord(metadata["session_context"]) ? metadata["session_context"] : undefined;
-  return typeof sessionContext?.["agent"] === "string" ? sessionContext["agent"] : undefined;
-};
-
-const toTraceObservedPathMatches = (
-  record: TraceRecord,
-  aliases: readonly string[],
-): LocalTraceObservedPathMatch[] => {
-  const metadata = isRecord(record.metadata) ? record.metadata : undefined;
-  const session = metadata && isRecord(metadata["session"]) ? metadata["session"] : undefined;
-  const observedTools = Array.isArray(session?.["observedTools"]) ? session["observedTools"] : [];
-
-  return observedTools.flatMap((observedTool) => {
-    if (!isRecord(observedTool)) {
-      return [];
-    }
-
-    const observedMetadata = isRecord(observedTool["metadata"])
-      ? observedTool["metadata"]
-      : undefined;
-    const matchedPath = toTrimmedString(observedMetadata?.["path"]);
-    if (!matchedPath) {
-      return [];
-    }
-
-    const normalizedPath = toNormalizedPath(matchedPath);
-    if (!aliases.includes(normalizedPath)) {
-      return [];
-    }
-
-    const budgetRecord = isRecord(observedTool["budget"]) ? observedTool["budget"] : undefined;
-    const maxBytes =
-      typeof budgetRecord?.["maxBytes"] === "number" && Number.isInteger(budgetRecord["maxBytes"])
-        ? budgetRecord["maxBytes"]
-        : undefined;
-    const usedBytes =
-      typeof budgetRecord?.["usedBytes"] === "number" && Number.isInteger(budgetRecord["usedBytes"])
-        ? budgetRecord["usedBytes"]
-        : undefined;
-
-    return [
-      {
-        matchedPath: normalizedPath,
-        toolName: toTrimmedString(observedTool["tool"]),
-        callID: toTrimmedString(observedTool["callID"]),
-        strategy: toTrimmedString(observedTool["strategy"]),
-        budget:
-          maxBytes !== undefined && usedBytes !== undefined
-            ? {
-                maxBytes,
-                usedBytes,
-              }
-            : undefined,
-      },
-    ];
-  });
-};
-
 const toLookupKeys = (relativePath: string, workItemID?: string): string[] => {
   const basename = path.basename(relativePath, ".md");
   const keys = [normalizeWorkItemKey(relativePath), normalizeWorkItemKey(basename)];
@@ -1061,513 +846,6 @@ const loadMessageEvidence = async (options: {
   });
 };
 
-const isTraceRecord = (value: unknown): value is TraceRecord =>
-  isRecord(value) &&
-  typeof value["version"] === "string" &&
-  typeof value["id"] === "string" &&
-  typeof value["timestamp"] === "string" &&
-  Array.isArray(value["files"]);
-
-const parseTraceRecord = (raw: string): TraceRecord | null => {
-  try {
-    const parsed = JSON.parse(raw);
-    return isTraceRecord(parsed) ? parsed : null;
-  } catch {
-    return null;
-  }
-};
-
-const toTraceRanges = (
-  record: TraceRecord,
-  matchedPath: string,
-): LocalTraceEvidenceItem["ranges"] => {
-  const matchedFile = record.files.find((file) => toNormalizedPath(file.path) === matchedPath);
-  if (!matchedFile) return [];
-
-  return matchedFile.conversations
-    .flatMap((conversation) => conversation.ranges)
-    .filter((range) => Number.isInteger(range.start_line) && Number.isInteger(range.end_line))
-    .slice(0, MAX_TRACE_RANGES)
-    .map((range) => ({
-      startLine: range.start_line,
-      endLine: range.end_line,
-      contentHash: range.content_hash,
-    }));
-};
-
-const compareSpanTraceEvidence = (
-  left: LocalSpanTraceEvidenceItem,
-  right: LocalSpanTraceEvidenceItem,
-): number => {
-  if (right.score !== left.score) {
-    return right.score - left.score;
-  }
-
-  const leftTimestamp = parseTimestamp(left.timestamp);
-  const rightTimestamp = parseTimestamp(right.timestamp);
-  if (leftTimestamp !== rightTimestamp) {
-    return (rightTimestamp ?? -1) - (leftTimestamp ?? -1);
-  }
-
-  return left.id.localeCompare(right.id);
-};
-
-const toLocalTraceContributor = (
-  contributor: TraceContributor | undefined,
-): LocalTraceContributorSnapshot | undefined => {
-  if (!contributor) return undefined;
-
-  return {
-    type: contributor.type,
-    modelID: contributor.model_id,
-  };
-};
-
-const toSpanTraceCandidates = (options: {
-  record: TraceRecord;
-  matchedPath: string;
-  startLine: number;
-  endLine: number;
-}): {
-  exactRanges: LocalSpanTraceRange[];
-  heuristicRanges: LocalSpanTraceRange[];
-  contributor?: LocalTraceContributorSnapshot;
-  distance: number;
-} => {
-  const matchedFile = options.record.files.find(
-    (file) => toNormalizedPath(file.path) === options.matchedPath,
-  );
-  if (!matchedFile) {
-    return {
-      exactRanges: [],
-      heuristicRanges: [],
-      distance: Number.POSITIVE_INFINITY,
-    };
-  }
-
-  const ranges = matchedFile.conversations.flatMap((conversation) =>
-    conversation.ranges
-      .filter((range) => Number.isInteger(range.start_line) && Number.isInteger(range.end_line))
-      .map((range) => {
-        const contributor = toLocalTraceContributor(range.contributor ?? conversation.contributor);
-        const overlapStartLine = Math.max(range.start_line, options.startLine);
-        const overlapEndLine = Math.min(range.end_line, options.endLine);
-        const exactMatch = overlapStartLine <= overlapEndLine;
-        const distance = exactMatch
-          ? 0
-          : range.end_line < options.startLine
-            ? options.startLine - range.end_line
-            : range.start_line - options.endLine;
-
-        return {
-          startLine: range.start_line,
-          endLine: range.end_line,
-          overlapStartLine: exactMatch ? overlapStartLine : undefined,
-          overlapEndLine: exactMatch ? overlapEndLine : undefined,
-          contentHash: range.content_hash,
-          contributor,
-          exactMatch,
-          distance,
-        };
-      }),
-  );
-
-  const exactRanges = ranges
-    .filter((range) => range.exactMatch)
-    .map(({ exactMatch: _exactMatch, distance: _distance, ...range }) => range);
-  if (exactRanges.length > 0) {
-    return {
-      exactRanges: exactRanges.slice(0, MAX_TRACE_RANGES),
-      heuristicRanges: [],
-      contributor: exactRanges[0]?.contributor,
-      distance: 0,
-    };
-  }
-
-  const heuristicRanges = ranges
-    .sort((left, right) => {
-      if (left.distance !== right.distance) {
-        return left.distance - right.distance;
-      }
-
-      return left.startLine - right.startLine;
-    })
-    .slice(0, MAX_TRACE_RANGES)
-    .map(({ exactMatch: _exactMatch, distance: _distance, ...range }) => range);
-
-  return {
-    exactRanges: [],
-    heuristicRanges,
-    contributor: heuristicRanges[0]?.contributor,
-    distance: ranges[0]?.distance ?? Number.POSITIVE_INFINITY,
-  };
-};
-
-function selectTraceEntries(
-  entries: Dirent[],
-  warnings: ProvenanceWarning[],
-): Dirent[] {
-  const selectedEntries = takeEvidenceEntries(
-    entries.filter((entry) => entry.isFile() && entry.name.endsWith(".jsonl")),
-    MAX_TRACE_FILES_SCANNED,
-  );
-
-  if (selectedEntries.truncated) {
-    warnings.push({
-      code: "trace_scan_limited",
-      message: `Trace evidence scan stopped after ${MAX_TRACE_FILES_SCANNED} file(s) to stay bounded.`,
-      ambiguity: "low",
-    });
-  }
-
-  return selectedEntries.entries;
-}
-
-async function readLocalTraceRecordMatches(options: {
-  rootDir: string;
-  tracesDirectory: string;
-  entries: Dirent[];
-  aliases: string[];
-  warnings: ProvenanceWarning[];
-}): Promise<LocalTraceRecordMatch[]> {
-  const matches: LocalTraceRecordMatch[] = [];
-
-  for (const entry of selectTraceEntries(options.entries, options.warnings)) {
-    const absolutePath = path.join(options.tracesDirectory, entry.name);
-    const raw = await safeReadFile(absolutePath);
-    if (raw.status === "missing") continue;
-    if (raw.status === "too_large") {
-      options.warnings.push({
-        code: "trace_file_skipped_large",
-        message: `Skipped oversized trace file '${entry.name}' (${raw.size} byte(s)).`,
-        ambiguity: "low",
-      });
-      continue;
-    }
-
-    for (const line of raw.content
-      .split("\n")
-      .map((value) => value.trim())
-      .filter(Boolean)) {
-      const record = parseTraceRecord(line);
-      if (!record) {
-        options.warnings.push({
-          code: "invalid_trace_record",
-          message: `Skipped unreadable trace record from '${entry.name}'.`,
-          ambiguity: "low",
-        });
-        continue;
-      }
-
-      const matchedPaths = record.files
-        .map((file) => toNormalizedPath(file.path))
-        .filter((filePath) => options.aliases.includes(filePath));
-      const observedMatches = toTraceObservedPathMatches(record, options.aliases);
-      if (matchedPaths.length === 0 && observedMatches.length === 0) {
-        continue;
-      }
-
-      matches.push({
-        traceFile: path.relative(options.rootDir, absolutePath),
-        record,
-        matchedPaths,
-        observedMatches,
-      });
-    }
-  }
-
-  return matches;
-}
-
-export async function loadLocalSpanTraceEvidence(
-  options: LocalSpanTraceEvidenceOptions,
-): Promise<LocalSpanTraceEvidenceResult> {
-  const anchor = resolveAnchor(options.rootDir, options.path, options.aliases);
-  const directory = TRACES_DIR;
-  const tracesDirectory = path.join(options.rootDir, directory);
-  const availability = await readDirectory(tracesDirectory);
-
-  if (availability.status === "unavailable") {
-    return createUnavailableSpanTraceEvidenceResult({ options, anchor, directory });
-  }
-
-  const warnings: ProvenanceWarning[] = [];
-  const traceMatches = await readLocalTraceRecordMatches({
-    rootDir: options.rootDir,
-    tracesDirectory,
-    entries: availability.entries,
-    aliases: anchor.aliases,
-    warnings,
-  });
-  const { exactItems, heuristicItems } = collectSpanTraceEvidenceItems({
-    traceMatches,
-    startLine: options.startLine,
-    endLine: options.endLine,
-  });
-  const selection = selectSpanTraceEvidenceItems({ exactItems, heuristicItems });
-  const source = createAvailableSpanTraceEvidenceSource({
-    directory,
-    exactItems,
-    heuristicItems,
-    selectedItems: selection.items,
-    matchMode: selection.matchMode,
-    limit: options.limit,
-    warnings,
-  });
-
-  return {
-    anchor,
-    span: toRequestedSpan(options),
-    source,
-  };
-}
-
-function createUnavailableSpanTraceEvidenceResult(params: {
-  options: LocalSpanTraceEvidenceOptions;
-  anchor: LocalPathEvidenceAnchor;
-  directory: string;
-}): LocalSpanTraceEvidenceResult {
-  return {
-    anchor: params.anchor,
-    span: toRequestedSpan(params.options),
-    source: unavailableSource("traces", params.directory),
-  };
-}
-
-function toRequestedSpan(options: Pick<LocalSpanTraceEvidenceOptions, "startLine" | "endLine">): {
-  startLine: number;
-  endLine: number;
-} {
-  return {
-    startLine: options.startLine,
-    endLine: options.endLine,
-  };
-}
-
-function collectSpanTraceEvidenceItems(params: {
-  traceMatches: LocalTraceRecordMatch[];
-  startLine: number;
-  endLine: number;
-}): SpanTraceEvidenceBuckets {
-  const exactItems: LocalSpanTraceEvidenceItem[] = [];
-  const heuristicItems: LocalSpanTraceEvidenceItem[] = [];
-
-  for (const match of params.traceMatches) {
-    collectSpanTraceMatchItems({
-      match,
-      startLine: params.startLine,
-      endLine: params.endLine,
-      exactItems,
-      heuristicItems,
-    });
-  }
-
-  return { exactItems, heuristicItems };
-}
-
-function collectSpanTraceMatchItems(params: {
-  match: LocalTraceRecordMatch;
-  startLine: number;
-  endLine: number;
-  exactItems: LocalSpanTraceEvidenceItem[];
-  heuristicItems: LocalSpanTraceEvidenceItem[];
-}): void {
-  const { match, exactItems, heuristicItems } = params;
-  for (const matchedPath of match.matchedPaths) {
-    const candidates = toSpanTraceCandidates({
-      record: match.record,
-      matchedPath,
-      startLine: params.startLine,
-      endLine: params.endLine,
-    });
-    const common = createSpanTraceCommonFields({
-      match,
-      matchedPath,
-      contributor: candidates.contributor,
-    });
-
-    if (candidates.exactRanges.length > 0) {
-      exactItems.push({
-        ...common,
-        id: `${common.traceFile}:${match.record.id}:${matchedPath}:exact`,
-        matchKind: "exact_span",
-        confidence: "high",
-        heuristic: false,
-        ranges: candidates.exactRanges,
-        score: 400 + candidates.exactRanges.length * 10,
-        reasons: ["exact_path_match", "exact_line_overlap"],
-      });
-      continue;
-    }
-
-    if (candidates.heuristicRanges.length === 0) continue;
-
-    heuristicItems.push({
-      ...common,
-      id: `${common.traceFile}:${match.record.id}:${matchedPath}:heuristic`,
-      matchKind: "path_only",
-      confidence: "low",
-      heuristic: true,
-      ranges: candidates.heuristicRanges,
-      score: 150 - Math.min(candidates.distance, 100),
-      reasons: ["exact_path_match", "path_only_heuristic"],
-    });
-  }
-}
-
-function createSpanTraceCommonFields(params: {
-  match: LocalTraceRecordMatch;
-  matchedPath: string;
-  contributor?: LocalTraceContributorSnapshot;
-}): SpanTraceEvidenceCommonFields {
-  return {
-    kind: "trace",
-    traceFile: params.match.traceFile,
-    recordID: params.match.record.id,
-    matchedPath: params.matchedPath,
-    timestamp: params.match.record.timestamp,
-    sessionID: toTraceSessionID(params.match.record),
-    vcsRevision: params.match.record.vcs?.revision,
-    agent: toTraceAgent(params.match.record),
-    model: toModelID(params.match.record),
-    contributor: params.contributor,
-  };
-}
-
-function selectSpanTraceEvidenceItems(buckets: SpanTraceEvidenceBuckets): {
-  matchMode: LocalSpanTraceMatchMode;
-  items: LocalSpanTraceEvidenceItem[];
-} {
-  const { exactItems, heuristicItems } = buckets;
-  exactItems.sort(compareSpanTraceEvidence);
-  heuristicItems.sort(compareSpanTraceEvidence);
-
-  if (exactItems.length > 0) {
-    return { matchMode: "exact", items: exactItems };
-  }
-
-  if (heuristicItems.length > 0) {
-    return { matchMode: "heuristic", items: heuristicItems };
-  }
-
-  return { matchMode: "none", items: [] };
-}
-
-function createAvailableSpanTraceEvidenceSource(params: {
-  directory: string;
-  exactItems: LocalSpanTraceEvidenceItem[];
-  heuristicItems: LocalSpanTraceEvidenceItem[];
-  selectedItems: LocalSpanTraceEvidenceItem[];
-  matchMode: LocalSpanTraceMatchMode;
-  limit: number | undefined;
-  warnings: ProvenanceWarning[];
-}): LocalSpanTraceEvidenceSourceResult {
-  const bounded = applyBoundedLimit(
-    params.selectedItems,
-    params.limit,
-    DEFAULT_PROVENANCE_ITEM_LIMIT,
-  );
-  return {
-    source: "traces",
-    directory: params.directory,
-    status: "available",
-    matchMode: params.matchMode,
-    items: bounded.items,
-    totalMatches: params.selectedItems.length,
-    exactMatches: params.exactItems.length,
-    heuristicMatches: params.heuristicItems.length,
-    bounds: bounded.bounds,
-    warnings: params.warnings,
-  };
-}
-
-const loadTraceEvidence = async (options: {
-  rootDir: string;
-  anchor: LocalPathEvidenceAnchor;
-  enabled: boolean;
-  requestedLimit: number | undefined;
-}): Promise<LocalEvidenceSourceResult<LocalTraceEvidenceItem>> => {
-  const directory = TRACES_DIR;
-  if (!options.enabled) {
-    return unsupportedSource("traces", directory, "Trace evidence is disabled for this query.");
-  }
-
-  const tracesDirectory = path.join(options.rootDir, directory);
-  const availability = await readDirectory(tracesDirectory);
-  if (availability.status === "unavailable") {
-    return unavailableSource("traces", directory);
-  }
-
-  const items: LocalTraceEvidenceItem[] = [];
-  const warnings: ProvenanceWarning[] = [];
-
-  const traceMatches = await readLocalTraceRecordMatches({
-    rootDir: options.rootDir,
-    tracesDirectory,
-    entries: availability.entries,
-    aliases: options.anchor.aliases,
-    warnings,
-  });
-
-  for (const match of traceMatches) {
-    const matchedPathSet = new Set(match.matchedPaths);
-
-    for (const matchedPath of match.matchedPaths) {
-      const ranges = toTraceRanges(match.record, matchedPath);
-      items.push({
-        kind: "trace",
-        id: `${match.traceFile}:${match.record.id}:${matchedPath}`,
-        traceFile: match.traceFile,
-        recordID: match.record.id,
-        matchedPath,
-        timestamp: match.record.timestamp,
-        sessionID: toTraceSessionID(match.record),
-        vcsRevision: match.record.vcs?.revision,
-        agent: toTraceAgent(match.record),
-        model: toModelID(match.record),
-        ranges,
-        score: 300 + ranges.length * 5,
-        reasons: ["exact_path_match", "trace_ranges"],
-      });
-    }
-
-    for (const [index, observedMatch] of match.observedMatches.entries()) {
-      if (matchedPathSet.has(observedMatch.matchedPath)) {
-        continue;
-      }
-
-      items.push({
-        kind: "trace",
-        id: `${match.traceFile}:${match.record.id}:${observedMatch.matchedPath}:${observedMatch.callID ?? `observed-${index}`}`,
-        traceFile: match.traceFile,
-        recordID: match.record.id,
-        matchedPath: observedMatch.matchedPath,
-        timestamp: match.record.timestamp,
-        sessionID: toTraceSessionID(match.record),
-        vcsRevision: match.record.vcs?.revision,
-        agent: toTraceAgent(match.record),
-        model: toModelID(match.record),
-        observedTool: observedMatch.toolName,
-        strategy: observedMatch.strategy,
-        budget: observedMatch.budget,
-        ranges: [],
-        score: 260,
-        reasons: ["exact_path_match", "observed_tool_metadata"],
-      });
-    }
-  }
-
-  items.sort(compareRankedEvidence);
-
-  return availableSource({
-    source: "traces",
-    directory,
-    items,
-    requestedLimit: options.requestedLimit,
-    warnings,
-  });
-};
-
 const sourceItems = <TItem extends LocalEvidenceMatch>(
   source: LocalEvidenceSourceResult<TItem>,
 ): TItem[] => (source.status === "available" ? source.items : []);
@@ -1585,7 +863,7 @@ export async function loadLocalPathEvidence(
     requestedLimit: requestedPerSourceLimit,
   });
 
-  const { messages, traces } = await Effect.runPromise(
+  const { messages } = await Effect.runPromise(
     Effect.all(
       {
         messages: Effect.promise(() =>
@@ -1597,23 +875,14 @@ export async function loadLocalPathEvidence(
             matchedWorkItems: workItems.matchesByKey,
           }),
         ),
-        traces: Effect.promise(() =>
-          loadTraceEvidence({
-            rootDir: options.rootDir,
-            anchor,
-            enabled: options.includeTraces ?? true,
-            requestedLimit: requestedPerSourceLimit,
-          }),
-        ),
       },
-      { concurrency: Math.min(DEFAULT_EFFECT_CONCURRENCY, 2) },
+      { concurrency: Math.min(DEFAULT_EFFECT_CONCURRENCY, 1) },
     ),
   );
 
   const allRankedItems = [
     ...sourceItems(messages),
     ...sourceItems(workItems.source),
-    ...sourceItems(traces),
   ].sort(compareRankedEvidence);
 
   const maxItemsLimit = resolveBoundedNumber(options.maxItems, DEFAULT_PROVENANCE_ITEM_LIMIT);
@@ -1630,7 +899,6 @@ export async function loadLocalPathEvidence(
     sources: {
       messages,
       workItems: workItems.source,
-      traces,
     },
     ranked: {
       items: byteLimited.items,
@@ -1666,14 +934,8 @@ export function toProvenanceEvidenceSource(item: LocalEvidenceMatch): Provenance
     };
   }
 
-  return {
-    kind: "trace",
-    id: item.id,
-    path: item.traceFile,
-    ref: item.recordID,
-    label: item.matchedPath,
-    detail: item.sessionID ? `session ${item.sessionID}` : item.timestamp,
-  };
+  const _exhaustive: never = item;
+  return _exhaustive;
 }
 
 export function toProvenanceEvidenceSources(

@@ -5,7 +5,6 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   loadLocalPathEvidence,
-  loadLocalSpanTraceEvidence,
   toProvenanceEvidenceSources,
 } from "../provenance/tooling/evidence/index.ts";
 
@@ -23,12 +22,11 @@ async function copyRepoMessageFixture(tempRoot: string, fileName: string): Promi
 }
 
 async function loadMessageSource(tempRoot: string, targetPath: string) {
-  const result = await loadLocalPathEvidence({
-    rootDir: tempRoot,
-    path: targetPath,
-    includeTraces: false,
-    includeWorkItems: false,
-  });
+	  const result = await loadLocalPathEvidence({
+	    rootDir: tempRoot,
+	    path: targetPath,
+	    includeWorkItems: false,
+	  });
 
   expect(result.sources.messages.status).toBe("available");
   if (result.sources.messages.status !== "available") {
@@ -50,9 +48,8 @@ describe("loadLocalPathEvidence", () => {
     await fs.rm(tempRoot, { recursive: true, force: true });
   });
 
-  it("loads bounded message, work-item, and trace evidence with deterministic ranking", async () => {
+  it("loads bounded message and work-item evidence with deterministic ranking", async () => {
     await fs.mkdir(path.join(tempRoot, ".agents", "messages"), { recursive: true });
-    await fs.mkdir(path.join(tempRoot, ".agents", "traces"), { recursive: true });
     await fs.mkdir(path.join(tempRoot, ".agents", "sdlc", "building"), { recursive: true });
     await fs.mkdir(path.join(tempRoot, ".agents", "sdlc", "done"), { recursive: true });
 
@@ -144,34 +141,6 @@ describe("loadLocalPathEvidence", () => {
       "utf8",
     );
 
-    await fs.writeFile(
-      path.join(tempRoot, ".agents", "traces", "session-session-1.jsonl"),
-      `${JSON.stringify({
-        version: "0.1.0",
-        id: "trace-1",
-        timestamp: "2026-05-30T10:30:00Z",
-        vcs: { type: "git", revision: "abc123" },
-        files: [
-          {
-            path: "src/example.ts",
-            conversations: [
-              {
-                ranges: [{ start_line: 4, end_line: 8, content_hash: "hash-1" }],
-              },
-            ],
-          },
-        ],
-        metadata: {
-          session: { sessionID: "session-1" },
-          session_context: {
-            agent: "builder",
-            model: { providerID: "openai", modelID: "gpt-5.4" },
-          },
-        },
-      })}\n`,
-      "utf8",
-    );
-
     const result = await loadLocalPathEvidence({
       rootDir: tempRoot,
       path: "src/example.ts",
@@ -180,7 +149,6 @@ describe("loadLocalPathEvidence", () => {
       maxBytes: 600,
     });
 
-    expect(result.sources.traces.status).toBe("available");
     expect(result.sources.workItems.status).toBe("available");
     expect(result.sources.messages.status).toBe("available");
     expect(
@@ -193,7 +161,7 @@ describe("loadLocalPathEvidence", () => {
       truncated: true,
     });
     expect(result.ranked.items.length).toBeGreaterThan(0);
-    expect(result.ranked.items[0]?.kind).toBe("trace");
+    expect(result.ranked.items[0]?.kind).toBe("work_item");
     expect(result.ranked.bounds.truncated).toBe(true);
     expect(result.ranked.bytes.truncated).toBe(true);
   });
@@ -213,76 +181,7 @@ describe("loadLocalPathEvidence", () => {
       status: "unsupported",
       code: "disabled_by_caller",
     });
-    expect(result.sources.traces).toMatchObject({
-      status: "unavailable",
-      code: "directory_missing",
-    });
     expect(result.ranked.items).toEqual([]);
-  });
-
-  it("surfaces metadata-only read traces through the shared evidence service", async () => {
-    await fs.mkdir(path.join(tempRoot, ".agents", "traces"), { recursive: true });
-    await fs.writeFile(
-      path.join(tempRoot, ".agents", "traces", "session-observed.jsonl"),
-      `${JSON.stringify({
-        version: "0.1.0",
-        id: "trace-observed-read",
-        timestamp: "2026-05-30T10:15:00Z",
-        files: [],
-        metadata: {
-          session: {
-            sessionID: "session-observed",
-            observedTools: [
-              {
-                tool: "read",
-                callID: "call-read",
-                capturedAt: "2026-05-30T10:15:00Z",
-                strategy: "path-only",
-                metadata: {
-                  path: "src/example.ts",
-                  offset: 4,
-                  limit: 12,
-                },
-                budget: {
-                  maxBytes: 512,
-                  usedBytes: 96,
-                },
-              },
-            ],
-          },
-        },
-      })}\n`,
-      "utf8",
-    );
-
-    const result = await loadLocalPathEvidence({
-      rootDir: tempRoot,
-      path: "src/example.ts",
-      includeMessages: false,
-      includeWorkItems: false,
-    });
-
-    expect(result.sources.messages).toMatchObject({
-      status: "unsupported",
-      code: "disabled_by_caller",
-    });
-    expect(result.sources.workItems).toMatchObject({
-      status: "unsupported",
-      code: "disabled_by_caller",
-    });
-    expect(result.sources.traces).toMatchObject({
-      status: "available",
-      totalMatches: 1,
-    });
-    expect(result.ranked.items).toMatchObject([
-      expect.objectContaining({
-        kind: "trace",
-        matchedPath: "src/example.ts",
-        observedTool: "read",
-        strategy: "path-only",
-        ranges: [],
-      }),
-    ]);
   });
 
   it("can surface message evidence through linked work items and convert ranked items to provenance sources", async () => {
@@ -322,11 +221,10 @@ describe("loadLocalPathEvidence", () => {
       "utf8",
     );
 
-    const result = await loadLocalPathEvidence({
-      rootDir: tempRoot,
-      path: "src/example.ts",
-      includeTraces: false,
-    });
+	    const result = await loadLocalPathEvidence({
+	      rootDir: tempRoot,
+	      path: "src/example.ts",
+	    });
 
     expect(result.sources.messages.status).toBe("available");
     if (result.sources.messages.status !== "available") {
@@ -374,12 +272,11 @@ describe("loadLocalPathEvidence", () => {
       "utf8",
     );
 
-    const result = await loadLocalPathEvidence({
-      rootDir: tempRoot,
-      path: PROVENANCE_REGISTRY_PATH,
-      includeTraces: false,
-      includeWorkItems: false,
-    });
+	    const result = await loadLocalPathEvidence({
+	      rootDir: tempRoot,
+	      path: PROVENANCE_REGISTRY_PATH,
+	      includeWorkItems: false,
+	    });
 
     expect(result.sources.messages.status).toBe("available");
     if (result.sources.messages.status !== "available") {
@@ -524,235 +421,4 @@ describe("loadLocalPathEvidence", () => {
     );
   });
 
-  it("returns unavailable span trace evidence when traces are missing", async () => {
-    const result = await loadLocalSpanTraceEvidence({
-      rootDir: tempRoot,
-      path: "src/example.ts",
-      startLine: 5,
-      endLine: 6,
-    });
-
-    expect(result.anchor).toMatchObject({
-      path: "src/example.ts",
-      aliases: expect.arrayContaining(["src/example.ts"]),
-    });
-    expect(result.span).toEqual({
-      startLine: 5,
-      endLine: 6,
-    });
-    expect(result.source).toMatchObject({
-      source: "traces",
-      directory: ".agents/traces",
-      status: "unavailable",
-      code: "directory_missing",
-    });
-  });
-
-  it("returns exact span trace matches for traced ranges", async () => {
-    await fs.mkdir(path.join(tempRoot, ".agents", "traces"), { recursive: true });
-    await fs.writeFile(
-      path.join(tempRoot, ".agents", "traces", "session-span.jsonl"),
-      `${JSON.stringify({
-        version: "0.1.0",
-        id: "trace-span",
-        timestamp: "2026-05-30T12:00:00Z",
-        files: [
-          {
-            path: "src/example.ts",
-            conversations: [
-              {
-                contributor: { type: "ai", model_id: "openai/gpt-5.4" },
-                ranges: [
-                  {
-                    start_line: 4,
-                    end_line: 8,
-                    content_hash: "hash-span",
-                    contributor: { type: "ai", model_id: "openai/gpt-5.4" },
-                  },
-                ],
-              },
-            ],
-          },
-        ],
-        metadata: {
-          session: { sessionID: "session-span" },
-          session_context: {
-            agent: "builder",
-            model: { providerID: "openai", modelID: "gpt-5.4" },
-          },
-        },
-      })}\n`,
-      "utf8",
-    );
-
-    const result = await loadLocalSpanTraceEvidence({
-      rootDir: tempRoot,
-      path: "src/example.ts",
-      startLine: 5,
-      endLine: 6,
-    });
-
-    expect(result.source).toMatchObject({
-      status: "available",
-      matchMode: "exact",
-      exactMatches: 1,
-      items: [
-        expect.objectContaining({
-          matchKind: "exact_span",
-          confidence: "high",
-          contributor: {
-            type: "ai",
-            modelID: "openai/gpt-5.4",
-          },
-          ranges: [
-            expect.objectContaining({
-              startLine: 4,
-              endLine: 8,
-              overlapStartLine: 5,
-              overlapEndLine: 6,
-            }),
-          ],
-        }),
-      ],
-    });
-  });
-
-  it("returns heuristic path-only trace matches for untraced ranges", async () => {
-    await fs.mkdir(path.join(tempRoot, ".agents", "traces"), { recursive: true });
-    await fs.writeFile(
-      path.join(tempRoot, ".agents", "traces", "session-heuristic.jsonl"),
-      `${JSON.stringify({
-        version: "0.1.0",
-        id: "trace-heuristic",
-        timestamp: "2026-05-30T12:30:00Z",
-        files: [
-          {
-            path: "src/example.ts",
-            conversations: [
-              {
-                contributor: { type: "ai", model_id: "openai/gpt-5.4" },
-                ranges: [{ start_line: 4, end_line: 8, content_hash: "hash-heuristic" }],
-              },
-            ],
-          },
-        ],
-        metadata: {
-          session: { sessionID: "session-heuristic" },
-          session_context: {
-            agent: "builder",
-            model: { providerID: "openai", modelID: "gpt-5.4" },
-          },
-        },
-      })}\n`,
-      "utf8",
-    );
-
-    const result = await loadLocalSpanTraceEvidence({
-      rootDir: tempRoot,
-      path: "src/example.ts",
-      startLine: 20,
-      endLine: 22,
-    });
-
-    expect(result.source).toMatchObject({
-      status: "available",
-      matchMode: "heuristic",
-      exactMatches: 0,
-      heuristicMatches: 1,
-      items: [
-        expect.objectContaining({
-          matchKind: "path_only",
-          confidence: "low",
-          heuristic: true,
-        }),
-      ],
-    });
-  });
-
-  it("prefers exact span traces over heuristic matches and applies deterministic bounds", async () => {
-    await fs.mkdir(path.join(tempRoot, ".agents", "traces"), { recursive: true });
-    await fs.writeFile(
-      path.join(tempRoot, ".agents", "traces", "session-mixed.jsonl"),
-      [
-        JSON.stringify({
-          version: "0.1.0",
-          id: "trace-heuristic",
-          timestamp: "2026-05-30T12:45:00Z",
-          files: [
-            {
-              path: "src/example.ts",
-              conversations: [{ ranges: [{ start_line: 40, end_line: 45 }] }],
-            },
-          ],
-        }),
-        JSON.stringify({
-          version: "0.1.0",
-          id: "trace-exact-one",
-          timestamp: "2026-05-30T12:00:00Z",
-          files: [
-            {
-              path: "src/example.ts",
-              conversations: [
-                {
-                  ranges: [
-                    { start_line: 4, end_line: 8, content_hash: "hash-exact-one-a" },
-                    { start_line: 5, end_line: 7, content_hash: "hash-exact-one-b" },
-                  ],
-                },
-              ],
-            },
-          ],
-        }),
-        JSON.stringify({
-          version: "0.1.0",
-          id: "trace-exact-two",
-          timestamp: "2026-05-30T13:00:00Z",
-          files: [
-            {
-              path: "src/example.ts",
-              conversations: [
-                { ranges: [{ start_line: 5, end_line: 6, content_hash: "hash-exact-two" }] },
-              ],
-            },
-          ],
-        }),
-        "{not-json",
-      ].join("\n") + "\n",
-      "utf8",
-    );
-
-    const result = await loadLocalSpanTraceEvidence({
-      rootDir: tempRoot,
-      path: "src/example.ts",
-      startLine: 5,
-      endLine: 6,
-      limit: 1,
-    });
-
-    expect(result.source).toMatchObject({
-      status: "available",
-      matchMode: "exact",
-      totalMatches: 2,
-      exactMatches: 2,
-      heuristicMatches: 1,
-      bounds: {
-        requested: 1,
-        limit: 1,
-        returned: 1,
-        truncated: true,
-      },
-      warnings: [expect.objectContaining({ code: "invalid_trace_record" })],
-    });
-    expect(result.source.status === "available" && result.source.items).toEqual([
-      expect.objectContaining({
-        id: ".agents/traces/session-mixed.jsonl:trace-exact-one:src/example.ts:exact",
-        matchKind: "exact_span",
-        score: 420,
-        ranges: [
-          expect.objectContaining({ contentHash: "hash-exact-one-a" }),
-          expect.objectContaining({ contentHash: "hash-exact-one-b" }),
-        ],
-      }),
-    ]);
-  });
 });

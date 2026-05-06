@@ -37,11 +37,9 @@ describe("groundwork single home", () => {
         ),
       ),
     ).resolves.toBe(true);
-    await expect(
-      pathExists(
-        path.join(pluginRoot, "src", "provenance", "trace", "storage.ts"),
-      ),
-    ).resolves.toBe(true);
+    await expect(pathExists(path.join(pluginRoot, "src", "provenance", "trace"))).resolves.toBe(
+      false,
+    );
   });
 
   it("does not leave retired plugin homes behind", async () => {

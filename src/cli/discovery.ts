@@ -185,13 +185,6 @@ export const COMMAND_CAPABILITIES = [
     schemas: ["groundwork.session.put-pending-tool.input/v1"],
   },
   {
-    command_id: "session.append-trace",
-    command: "session append-trace",
-    category: "workflow",
-    description: "Append a trace record to one Groundwork session artifact.",
-    schemas: ["groundwork.session.append-trace.input/v1"],
-  },
-  {
     command_id: "session.cleanup",
     command: "session cleanup",
     category: "maintenance",
@@ -476,14 +469,6 @@ export const EXAMPLES = [
     name: "Persist a pending tool snapshot",
     args: [
       `{"session_id":"example","call_id":"call-1","tool_name":"apply_patch","phase":"before","args":{"path":"src/index.ts"}}`,
-    ],
-  },
-  {
-    command_id: "session.append-trace",
-    command: "session append-trace",
-    name: "Append a trace record",
-    args: [
-      `{"session_id":"example","trace":{"type":"tool","tool":"edit","target":"src/index.ts","timestamp":"2026-05-06T00:00:00Z"}}`,
     ],
   },
   {

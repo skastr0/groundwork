@@ -1,6 +1,6 @@
 import path from "node:path";
 import { readFileString, runProcessText } from "../../../../shared/effect-runtime.ts";
-import { computePostImageRanges } from "../../trace/diff.ts";
+import { computePostImageRanges } from "../diff.ts";
 import { tool, type ToolDefinition } from "@opencode-ai/plugin";
 import { z } from "zod";
 import {
@@ -64,7 +64,7 @@ const GW_READ_TOOL = "gw_read" as const;
 const GW_BLOCK_READ_TOOL = "gw_block_read" as const;
 type QueryToolName = typeof GW_READ_TOOL | typeof GW_BLOCK_READ_TOOL;
 
-const EVIDENCE_ITEM_KIND_VALUES = ["message", "work_item", "trace"] as const;
+const EVIDENCE_ITEM_KIND_VALUES = ["message", "work_item"] as const;
 const BLOCK_WINDOW_SOURCE_VALUES = ["focus", "radius", "explicit"] as const;
 const DIFF_CONTEXT_RELATION_VALUES = ["overlap", "before", "after"] as const;
 const LOCAL_DIFF_CONTEXT_KEY_VALUES = ["head_to_index", "index_to_worktree"] as const;
@@ -127,11 +127,10 @@ const EvidenceItemSummarySchema = z.object({
 });
 
 const ProvReadEvidenceSchema = z.object({
-  sources: z.object({
-    messages: EvidenceSourceSummarySchema,
-    workItems: EvidenceSourceSummarySchema,
-    traces: EvidenceSourceSummarySchema,
-  }),
+	  sources: z.object({
+	    messages: EvidenceSourceSummarySchema,
+	    workItems: EvidenceSourceSummarySchema,
+	  }),
   items: z.array(EvidenceItemSummarySchema),
   bounds: ProvenanceBoundsSchema,
   bytes: ProvenanceBoundsSchema,
@@ -855,12 +854,11 @@ function summarizeEvidenceItem(
 function buildReadEvidence(
   evidenceResult: Awaited<ReturnType<typeof loadLocalPathEvidence>>,
 ): ProvReadData["evidence"] {
-  const evidence: ProvReadData["evidence"] = {
-    sources: {
-      messages: summarizeEvidenceSource(evidenceResult.sources.messages),
-      workItems: summarizeEvidenceSource(evidenceResult.sources.workItems),
-      traces: summarizeEvidenceSource(evidenceResult.sources.traces),
-    },
+	  const evidence: ProvReadData["evidence"] = {
+	    sources: {
+	      messages: summarizeEvidenceSource(evidenceResult.sources.messages),
+	      workItems: summarizeEvidenceSource(evidenceResult.sources.workItems),
+	    },
     items: evidenceResult.ranked.items.map((item) => summarizeEvidenceItem(item)),
     bounds: evidenceResult.ranked.bounds,
     bytes: evidenceResult.ranked.bytes,
@@ -881,11 +879,10 @@ function buildEvidenceHints(data: {
   bytes: ProvenanceBounds;
 }): string[] {
   const hints: string[] = [];
-  const sourceEntries = [
-    ["messages", data.sources.messages],
-    ["work items", data.sources.workItems],
-    ["traces", data.sources.traces],
-  ] as const;
+	  const sourceEntries = [
+	    ["messages", data.sources.messages],
+	    ["work items", data.sources.workItems],
+	  ] as const;
 
   for (const [label, source] of sourceEntries) {
     if (source.status === "available" && source.bounds.truncated) {
@@ -935,11 +932,10 @@ function createContentWarning(content: ProvReadData["content"]): ProvenanceWarni
 function createEvidenceWarnings(evidence: ProvReadData["evidence"]): ProvenanceWarning[] {
   const warnings: ProvenanceWarning[] = [];
 
-  for (const source of [
-    evidence.sources.messages,
-    evidence.sources.workItems,
-    evidence.sources.traces,
-  ]) {
+	  for (const source of [
+	    evidence.sources.messages,
+	    evidence.sources.workItems,
+	  ]) {
     if (source.status === "available") {
       warnings.push(...source.warnings);
       if (source.bounds.truncated) {

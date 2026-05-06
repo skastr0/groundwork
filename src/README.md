@@ -9,9 +9,9 @@
 - `logger/` — shared framework logger
 - `policy/` — policy config parsing, matching, enforcement, and violation artifacts
 - `context/` — `AGENTS.md` and `CLAUDE.md` discovery plus prompt injection
-- `provenance/` — runtime hooks, `gw_*` tool registry, local evidence, trace storage, and provenance tooling
+- `provenance/` — runtime hooks, `gw_*` tool registry, local evidence, and provenance tooling
 - `risk/` — destructive command evaluation and bash gating
-- `tests/` — framework-owned coverage for policy, context, provenance, risk, trace, and composition
+- `tests/` — framework-owned coverage for policy, context, provenance, risk, and composition
 
 ## Layer Order
 
@@ -26,7 +26,7 @@ That order matters:
 
 - `policy` blocks or injects before other layers add context.
 - `context` injects inherited instructions before provenance augments tool guidance.
-- `provenance` captures evidence and enriches tool definitions after policy and context are settled.
+- `provenance` enriches tool definitions and exposes local evidence tools after policy and context are settled.
 - `risk` is the final stop for destructive bash commands.
 
 ## Policy
@@ -53,7 +53,6 @@ The framework owns the full `gw_*` tool surface under `provenance/`:
 
 - tool builders: `provenance/tooling/`
 - local evidence ranking: `provenance/local-evidence.ts`
-- trace storage and schemas: `provenance/trace/`
 - runtime hooks and tool-definition augmentation: `provenance/runtime.ts`
 
 ## Validation Anchors

@@ -1,11 +1,10 @@
 export {
   DEFAULT_LOCAL_EVIDENCE_BYTE_LIMIT,
   DEFAULT_LOCAL_EVIDENCE_SOURCE_LIMIT,
-  LOCAL_EVIDENCE_SOURCE_VALUES,
-  LOCAL_EVIDENCE_STATUS_VALUES,
-  loadLocalPathEvidence,
-  loadLocalSpanTraceEvidence,
-} from "../../local-evidence.ts";
+	  LOCAL_EVIDENCE_SOURCE_VALUES,
+	  LOCAL_EVIDENCE_STATUS_VALUES,
+	  loadLocalPathEvidence,
+	} from "../../local-evidence.ts";
 export type {
   LocalEvidenceMatch,
   LocalEvidenceSourceName,
@@ -13,26 +12,15 @@ export type {
   LocalEvidenceStatus,
   LocalMessageEvidenceItem,
   LocalPathEvidenceAnchor,
-  LocalPathEvidenceOptions,
-  LocalPathEvidenceRanking,
-  LocalPathEvidenceResult,
-  LocalSpanTraceEvidenceItem,
-  LocalSpanTraceEvidenceOptions,
-  LocalSpanTraceEvidenceResult,
-  LocalSpanTraceEvidenceSourceResult,
-  LocalSpanTraceMatchKind,
-  LocalSpanTraceMatchMode,
-  LocalSpanTraceRange,
-  LocalTraceContributorSnapshot,
-  LocalTraceContributorType,
-  LocalTraceEvidenceItem,
-  LocalWorkItemEvidenceItem,
-} from "../../local-evidence.ts";
+	  LocalPathEvidenceOptions,
+	  LocalPathEvidenceRanking,
+	  LocalPathEvidenceResult,
+	  LocalWorkItemEvidenceItem,
+	} from "../../local-evidence.ts";
 
 import type {
   LocalEvidenceMatch,
   LocalMessageEvidenceItem,
-  LocalTraceEvidenceItem,
   LocalWorkItemEvidenceItem,
 } from "../../local-evidence.ts";
 import type { ProvenanceEvidenceSource } from "../contracts.ts";
@@ -46,7 +34,8 @@ export function toProvenanceEvidenceSource(item: LocalEvidenceMatch): Provenance
     return toWorkItemEvidenceSource(item);
   }
 
-  return toTraceEvidenceSource(item);
+  const _exhaustive: never = item;
+  return _exhaustive;
 }
 
 export function toProvenanceEvidenceSources(
@@ -72,16 +61,5 @@ function toWorkItemEvidenceSource(item: LocalWorkItemEvidenceItem): ProvenanceEv
     path: item.path,
     label: item.title,
     detail: `${item.phase} | ${item.acceptance.completed}/${item.acceptance.total} criteria complete`,
-  };
-}
-
-function toTraceEvidenceSource(item: LocalTraceEvidenceItem): ProvenanceEvidenceSource {
-  return {
-    kind: "trace",
-    id: item.id,
-    path: item.traceFile,
-    ref: item.recordID,
-    label: item.matchedPath,
-    detail: item.sessionID ? `session ${item.sessionID}` : item.timestamp,
   };
 }

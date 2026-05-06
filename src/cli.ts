@@ -117,7 +117,6 @@ function validateCommandShape(args: string[]): CommandShapeFailure | undefined {
       ]);
     case "session":
       return validateInputCommand("session", subcommand, input, commandArgs, [
-        "append-trace",
         "cleanup",
         "get",
         "override",

@@ -39,22 +39,17 @@ describe("framework local evidence service", () => {
       "utf8",
     );
 
-    const result = await loadLocalPathEvidence({
-      rootDir: tempRoot,
-      path: "src/example.ts",
-      includeWorkItems: false,
-      includeTraces: false,
-    });
+	    const result = await loadLocalPathEvidence({
+	      rootDir: tempRoot,
+	      path: "src/example.ts",
+	      includeWorkItems: false,
+	    });
 
     expect(result.sources.messages).toMatchObject({
       status: "available",
       totalMatches: 1,
     });
     expect(result.sources.workItems).toMatchObject({
-      status: "unsupported",
-      code: "disabled_by_caller",
-    });
-    expect(result.sources.traces).toMatchObject({
       status: "unsupported",
       code: "disabled_by_caller",
     });
@@ -124,12 +119,11 @@ describe("framework local evidence service", () => {
       );
     }
 
-    const result = await loadLocalPathEvidence({
-      rootDir: tempRoot,
-      path: "src/example.ts",
-      includeWorkItems: false,
-      includeTraces: false,
-    });
+	    const result = await loadLocalPathEvidence({
+	      rootDir: tempRoot,
+	      path: "src/example.ts",
+	      includeWorkItems: false,
+	    });
 
     expect(result.sources.messages.status).toBe("available");
     if (result.sources.messages.status !== "available") {

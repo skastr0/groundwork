@@ -1871,25 +1871,6 @@ message = "console logging should be reviewed"
     ]);
     expect(pendingResult.exitCode).toBe(0);
 
-    const traceResult = await runGroundwork([
-      "session",
-      "append-trace",
-      JSON.stringify({
-        root_dir: rootDir,
-        session_id: sessionId,
-        trace: { id: "trace-1", kind: "test" },
-      }),
-    ]);
-    expect(traceResult.exitCode).toBe(0);
-    expect(parseJson(traceResult.stdout)).toMatchObject({
-      ok: true,
-      command: "session append-trace",
-      data: {
-        session_id: sessionId,
-        trace_file: expect.stringContaining("traces.jsonl"),
-      },
-    });
-
     const getResult = await runGroundwork([
       "session",
       "get",
@@ -1956,9 +1937,9 @@ message = "console logging should be reviewed"
     await expect(fs.readFile(path.join(sessionDir, "events.jsonl"), "utf8")).resolves.toContain(
       "skill-loaded",
     );
-    await expect(fs.readFile(path.join(sessionDir, "traces.jsonl"), "utf8")).resolves.toContain(
-      "trace-1",
-    );
+    await expect(fs.access(path.join(sessionDir, "traces.jsonl"))).rejects.toMatchObject({
+      code: "ENOENT",
+    });
 
     const cleanupResult = await runGroundwork([
       "session",
@@ -2048,16 +2029,6 @@ message = "infra needs override"
         args: { path: "infra/main.tf" },
       }),
     ]);
-    await runGroundwork([
-      "session",
-      "append-trace",
-      JSON.stringify({
-        root_dir: rootDir,
-        session_id: sessionId,
-        trace: { kind: "test-trace" },
-      }),
-    ]);
-
     const result = await runGroundwork([
       "session",
       "render-compaction",
@@ -2071,10 +2042,9 @@ message = "infra needs override"
         summary: {
           confirmed_skills: ["sdlc"],
           overrides: [expect.objectContaining({ reason: "approved" })],
-          active_locks: [expect.objectContaining({ reason: "infra needs override" })],
-          context_reminders: [expect.objectContaining({ path: expect.stringContaining("AGENTS.md") })],
-          recent_traces: [expect.objectContaining({ trace: { kind: "test-trace" } })],
-        },
+	          active_locks: [expect.objectContaining({ reason: "infra needs override" })],
+	          context_reminders: [expect.objectContaining({ path: expect.stringContaining("AGENTS.md") })],
+	        },
         text: expect.stringContaining("Confirmed skills: sdlc"),
       },
     });
@@ -2095,11 +2065,10 @@ message = "infra needs override"
     expect(result.exitCode).toBe(0);
     expect(parseJson(result.stdout)).toMatchObject({
       data: {
-        summary: {
-          confirmed_skills: [],
-          active_locks: [],
-          recent_traces: [],
-        },
+	        summary: {
+	          confirmed_skills: [],
+	          active_locks: [],
+	        },
         text: expect.stringContaining("Confirmed skills: none"),
       },
     });

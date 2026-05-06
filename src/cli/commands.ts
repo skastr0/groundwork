@@ -55,7 +55,6 @@ import {
   RiskEvaluateCommandInputSchema,
 } from "./schemas.ts";
 import {
-  SessionAppendTraceInputSchema,
   SessionCleanupInputSchema,
   SessionGetInputSchema,
   SessionOverrideInputSchema,
@@ -63,7 +62,6 @@ import {
   SessionRememberActionInputSchema,
   SessionRenderCompactionInputSchema,
   SessionSkillLoadedInputSchema,
-  appendSessionTrace,
   cleanupSessionArtifacts,
   getSessionArtifact,
   markSessionSkillsLoaded,
@@ -409,15 +407,6 @@ const sessionPutPendingToolCommand = Command.make(
     ),
 ).pipe(Command.withDescription(commandDescription("session put-pending-tool")));
 
-const sessionAppendTraceCommand = Command.make("append-trace", { input: inputArg }, ({ input }) =>
-  toEffect(() =>
-    executeJsonCommand("session append-trace", async () => {
-      const payload = await decodeJsonInput(input, SessionAppendTraceInputSchema);
-      return appendSessionTrace(payload);
-    }),
-  ),
-).pipe(Command.withDescription(commandDescription("session append-trace")));
-
 const sessionCleanupCommand = Command.make("cleanup", { input: inputArg }, ({ input }) =>
   toEffect(() =>
     executeJsonCommand("session cleanup", async () => {
@@ -442,7 +431,6 @@ const sessionRenderCompactionCommand = Command.make(
 const sessionCommand = Command.make("session").pipe(
   Command.withDescription("Session artifact commands"),
   Command.withSubcommands([
-    sessionAppendTraceCommand,
     sessionCleanupCommand,
     sessionGetCommand,
     sessionOverrideCommand,

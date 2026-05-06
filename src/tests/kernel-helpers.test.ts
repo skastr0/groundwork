@@ -201,11 +201,11 @@ describe("framework kernel helpers", () => {
     const state = createSessionKernelState("session-3", {
       now: "2026-05-30T09:00:00.000Z",
     });
-    const evidence = [
-      { kind: "message", summary: "one" },
-      { kind: "trace", summary: "two" },
-      { kind: "work-item", summary: "three" },
-    ] as const;
+	    const evidence = [
+	      { kind: "message", summary: "one" },
+	      { kind: "session", summary: "two" },
+	      { kind: "work-item", summary: "three" },
+	    ] as const;
 
     const result = applyFrameworkEvidenceBudget(state, evidence, {
       now: "2026-05-30T09:00:01.000Z",

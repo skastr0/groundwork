@@ -22,11 +22,6 @@ import {
   type ProvenanceWarning,
 } from "../contracts.ts";
 import {
-  loadLocalSpanTraceEvidence,
-  type LocalSpanTraceEvidenceItem,
-  type LocalSpanTraceEvidenceSourceResult,
-} from "../evidence/index.ts";
-import {
   normalizeCreateStateToolsOptions,
   normalizeRequestedPath,
   type CreateStateToolsOptions,
@@ -34,11 +29,9 @@ import {
 import { logger } from "../utils/logger.ts";
 
 const GW_SPAN_HISTORY_TOOL = "gw_span_history" as const;
-const TRACE_MATCH_MODE_VALUES = ["exact", "heuristic", "none"] as const;
-const TRACE_MATCH_KIND_VALUES = ["exact_span", "path_only"] as const;
-const LINEAGE_ENTRY_KIND_VALUES = ["trace", "commit"] as const;
+const LINEAGE_ENTRY_KIND_VALUES = ["commit"] as const;
 const CONTRIBUTOR_TYPE_VALUES = ["human", "ai", "mixed", "unknown"] as const;
-const CONTRIBUTOR_EVIDENCE_KIND_VALUES = ["git", "trace"] as const;
+const CONTRIBUTOR_EVIDENCE_KIND_VALUES = ["git"] as const;
 const GIT_RANGE_HISTORY_METHOD = "git log --no-patch -L <start>,<end>:<path>";
 const GIT_RANGE_HISTORY_FORMAT = "%H%x1f%an%x1f%ae%x1f%aI%x1f%s";
 
@@ -92,57 +85,10 @@ type SpanHistoryToolInput = {
   limit?: number;
 };
 
-const TraceContributorSchema = z.object({
-  type: z.enum(CONTRIBUTOR_TYPE_VALUES),
-  modelId: z.string().min(1).optional(),
-});
-
 const SpanRangeSchema = z.object({
   startLine: z.number().int().positive(),
   endLine: z.number().int().positive(),
 });
-
-const SpanTraceRangeSchema = SpanRangeSchema.extend({
-  overlapStartLine: z.number().int().positive().optional(),
-  overlapEndLine: z.number().int().positive().optional(),
-  contentHash: z.string().min(1).optional(),
-  contributor: TraceContributorSchema.optional(),
-});
-
-const SpanTraceEntrySchema = z.object({
-  id: z.string().min(1),
-  traceFile: z.string().min(1),
-  recordId: z.string().min(1),
-  matchedPath: z.string().min(1),
-  timestamp: z.string().min(1),
-  sessionId: z.string().min(1).optional(),
-  vcsRevision: z.string().min(1).optional(),
-  agent: z.string().min(1).optional(),
-  model: z.string().min(1).optional(),
-  contributor: TraceContributorSchema.optional(),
-  matchKind: z.enum(TRACE_MATCH_KIND_VALUES),
-  confidence: ProvenanceConfidenceSchema,
-  heuristic: z.boolean(),
-  reasons: z.array(z.string().min(1)),
-  ranges: z.array(SpanTraceRangeSchema),
-});
-
-const SpanTraceSourceSchema = z.discriminatedUnion("status", [
-  z.object({
-    status: z.literal("available"),
-    matchMode: z.enum(TRACE_MATCH_MODE_VALUES),
-    totalMatches: z.number().int().nonnegative(),
-    exactMatches: z.number().int().nonnegative(),
-    heuristicMatches: z.number().int().nonnegative(),
-    bounds: ProvenanceBoundsSchema,
-    items: z.array(SpanTraceEntrySchema),
-  }),
-  z.object({
-    status: z.literal("unavailable"),
-    code: z.string().min(1),
-    message: z.string().min(1),
-  }),
-]);
 
 const SpanCommitHistoryItemSchema = z.object({
   commit: z.string().min(1),
@@ -194,7 +140,6 @@ export const ProvSpanHistoryDataSchema = z.object({
   requestedPath: z.string().min(1),
   resolvedPath: z.string().min(1),
   span: SpanRangeSchema,
-  traces: SpanTraceSourceSchema,
   commits: SpanCommitSourceSchema,
   contributors: z.array(SpanContributorSchema),
   lineage: z.array(SpanHistoryLineageEntrySchema),
@@ -232,43 +177,6 @@ function getHighestConfidence(
   right: ProvenanceConfidence,
 ): ProvenanceConfidence {
   return CONFIDENCE_PRIORITY[left] >= CONFIDENCE_PRIORITY[right] ? left : right;
-}
-
-function normalizeTraceItem(item: LocalSpanTraceEvidenceItem) {
-  return {
-    id: item.id,
-    traceFile: item.traceFile,
-    recordId: item.recordID,
-    matchedPath: item.matchedPath,
-    timestamp: item.timestamp,
-    sessionId: item.sessionID,
-    vcsRevision: item.vcsRevision,
-    agent: item.agent,
-    model: item.model,
-    contributor: item.contributor
-      ? {
-          type: item.contributor.type,
-          modelId: item.contributor.modelID,
-        }
-      : undefined,
-    matchKind: item.matchKind,
-    confidence: item.confidence,
-    heuristic: item.heuristic,
-    reasons: [...item.reasons],
-    ranges: item.ranges.map((range) => ({
-      startLine: range.startLine,
-      endLine: range.endLine,
-      overlapStartLine: range.overlapStartLine,
-      overlapEndLine: range.overlapEndLine,
-      contentHash: range.contentHash,
-      contributor: range.contributor
-        ? {
-            type: range.contributor.type,
-            modelId: range.contributor.modelID,
-          }
-        : undefined,
-    })),
-  };
 }
 
 async function loadLocalSpanCommitHistory(options: {
@@ -341,43 +249,6 @@ async function loadLocalSpanCommitHistory(options: {
   }
 }
 
-function toTraceWarnings(
-  path: string,
-  startLine: number,
-  endLine: number,
-  traces: LocalSpanTraceEvidenceSourceResult,
-): ProvenanceWarning[] {
-  if (traces.status === "unavailable") {
-    return [
-      {
-        code: traces.code,
-        message: traces.message,
-        ambiguity: "low",
-      },
-    ];
-  }
-
-  const warnings = [...traces.warnings];
-
-  if (traces.matchMode === "heuristic") {
-    warnings.push({
-      code: "trace_range_unmatched",
-      message: `No exact local trace overlap matched '${path}:${startLine}-${endLine}'; returning file-level trace matches as heuristic context.`,
-      ambiguity: "medium",
-    });
-  }
-
-  if (traces.matchMode === "none") {
-    warnings.push({
-      code: "trace_not_found",
-      message: `No local trace evidence matched '${path}:${startLine}-${endLine}'.`,
-      ambiguity: "low",
-    });
-  }
-
-  return warnings;
-}
-
 function toCommitWarnings(commits: SpanCommitHistorySourceResult): ProvenanceWarning[] {
   if (commits.status === "unavailable") {
     return [
@@ -403,10 +274,6 @@ function toCommitWarnings(commits: SpanCommitHistorySourceResult): ProvenanceWar
 }
 
 function createSpanHistoryWarnings(
-  path: string,
-  startLine: number,
-  endLine: number,
-  traces: LocalSpanTraceEvidenceSourceResult,
   commits: SpanCommitHistorySourceResult,
 ): ProvenanceWarning[] {
   return [
@@ -416,25 +283,15 @@ function createSpanHistoryWarnings(
         "Commit lineage is limited to the current path and requested line range; rename or refactor ancestry is not followed.",
       ambiguity: "low",
     },
-    ...toTraceWarnings(path, startLine, endLine, traces),
     ...toCommitWarnings(commits),
   ];
 }
 
 function resolveSpanHistoryConfidence(data: {
-  traces: ProvSpanHistoryData["traces"];
   commits: ProvSpanHistoryData["commits"];
 }): ProvenanceConfidence {
-  if (data.traces.status === "available" && data.traces.matchMode === "exact") {
-    return "high";
-  }
-
   if (data.commits.status === "available" && data.commits.items.length > 0) {
     return "medium";
-  }
-
-  if (data.traces.status === "available" && data.traces.matchMode === "heuristic") {
-    return "low";
   }
 
   return "low";
@@ -442,29 +299,12 @@ function resolveSpanHistoryConfidence(data: {
 
 function createLineageEntries(data: {
   path: string;
-  traces: ProvSpanHistoryData["traces"];
   commits: ProvSpanHistoryData["commits"];
   limit: number | undefined;
 }): {
   items: LineageEntry[];
   bounds: z.infer<typeof ProvenanceBoundsSchema>;
 } {
-  const traceEntries: LineageEntry[] =
-    data.traces.status === "available"
-      ? data.traces.items.map((item) => ({
-          kind: "trace",
-          id: item.id,
-          timestamp: item.timestamp,
-          confidence: item.confidence,
-          heuristic: item.heuristic,
-          summary:
-            item.matchKind === "exact_span"
-              ? `Trace span match in ${item.matchedPath}`
-              : `Heuristic file-level trace match in ${item.matchedPath}`,
-          detail: item.sessionId ? `session ${item.sessionId}` : item.traceFile,
-        }))
-      : [];
-
   const commitEntries: LineageEntry[] =
     data.commits.status === "available"
       ? data.commits.items.map((item) => ({
@@ -478,7 +318,7 @@ function createLineageEntries(data: {
         }))
       : [];
 
-  const ranked = [...traceEntries, ...commitEntries].sort(
+  const ranked = commitEntries.sort(
     (left, right) => parseTimestamp(right.timestamp) - parseTimestamp(left.timestamp),
   );
 
@@ -486,7 +326,6 @@ function createLineageEntries(data: {
 }
 
 function buildContributorSummaries(data: {
-  traces: ProvSpanHistoryData["traces"];
   commits: ProvSpanHistoryData["commits"];
 }): ProvSpanHistoryData["contributors"] {
   const contributors = new Map<
@@ -536,23 +375,6 @@ function buildContributorSummaries(data: {
     });
   };
 
-  if (data.traces.status === "available") {
-    for (const item of data.traces.items) {
-      const type = item.contributor?.type ?? "unknown";
-      const model = item.contributor?.modelId ?? item.model;
-      const label = model ?? `trace:${type}`;
-      upsert({
-        key: `trace:${label}`,
-        label,
-        type,
-        confidence: item.confidence,
-        evidenceKind: "trace",
-        model,
-        session: item.sessionId,
-      });
-    }
-  }
-
   if (data.commits.status === "available") {
     for (const item of data.commits.items) {
       const label = item.authorEmail ? `${item.authorName} <${item.authorEmail}>` : item.authorName;
@@ -587,21 +409,6 @@ function buildContributorSummaries(data: {
     });
 }
 
-function toTraceEvidenceSources(traces: ProvSpanHistoryData["traces"]): ProvenanceEvidenceSource[] {
-  if (traces.status !== "available") {
-    return [];
-  }
-
-  return traces.items.map((item) => ({
-    kind: "trace",
-    id: item.id,
-    path: item.traceFile,
-    ref: item.recordId,
-    label: item.matchKind === "exact_span" ? item.matchedPath : `${item.matchedPath} (heuristic)`,
-    detail: item.sessionId ? `session ${item.sessionId}` : item.timestamp,
-  }));
-}
-
 function toCommitEvidenceSources(
   path: string,
   commits: ProvSpanHistoryData["commits"],
@@ -621,20 +428,12 @@ function toCommitEvidenceSources(
 }
 
 function createSpanHistorySummary(data: ProvSpanHistoryData): string {
-  const traceSummary =
-    data.traces.status === "available"
-      ? data.traces.matchMode === "exact"
-        ? `${data.traces.items.length} exact trace match(es)`
-        : data.traces.matchMode === "heuristic"
-          ? `${data.traces.items.length} heuristic trace match(es)`
-          : "no trace matches"
-      : "trace evidence unavailable";
   const commitSummary =
     data.commits.status === "available"
       ? `${data.commits.items.length} commit history item(s)`
       : "commit history unavailable";
 
-  return `Span history for ${data.resolvedPath}:${data.span.startLine}-${data.span.endLine}: ${traceSummary}, ${commitSummary}, ${data.contributors.length} contributor(s).`;
+  return `Span history for ${data.resolvedPath}:${data.span.startLine}-${data.span.endLine}: ${commitSummary}, ${data.contributors.length} contributor(s).`;
 }
 
 function createUnsupportedModeFailure(mode: string): string {
@@ -678,13 +477,6 @@ export interface LocalSpanLineageResolution {
 export async function resolveLocalSpanLineage(
   options: ResolveLocalSpanLineageOptions,
 ): Promise<LocalSpanLineageResolution> {
-  const traceResult = await loadLocalSpanTraceEvidence({
-    rootDir: options.rootDir,
-    path: options.normalizedPath,
-    startLine: options.startLine,
-    endLine: options.endLine,
-    limit: options.limit,
-  });
   const commitHistory = await loadLocalSpanCommitHistory({
     shell: options.shell,
     path: options.normalizedPath,
@@ -700,22 +492,6 @@ export async function resolveLocalSpanLineage(
       startLine: options.startLine,
       endLine: options.endLine,
     },
-    traces:
-      traceResult.source.status === "available"
-        ? {
-            status: "available" as const,
-            matchMode: traceResult.source.matchMode,
-            totalMatches: traceResult.source.totalMatches,
-            exactMatches: traceResult.source.exactMatches,
-            heuristicMatches: traceResult.source.heuristicMatches,
-            bounds: traceResult.source.bounds,
-            items: traceResult.source.items.map((item) => normalizeTraceItem(item)),
-          }
-        : {
-            status: "unavailable" as const,
-            code: traceResult.source.code,
-            message: traceResult.source.message,
-          },
     commits: commitHistory,
     contributors: [] as ProvSpanHistoryData["contributors"],
     lineage: [] as ProvSpanHistoryData["lineage"],
@@ -725,12 +501,10 @@ export async function resolveLocalSpanLineage(
   };
 
   const contributors = buildContributorSummaries({
-    traces: dataWithoutLineage.traces,
     commits: dataWithoutLineage.commits,
   });
   const lineage = createLineageEntries({
     path: options.normalizedPath,
-    traces: dataWithoutLineage.traces,
     commits: dataWithoutLineage.commits,
     limit: options.limit,
   });
@@ -739,21 +513,12 @@ export async function resolveLocalSpanLineage(
     contributors,
     lineage: lineage.items,
   };
-  const warnings = createSpanHistoryWarnings(
-    options.normalizedPath,
-    options.startLine,
-    options.endLine,
-    traceResult.source,
-    commitHistory,
-  );
+  const warnings = createSpanHistoryWarnings(commitHistory);
 
   return {
     data,
     warnings,
-    sources: [
-      ...toTraceEvidenceSources(data.traces),
-      ...toCommitEvidenceSources(options.normalizedPath, data.commits),
-    ],
+    sources: toCommitEvidenceSources(options.normalizedPath, data.commits),
     confidence: resolveSpanHistoryConfidence(data),
     ambiguity: getHighestAmbiguity(warnings),
     bounds: lineage.bounds,
@@ -772,9 +537,9 @@ export function createLineageTools(
 }
 
 function createSpanHistoryTool(runtimeOptions: ReturnType<typeof normalizeCreateStateToolsOptions>): ToolDefinition {
-  return tool({
-    description:
-      "Return bounded span-level lineage from local traces and git range history for one file plus line range, with contributor summaries and heuristic confidence downgrades.",
+	  return tool({
+	    description:
+	      "Return bounded span-level lineage from git range history for one file plus line range, with contributor summaries and confidence signals.",
     args: {
       path: provenancePathArg,
       start_line: provenanceStartLineArg,
@@ -934,9 +699,8 @@ function serializeSpanHistorySuccess(options: {
     ambiguity: response.meta.ambiguity,
     path: options.normalizedPath,
     startLine: options.startLine,
-    endLine: options.endLine,
-    traceStatus: lineageResolution.data.traces.status,
-    commitStatus: lineageResolution.data.commits.status,
+	    endLine: options.endLine,
+	    commitStatus: lineageResolution.data.commits.status,
     contributors: lineageResolution.data.contributors.length,
     lineage: lineageResolution.data.lineage.length,
   });

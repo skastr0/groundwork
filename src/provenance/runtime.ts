@@ -1,7 +1,4 @@
-import { randomUUID } from "node:crypto";
 import path from "node:path";
-import { appendTraceRecords } from "./trace/storage.ts";
-import type { TraceObservedTool, TraceRecord } from "./trace/types.ts";
 import type {
   GroundworkLayerHooks,
   GroundworkLayerRegistration,
@@ -9,19 +6,15 @@ import type {
 import { createFrameworkSessionCleanupEventHook } from "../layer/index.ts";
 import {
   createSessionKernelStore,
-  extractFrameworkToolTargets,
   FRAMEWORK_KERNEL_DEDUPE_CACHE_BUCKETS,
   truncateFrameworkTextByBytes,
   type FrameworkJsonObject,
   type FrameworkJsonValue,
-  type FrameworkPendingToolCall,
   type FrameworkPromptContext,
   type FrameworkSessionKernelState,
   type SessionKernelStore,
 } from "../kernel/index.ts";
-import { logger } from "../logger/index.ts";
 import {
-  applyFrameworkAmbientBudget,
   classifyFrameworkAmbientTool,
   type FrameworkAmbientQueryStrategyName,
 } from "./classifier.ts";
@@ -40,8 +33,6 @@ const FRAMEWORK_COMPACTION_CONTEXT_PATH_LIMIT = 4;
 const FRAMEWORK_COMPACTION_POLICY_ITEM_LIMIT = 4;
 const FRAMEWORK_COMPACTION_PENDING_TOOL_LIMIT = 3;
 const FRAMEWORK_COMPACTION_TARGET_LIMIT = 3;
-const FRAMEWORK_PROVENANCE_CAPTURE_SERVICE = "groundwork-provenance";
-const FRAMEWORK_PROVENANCE_THIN_SLICE_TOOLS = new Set(["read"]);
 const FRAMEWORK_PROVENANCE_AWARE_TOOL_IDS = new Set(["read", "grep", "edit", "task", "bash"]);
 const FRAMEWORK_TOOL_DEFINITION_GUIDANCE_BY_QUERY_STRATEGY = Object.freeze({
   "file-evidence":
@@ -67,12 +58,6 @@ interface FrameworkSessionStoreReader {
 type FrameworkCompactionHook = NonNullable<
   GroundworkLayerHooks["experimental.session.compacting"]
 >;
-type FrameworkToolExecuteBeforeHook = NonNullable<
-  GroundworkLayerHooks["tool.execute.before"]
->;
-type FrameworkToolExecuteAfterHook = NonNullable<
-  GroundworkLayerHooks["tool.execute.after"]
->;
 type FrameworkToolDefinitionHook = NonNullable<GroundworkLayerHooks["tool.definition"]>;
 type FrameworkSystemTransformHook = NonNullable<
   GroundworkLayerHooks["experimental.chat.system.transform"]
@@ -90,9 +75,7 @@ export interface CreateFrameworkProvenanceLayerOptions {
 export async function createFrameworkProvenanceLayer(
   options: CreateFrameworkProvenanceLayerOptions = {},
 ): Promise<GroundworkLayerRegistration> {
-  const directory = path.resolve(options.directory ?? options.rootDir ?? process.cwd());
   const rootDir = path.resolve(options.rootDir ?? options.directory ?? process.cwd());
-  const now = options.now ?? (() => new Date().toISOString());
   const sessionStore = options.sessionStore ?? createSessionKernelStore();
   const toolDefinitions =
     typeof options.shell === "function"
@@ -106,17 +89,6 @@ export async function createFrameworkProvenanceLayer(
     active: true,
     toolDefinitions,
     hooks: {
-      "tool.execute.before": createFrameworkProvenanceToolBeforeHook({
-        directory,
-        rootDir,
-        sessionStore,
-        now,
-      }),
-      "tool.execute.after": createFrameworkProvenanceToolAfterHook({
-        rootDir,
-        sessionStore,
-        now,
-      }),
       "experimental.chat.system.transform": createFrameworkSystemTransformHook(),
       "experimental.session.compacting": createFrameworkCompactionContextHook(sessionStore),
       "tool.definition": createFrameworkToolDefinitionHook(),
@@ -320,318 +292,6 @@ function renderProvenanceCompactionLine(state: FrameworkSessionKernelState): str
   }
 
   return `- provenance: ${segments.join("; ")}`;
-}
-
-function createFrameworkProvenanceToolBeforeHook(options: {
-  directory: string;
-  rootDir: string;
-  sessionStore: SessionKernelStore;
-  now: () => string;
-}): FrameworkToolExecuteBeforeHook {
-  return async ({ tool, callID, sessionID }, { args }) => {
-    if (!FRAMEWORK_PROVENANCE_THIN_SLICE_TOOLS.has(tool)) {
-      return;
-    }
-
-    const classification = classifyFrameworkAmbientTool(tool);
-    if (classification.status !== "supported") {
-      return;
-    }
-
-    const extraction = extractFrameworkToolTargets(asToolArgs(args), {
-      toolName: tool,
-      directory: options.directory,
-      rootDir: options.rootDir,
-    });
-    const targetPath = pickPendingTargetPath(extraction.targets);
-    if (!targetPath) {
-      return;
-    }
-
-    const state = getOrCreateSessionState(options.sessionStore, sessionID);
-    state.pendingTools.calls[createProvenancePendingToolKey(callID)] = {
-      callID,
-      toolName: tool,
-      phase: "after",
-      capturedAt: options.now(),
-      targets: [
-        {
-          path: targetPath,
-          normalizedPath: targetPath,
-        },
-      ],
-      data: createReadCaptureData(asToolArgs(args), classification.capture.strategy),
-    };
-    options.sessionStore.set(state);
-  };
-}
-
-function createFrameworkProvenanceToolAfterHook(options: {
-  rootDir: string;
-  sessionStore: SessionKernelStore;
-  now: () => string;
-}): FrameworkToolExecuteAfterHook {
-  return async ({ tool, callID, sessionID }) => {
-    if (!FRAMEWORK_PROVENANCE_THIN_SLICE_TOOLS.has(tool)) {
-      return;
-    }
-
-    let state = getOrCreateSessionState(options.sessionStore, sessionID);
-    const pendingKey = createProvenancePendingToolKey(callID);
-    const pending = state.pendingTools.calls[pendingKey];
-    if (!pending) {
-      return;
-    }
-
-    delete state.pendingTools.calls[pendingKey];
-
-    const capturedAt = options.now();
-    const observedTool = createReadObservedTool(pending, capturedAt);
-    if (!observedTool) {
-      options.sessionStore.set(state);
-      return;
-    }
-
-    const budgeted = applyFrameworkAmbientBudget(state, [observedTool], {
-      toolName: tool,
-      phase: "capture",
-      now: capturedAt,
-      getSize: measureObservedToolBytes,
-      metadata: {
-        source: FRAMEWORK_PROVENANCE_CAPTURE_SERVICE,
-        callID,
-        sessionID,
-      },
-    });
-    state = options.sessionStore.set(state);
-
-    if (budgeted.status !== "supported" || budgeted.items.length === 0) {
-      logger.warn("Skipped framework provenance capture", {
-        tool,
-        callID,
-        sessionID,
-      });
-      return;
-    }
-
-    const recordedObservedTool = budgeted.items[0];
-    if (!recordedObservedTool) {
-      return;
-    }
-
-    try {
-      await appendTraceRecords({
-        rootDir: options.rootDir,
-        sessionID,
-        records: [
-          createObservedToolTraceRecord({
-            sessionID,
-            callID,
-            timestamp: capturedAt,
-            observedTool: recordedObservedTool,
-            promptContext: state.promptContext,
-          }),
-        ],
-      });
-    } catch (error) {
-      logger.error("Failed to persist framework provenance trace", {
-        tool,
-        callID,
-        sessionID,
-        error: toErrorMessage(error),
-      });
-    }
-  };
-}
-
-function asToolArgs(value: unknown): Record<string, unknown> | undefined {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return undefined;
-  }
-
-  return value as Record<string, unknown>;
-}
-
-function getOrCreateSessionState(
-  sessionStore: SessionKernelStore,
-  sessionID: string,
-): FrameworkSessionKernelState {
-  return sessionStore.get(sessionID) ?? sessionStore.create(sessionID);
-}
-
-function createProvenancePendingToolKey(callID: string): string {
-  return `${FRAMEWORK_PROVENANCE_CAPTURE_SERVICE}::${callID}`;
-}
-
-function pickPendingTargetPath(targets: FrameworkPendingToolCall["targets"]): string | null {
-  for (const target of targets) {
-    const nextPath = target.normalizedPath ?? target.afterPath ?? target.beforePath ?? target.path;
-    if (typeof nextPath === "string" && nextPath.length > 0) {
-      return nextPath;
-    }
-  }
-
-  return null;
-}
-
-function createReadCaptureData(
-  args: Record<string, unknown> | undefined,
-  captureStrategy: string,
-): FrameworkJsonObject {
-  const data: FrameworkJsonObject = {
-    source: FRAMEWORK_PROVENANCE_CAPTURE_SERVICE,
-    captureStrategy,
-  };
-
-  const offset = readIntegerArg(args, "offset");
-  if (offset !== undefined) {
-    data.offset = offset;
-  }
-
-  const limit = readIntegerArg(args, "limit");
-  if (limit !== undefined) {
-    data.limit = limit;
-  }
-
-  return data;
-}
-
-function createReadObservedTool(
-  pending: FrameworkPendingToolCall,
-  capturedAt: string,
-): TraceObservedTool | null {
-  if (pending.toolName !== "read") {
-    return null;
-  }
-
-  const classification = classifyFrameworkAmbientTool(pending.toolName);
-  if (classification.status !== "supported") {
-    return null;
-  }
-  if (classification.capture.strategy !== "path-only") {
-    return null;
-  }
-
-  const targetPath = pickPendingTargetPath(pending.targets);
-  if (!targetPath) {
-    return null;
-  }
-
-  const metadata: Record<string, unknown> = {
-    path: targetPath,
-  };
-  const offset = readIntegerValue(pending.data?.offset);
-  if (offset !== undefined) {
-    metadata.offset = offset;
-  }
-  const limit = readIntegerValue(pending.data?.limit);
-  if (limit !== undefined) {
-    metadata.limit = limit;
-  }
-
-  return withObservedToolBudget({
-    tool: "read",
-    callID: pending.callID,
-    capturedAt,
-    strategy: "path-only",
-    metadata,
-    budget: {
-      maxBytes: classification.capture.budget.byteLimit,
-      usedBytes: 0,
-    },
-  });
-}
-
-function withObservedToolBudget(observedTool: TraceObservedTool): TraceObservedTool {
-  let nextTool = {
-    ...observedTool,
-    budget: {
-      ...observedTool.budget,
-    },
-    metadata: {
-      ...observedTool.metadata,
-    },
-    truncatedFields: observedTool.truncatedFields ? [...observedTool.truncatedFields] : undefined,
-  };
-
-  while (true) {
-    const usedBytes = Buffer.byteLength(JSON.stringify(nextTool), "utf8");
-    if (nextTool.budget.usedBytes === usedBytes) {
-      return nextTool;
-    }
-
-    nextTool = {
-      ...nextTool,
-      budget: {
-        ...nextTool.budget,
-        usedBytes,
-      },
-    };
-  }
-}
-
-function measureObservedToolBytes(observedTool: TraceObservedTool): number {
-  return Buffer.byteLength(JSON.stringify(observedTool), "utf8");
-}
-
-function createObservedToolTraceRecord(options: {
-  sessionID: string;
-  callID: string;
-  timestamp: string;
-  observedTool: TraceObservedTool;
-  promptContext: FrameworkPromptContext | null;
-}): TraceRecord {
-  return {
-    version: "0.1.0",
-    id: randomUUID(),
-    timestamp: options.timestamp,
-    files: [],
-    metadata: {
-      session: {
-        sessionID: options.sessionID,
-        toolCalls: 1,
-        toolCounts: {
-          read: 1,
-        },
-        callIDs: [options.callID],
-        observedTools: [options.observedTool],
-      },
-      ...(options.promptContext?.agent || options.promptContext?.model
-        ? {
-            session_context: {
-              ...(options.promptContext.agent ? { agent: options.promptContext.agent } : {}),
-              ...(options.promptContext.model
-                ? {
-                    model: {
-                      providerID: options.promptContext.model.providerID,
-                      modelID: options.promptContext.model.modelID,
-                    },
-                  }
-                : {}),
-            },
-          }
-        : {}),
-    },
-  };
-}
-
-function readIntegerArg(
-  args: Record<string, unknown> | undefined,
-  key: string,
-): number | undefined {
-  if (!args) {
-    return undefined;
-  }
-
-  return readIntegerValue(args[key]);
-}
-
-function readIntegerValue(value: FrameworkJsonValue | unknown): number | undefined {
-  return typeof value === "number" && Number.isInteger(value) ? value : undefined;
-}
-
-function toErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }
 
 function renderPromptTools(tools: FrameworkPromptContext["tools"]): string | null {

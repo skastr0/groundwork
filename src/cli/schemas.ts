@@ -397,22 +397,6 @@ const SessionPutPendingToolInputSchemaContract = {
   },
 } as const;
 
-const SessionAppendTraceInputSchemaContract = {
-  schema_id: "groundwork.session.append-trace.input/v1",
-  command_id: "session.append-trace",
-  command: "session append-trace",
-  description: "Append a trace record to one Groundwork session artifact.",
-  schema: {
-    type: "object",
-    required: ["session_id", "trace"],
-    additionalProperties: false,
-    properties: {
-      ...SessionBaseProperties,
-      trace: { type: "object" },
-    },
-  },
-} as const;
-
 const SessionCleanupInputSchemaContract = {
   schema_id: "groundwork.session.cleanup.input/v1",
   command_id: "session.cleanup",
@@ -438,11 +422,10 @@ const SessionRenderCompactionInputSchemaContract = {
     type: "object",
     required: ["session_id"],
     additionalProperties: false,
-    properties: {
-      root_dir: { type: "string", minLength: 1 },
-      session_id: { type: "string", minLength: 1 },
-      trace_limit: { type: "integer", minimum: 1, maximum: 100 },
-    },
+	    properties: {
+	      root_dir: { type: "string", minLength: 1 },
+	      session_id: { type: "string", minLength: 1 },
+	    },
   },
 } as const;
 
@@ -465,7 +448,6 @@ export const SCHEMA_CONTRACTS = [
   SessionOverrideInputSchemaContract,
   SessionRememberActionInputSchemaContract,
   SessionPutPendingToolInputSchemaContract,
-  SessionAppendTraceInputSchemaContract,
   SessionCleanupInputSchemaContract,
   SessionRenderCompactionInputSchemaContract,
   {

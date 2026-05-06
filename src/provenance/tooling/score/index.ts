@@ -722,12 +722,11 @@ function summarizeEvidenceSource<TItem extends LocalEvidenceMatch>(
 function buildEvidenceSummary(
   evidence: Awaited<ReturnType<typeof loadLocalPathEvidence>>,
 ): EvidenceSummary {
-  const summary: EvidenceSummary = {
-    sources: {
-      messages: summarizeEvidenceSource(evidence.sources.messages),
-      workItems: summarizeEvidenceSource(evidence.sources.workItems),
-      traces: summarizeEvidenceSource(evidence.sources.traces),
-    },
+	  const summary: EvidenceSummary = {
+	    sources: {
+	      messages: summarizeEvidenceSource(evidence.sources.messages),
+	      workItems: summarizeEvidenceSource(evidence.sources.workItems),
+	    },
     rankedItems: evidence.ranked.items.length,
     bounds: evidence.ranked.bounds,
     bytes: evidence.ranked.bytes,
@@ -746,9 +745,6 @@ function buildEvidenceSummary(
   ) {
     summary.hints.push("Work-item evidence was truncated by the per-source limit.");
   }
-  if (summary.sources.traces.status === "available" && summary.sources.traces.bounds.truncated) {
-    summary.hints.push("Trace evidence was truncated by the per-source limit.");
-  }
   if (summary.bounds.truncated) {
     summary.hints.push("Ranked evidence was truncated by the item limit.");
   }
@@ -762,11 +758,10 @@ function buildEvidenceSummary(
 function toEvidenceWarnings(summary: EvidenceSummary): ProvenanceWarning[] {
   const warnings: ProvenanceWarning[] = [];
 
-  for (const source of [
-    summary.sources.messages,
-    summary.sources.workItems,
-    summary.sources.traces,
-  ]) {
+	  for (const source of [
+	    summary.sources.messages,
+	    summary.sources.workItems,
+	  ]) {
     if (source.status === "available") {
       warnings.push(...source.warnings);
       if (source.bounds.truncated) {

@@ -1,6 +1,7 @@
-import type { TraceRange } from "./types.ts";
-
-export type LineRange = Pick<TraceRange, "start_line" | "end_line">;
+export interface LineRange {
+  start_line: number;
+  end_line: number;
+}
 
 type DiffOp = {
   type: "equal" | "insert" | "delete";
@@ -28,7 +29,7 @@ function diffLines(before: string[], after: string[]): DiffOp[] {
   const max = n + m;
   const offset = max;
   let v = Array.from({ length: 2 * max + 1 }, () => 0);
-  const trace: number[][] = [];
+  const snapshots: number[][] = [];
 
   for (let d = 0; d <= max; d += 1) {
     const vNext = v.slice();
@@ -49,24 +50,24 @@ function diffLines(before: string[], after: string[]): DiffOp[] {
       }
       vNext[kIndex] = x;
       if (x >= n && y >= m) {
-        trace.push(vNext);
-        return backtrack(trace, before, after, offset);
+        snapshots.push(vNext);
+        return backtrack(snapshots, before, after, offset);
       }
     }
-    trace.push(vNext);
+    snapshots.push(vNext);
     v = vNext;
   }
 
   return [];
 }
 
-function backtrack(trace: number[][], before: string[], after: string[], offset: number): DiffOp[] {
+function backtrack(snapshots: number[][], before: string[], after: string[], offset: number): DiffOp[] {
   let x = before.length;
   let y = after.length;
   const ops: DiffOp[] = [];
 
-  for (let d = trace.length - 1; d >= 0; d -= 1) {
-    const v = trace[d] ?? [];
+  for (let d = snapshots.length - 1; d >= 0; d -= 1) {
+    const v = snapshots[d] ?? [];
     const k = x - y;
     const kIndex = k + offset;
     let prevK: number;
