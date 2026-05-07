@@ -6,7 +6,7 @@ Use these boundaries:
 
 - `policy/`: policy loading and tool-call/result decisions.
 - `context/`: inherited instruction discovery and touched-path reminders.
-- `provenance/`: local evidence, repo state, and `gw_*` tool behavior.
+- `provenance/`: repo state and `gw_*` tool behavior.
 - `risk/`: destructive command risk rules and evaluation.
 - `session/`: durable Groundwork session artifact state.
 - `cli/`: JSON-first command protocol, schemas, Codex installer, and Codex hook entrypoint.

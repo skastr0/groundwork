@@ -8,7 +8,6 @@ import {
 } from "../state/index.ts";
 import { toDiffChangeSummary, toNearbyFileSummary } from "./change-summaries.ts";
 import { getCanonicalPath, parseUnifiedDiff } from "./diff-parser.ts";
-import { buildLinkedEvidence } from "./evidence.ts";
 import type { ProvDiffExpandData } from "./schemas.ts";
 
 export type ArtifactAnchorResolution = {
@@ -61,22 +60,6 @@ export function collectDiffWarnings(diff: ProvDiffExpandData): ProvenanceWarning
     }
   }
 
-  if (diff.evidence.bounds.truncated) {
-    warnings.push({
-      code: "EVIDENCE_ITEMS_TRUNCATED",
-      message: `Linked evidence was truncated to ${diff.evidence.bounds.returned} ranked item(s).`,
-      ambiguity: "low",
-    });
-  }
-
-  if (diff.evidence.bytes.truncated) {
-    warnings.push({
-      code: "EVIDENCE_BYTES_TRUNCATED",
-      message: `Linked evidence summaries hit the ${diff.evidence.bytes.limit}-byte budget.`,
-      ambiguity: "low",
-    });
-  }
-
   return warnings;
 }
 
@@ -88,7 +71,6 @@ export async function resolveDiffArtifactExpand(options: {
   diffText: string;
   base: string | undefined;
   limit: number | undefined;
-  maxItems: number | undefined;
   maxBytes: number | undefined;
   includePatch: boolean;
 }): Promise<ArtifactAnchorResolution> {
@@ -124,14 +106,6 @@ export async function resolveDiffArtifactExpand(options: {
     options.limit,
     DEFAULT_PROVENANCE_ITEM_LIMIT,
   );
-  const evidence = await buildLinkedEvidence({
-    rootDir: options.rootDir,
-    paths: sections.map((section) => getCanonicalPath(section)),
-    limit: options.limit,
-    maxItems: options.maxItems,
-    maxBytes: options.maxBytes,
-  });
-
   return {
     repoState,
     data: {
@@ -144,7 +118,6 @@ export async function resolveDiffArtifactExpand(options: {
       repo: toProvRepoStateData(repoState, options.limit),
       changeSummaries: changeSummaries.items,
       nearbyFiles: nearbyFiles.items,
-      evidence,
       bounds: {
         changeSummaries: changeSummaries.bounds,
         nearbyFiles: nearbyFiles.bounds,
@@ -155,7 +128,7 @@ export async function resolveDiffArtifactExpand(options: {
 
 export function buildDiffSummary(data: ProvDiffExpandData): string {
   const branchLabel = data.repo.branch.name ?? "detached HEAD";
-  return `Expanded ${data.anchor.kind} diff anchor for ${data.anchor.resolvedPath}: ${data.changeSummaries.length} direct change summary(s), ${data.nearbyFiles.length} nearby file(s), ${data.evidence.items.length} linked evidence item(s), repo ${branchLabel}.`;
+  return `Expanded ${data.anchor.kind} diff anchor for ${data.anchor.resolvedPath}: ${data.changeSummaries.length} direct change summary(s), ${data.nearbyFiles.length} nearby file(s), repo ${branchLabel}.`;
 }
 
 export function buildDiffSources(data: ProvDiffExpandData): ProvenanceEvidenceSource[] {
@@ -168,17 +141,6 @@ export function buildDiffSources(data: ProvDiffExpandData): ProvenanceEvidenceSo
       detail: `${data.changeSummaries.length} direct change summary(s)`,
     },
   ];
-
-  for (const item of data.evidence.items) {
-    sources.push({
-      kind: item.kind,
-      id: item.id,
-      path: item.path,
-      label: item.label,
-      detail: item.detail,
-      ref: item.timestamp,
-    });
-  }
 
   return sources;
 }

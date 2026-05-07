@@ -3,7 +3,6 @@ import {
   provenanceBaseArg,
   provenanceCommitArg,
   provenanceMaxBytesArg,
-  provenanceMaxItemsArg,
   provenanceModeArg,
 } from "../args.ts";
 import {
@@ -24,7 +23,6 @@ import {
   buildCommitSources,
   materializeCommit,
 } from "./commit-expand.ts";
-import { buildLinkedEvidence } from "./evidence.ts";
 import {
   GW_COMMIT_EXPAND_TOOL,
   GW_COMMIT_MATERIALIZE_TOOL,
@@ -67,7 +65,6 @@ async function executeCommitExpandCore(
     commit: string;
     base?: string;
     limit?: number;
-    max_items?: number;
     max_bytes?: number;
     include_patch?: boolean;
   },
@@ -76,7 +73,6 @@ async function executeCommitExpandCore(
   data: ProvCommitExpandData;
   warnings: ProvenanceWarning[];
 }> {
-  const rootDir = options.rootDir ?? process.cwd();
   const [repoState, materialized] = await Promise.all([
     resolveLocalRepoState({
       shell: options.shell,
@@ -90,23 +86,15 @@ async function executeCommitExpandCore(
       includePatch: args.include_patch ?? false,
     }),
   ]);
-  const evidence = await buildLinkedEvidence({
-    rootDir,
-    paths: materialized.data.touchedFiles.map((file) => file.path),
-    limit: args.limit,
-    maxItems: args.max_items,
-    maxBytes: args.max_bytes,
-  });
   const data: ProvCommitExpandData = {
     repo: toProvRepoStateData(repoState, args.limit),
     materialized: materialized.data,
-    evidence,
   };
 
   return {
     repoConfidence: repoState.confidence,
     data,
-    warnings: collectCommitExpandWarnings(data, [...materialized.warnings]),
+    warnings: collectCommitExpandWarnings([...materialized.warnings]),
   };
 }
 
@@ -180,13 +168,12 @@ export function createCommitExpandTool(options: CreateStateToolsOptions): ToolDe
 
   return tool({
     description:
-      "Expand one commit with bounded touched-file summaries plus linked provenance evidence across the affected paths.",
+      "Expand one commit with bounded touched-file summaries.",
     args: {
       commit: provenanceCommitArg,
       base: provenanceBaseArg,
       mode: provenanceModeArg,
       limit: diffSummaryLimitArg,
-      max_items: provenanceMaxItemsArg,
       max_bytes: provenanceMaxBytesArg,
       include_patch: includePatchArg,
     },
@@ -201,7 +188,6 @@ export function createCommitExpandTool(options: CreateStateToolsOptions): ToolDe
         commit: args.commit,
         base: args.base,
         limit: args.limit,
-        maxItems: args.max_items,
         maxBytes: args.max_bytes,
         includePatch: args.include_patch ?? false,
       });
@@ -220,7 +206,7 @@ export function createCommitExpandTool(options: CreateStateToolsOptions): ToolDe
           ),
           summary: buildCommitExpandSummary(expanded.data),
           warnings: expanded.warnings,
-          sources: buildCommitSources(expanded.data.materialized, expanded.data.evidence),
+          sources: buildCommitSources(expanded.data.materialized),
           data: expanded.data,
         });
 
@@ -228,7 +214,6 @@ export function createCommitExpandTool(options: CreateStateToolsOptions): ToolDe
           tool: GW_COMMIT_EXPAND_TOOL,
           commit: expanded.data.materialized.commit.shortCommit,
           touchedFiles: expanded.data.materialized.touchedFiles.length,
-          evidence: expanded.data.evidence.items.length,
         });
 
         return JSON.stringify(response, null, 2);

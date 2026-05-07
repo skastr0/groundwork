@@ -6,7 +6,6 @@ import {
   applyBoundedLimit,
   provenanceBaseArg,
   provenanceMaxBytesArg,
-  provenanceMaxItemsArg,
   provenanceModeArg,
   resolveBoundedNumber,
 } from "../args.ts";
@@ -34,7 +33,6 @@ import {
 } from "../../../../review/pr-comments.ts";
 import { toNearbyFileSummary } from "./change-summaries.ts";
 import { parseUnifiedDiff } from "./diff-parser.ts";
-import { buildLinkedEvidence } from "./evidence.ts";
 import {
   GW_PR_EXPAND_TOOL,
   GW_PR_MATERIALIZE_TOOL,
@@ -1062,100 +1060,21 @@ function materializeFailure(
   );
 }
 
-function buildExpandEvidencePaths(data: ProvPrMaterializeData): string[] {
-  if (data.localBranch?.status === "available") {
-    return data.localBranch.files.map((file) => file.path);
-  }
-
-  if (data.remote.status === "available" && data.remote.files.status === "available") {
-    return data.remote.files.items.map((file) => file.path);
-  }
-
-  return [];
-}
-
 function collectExpandWarnings(data: ProvPrExpandData): ProvenanceWarning[] {
-  const warnings = [...collectMaterializeWarnings(data.materialized)];
-
-  if (data.evidence.inspectedPaths.length === 0) {
-    warnings.push({
-      code: "PR_EVIDENCE_PATHS_UNAVAILABLE",
-      message: "No changed paths were available for linked local evidence.",
-      ambiguity: "medium",
-    });
-  }
-
-  if (
-    data.materialized.repo &&
-    data.materialized.localBranch?.status !== "available" &&
-    data.materialized.remote.status === "available" &&
-    data.materialized.remote.files.status === "available" &&
-    data.materialized.remote.files.items.length > 0
-  ) {
-    warnings.push({
-      code: "PR_EVIDENCE_REMOTE_PATHS",
-      message:
-        "Linked evidence used remote PR file paths because no deterministic local branch diff was available.",
-      ambiguity: "medium",
-    });
-  }
-
-  if (data.evidence.bounds.truncated) {
-    warnings.push({
-      code: "EVIDENCE_ITEMS_TRUNCATED",
-      message: `Linked evidence was truncated to ${data.evidence.bounds.returned} ranked item(s).`,
-      ambiguity: "low",
-    });
-  }
-
-  if (data.evidence.bytes.truncated) {
-    warnings.push({
-      code: "EVIDENCE_BYTES_TRUNCATED",
-      message: `Linked evidence summaries hit the ${data.evidence.bytes.limit}-byte budget.`,
-      ambiguity: "low",
-    });
-  }
-
-  return dedupeWarnings(warnings);
+  return dedupeWarnings(collectMaterializeWarnings(data.materialized));
 }
 
 function buildExpandSummary(data: ProvPrExpandData): string {
   const base = buildMaterializeSummary(data.materialized).replace(/^Materialized/, "Expanded");
-  return `${base} Linked ${data.evidence.items.length} evidence item(s).`;
+  return base;
 }
 
 function buildExpandSources(data: ProvPrExpandData): ProvenanceEvidenceSource[] {
-  const sources = buildMaterializeSources(data.materialized);
-  const seen = new Set(sources.map((source) => `${source.kind}:${source.id}:${source.path ?? ""}`));
-
-  for (const item of data.evidence.items) {
-    const key = `${item.kind}:${item.id}:${item.path}`;
-    if (seen.has(key)) {
-      continue;
-    }
-    seen.add(key);
-    sources.push({
-      kind: item.kind,
-      id: item.id,
-      path: item.path,
-      label: item.label,
-      detail: item.detail,
-      ref: item.timestamp,
-    });
-  }
-
-  return sources;
+  return buildMaterializeSources(data.materialized);
 }
 
 function inferExpandConfidence(data: ProvPrExpandData): ProvenanceConfidence {
-  return getLowestConfidence([
-    inferMaterializeConfidence(data.materialized),
-    data.evidence.inspectedPaths.length === 0
-      ? "low"
-      : data.evidence.items.length > 0
-        ? "high"
-        : "medium",
-  ]);
+  return inferMaterializeConfidence(data.materialized);
 }
 
 export function createPrMaterializeTool(options: CreateStateToolsOptions): ToolDefinition {
@@ -1255,13 +1174,12 @@ export function createPrExpandTool(options: CreateStateToolsOptions): ToolDefini
 
   return tool({
     description:
-      "Expand PR context with explicit local fallback plus linked local evidence across the changed paths.",
+      "Expand PR context with explicit local fallback, changed files, and review summaries.",
     args: {
       pr: provenancePrNumberArg,
       base: provenanceBaseArg,
       mode: provenanceModeArg,
       limit: diffSummaryLimitArg,
-      max_items: provenanceMaxItemsArg,
       max_bytes: provenanceMaxBytesArg,
     },
     async execute(args) {
@@ -1273,7 +1191,6 @@ export function createPrExpandTool(options: CreateStateToolsOptions): ToolDefini
         base: args.base,
         mode,
         limit: args.limit,
-        maxItems: args.max_items,
         maxBytes: args.max_bytes,
       });
 
@@ -1300,17 +1217,8 @@ export function createPrExpandTool(options: CreateStateToolsOptions): ToolDefini
           );
         }
 
-        const rootDir = runtimeOptions.rootDir ?? process.cwd();
-        const evidence = await buildLinkedEvidence({
-          rootDir,
-          paths: buildExpandEvidencePaths(materialized),
-          limit: args.limit,
-          maxItems: args.max_items,
-          maxBytes: args.max_bytes,
-        });
         const data: ProvPrExpandData = {
           materialized,
-          evidence,
         };
 
         const warnings = collectExpandWarnings(data);
@@ -1329,7 +1237,6 @@ export function createPrExpandTool(options: CreateStateToolsOptions): ToolDefini
           tool: GW_PR_EXPAND_TOOL,
           mode,
           remoteStatus: materialized.remote.status,
-          evidence: evidence.items.length,
           fallback: materialized.fallback.used,
         });
 

@@ -2,28 +2,8 @@ import { z } from "zod";
 import {
   createProvenanceResultSchema,
   ProvenanceBoundsSchema,
-  ProvenanceWarningSchema,
 } from "../contracts.ts";
 import { ProvRepoStateDataSchema } from "../state/index.ts";
-
-const EvidenceSourceSummarySchema = z.discriminatedUnion("status", [
-  z.object({
-    status: z.literal("available"),
-    totalMatches: z.number().int().nonnegative(),
-    bounds: ProvenanceBoundsSchema,
-    warnings: z.array(ProvenanceWarningSchema),
-  }),
-  z.object({
-    status: z.literal("unavailable"),
-    code: z.string().min(1),
-    message: z.string().min(1),
-  }),
-  z.object({
-    status: z.literal("unsupported"),
-    code: z.string().min(1),
-    message: z.string().min(1),
-  }),
-]);
 
 const ProvenanceSignalSchema = z.object({
   key: z.string().min(1),
@@ -154,17 +134,6 @@ export const ProvAuthorityDataSchema = z.object({
 
 export const ProvAuthorityResultSchema = createProvenanceResultSchema(ProvAuthorityDataSchema);
 
-const StabilityEvidenceSchema = z.object({
-	  sources: z.object({
-	    messages: EvidenceSourceSummarySchema,
-	    workItems: EvidenceSourceSummarySchema,
-	  }),
-  rankedItems: z.number().int().nonnegative(),
-  bounds: ProvenanceBoundsSchema,
-  bytes: ProvenanceBoundsSchema,
-  hints: z.array(z.string().min(1)),
-});
-
 const StabilityAssessmentSchema = z.object({
   label: z.enum(["steady", "watch", "volatile"]),
   reasons: z.array(z.string().min(1)),
@@ -203,13 +172,11 @@ export const ProvStabilityReportDataSchema = z.object({
     untracked: z.number().int().nonnegative(),
     totalPaths: z.number().int().nonnegative(),
   }),
-  evidence: StabilityEvidenceSchema,
   scores: z.object({
     stability: ExplainableScoreSchema,
     ownershipClarity: ExplainableScoreSchema,
     recentChangePressure: ExplainableScoreSchema,
     pendingChangePressure: ExplainableScoreSchema,
-    evidenceCoverage: ExplainableScoreSchema,
   }),
   assessment: StabilityAssessmentSchema,
 });
@@ -223,8 +190,6 @@ export type ProvenanceScoreFactor = z.infer<typeof ProvenanceScoreFactorSchema>;
 export type ExplainableScore = z.infer<typeof ExplainableScoreSchema>;
 export type HotspotItem = z.infer<typeof HotspotItemSchema>;
 export type HotspotWindow = z.infer<typeof HotspotWindowSchema>;
-export type EvidenceSourceSummary = z.infer<typeof EvidenceSourceSummarySchema>;
-export type EvidenceSummary = z.infer<typeof StabilityEvidenceSchema>;
 export type HistorySummary = z.infer<typeof HistorySummarySchema>;
 export type AuthorityAuthor = z.infer<typeof AuthorityAuthorSchema>;
 export type AuthorSample = z.infer<typeof AuthorSampleSchema>;

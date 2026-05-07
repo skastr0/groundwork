@@ -95,24 +95,6 @@ export const NearbyFileSummarySchema = z.object({
   hunkCount: z.number().int().nonnegative(),
 });
 
-export const EvidenceItemSummarySchema = z.object({
-  kind: z.enum(["message", "work_item"]),
-  id: z.string().min(1),
-  path: z.string().min(1),
-  label: z.string().min(1),
-  detail: z.string().min(1).optional(),
-  timestamp: z.string().min(1).optional(),
-  score: z.number(),
-});
-
-export const LinkedEvidenceSchema = z.object({
-  inspectedPaths: z.array(z.string().min(1)),
-  items: z.array(EvidenceItemSummarySchema),
-  bounds: ProvenanceBoundsSchema,
-  bytes: ProvenanceBoundsSchema,
-  hints: z.array(z.string().min(1)),
-});
-
 export const TREE_SCOPE_TYPE_VALUES = ["branch", "working_tree", "staged"] as const;
 export const TREE_AREA_KIND_VALUES = ["root", "directory", "package"] as const;
 
@@ -185,7 +167,6 @@ export const TreeExpandSummarySchema = z.object({
   additions: z.number().int().nonnegative(),
   deletions: z.number().int().nonnegative(),
   commits: z.number().int().nonnegative(),
-  evidenceItems: z.number().int().nonnegative(),
   checkout: TreeCheckoutSummarySchema,
 });
 
@@ -195,7 +176,6 @@ export const WorktreeOverviewSummarySchema = z.object({
   additions: z.number().int().nonnegative(),
   deletions: z.number().int().nonnegative(),
   commits: z.number().int().nonnegative(),
-  evidenceItems: z.number().int().nonnegative(),
   checkout: TreeCheckoutSummarySchema,
 });
 
@@ -212,7 +192,6 @@ export const ProvDiffExpandDataSchema = z.object({
   file: ProvFileStateDataSchema.optional(),
   changeSummaries: z.array(DiffChangeSummarySchema),
   nearbyFiles: z.array(NearbyFileSummarySchema),
-  evidence: LinkedEvidenceSchema,
   bounds: z.object({
     changeSummaries: ProvenanceBoundsSchema,
     nearbyFiles: ProvenanceBoundsSchema,
@@ -258,7 +237,6 @@ export const ProvCommitMaterializeResultSchema = createProvenanceResultSchema(
 export const ProvCommitExpandDataSchema = z.object({
   repo: ProvRepoStateDataSchema,
   materialized: ProvCommitMaterializeDataSchema,
-  evidence: LinkedEvidenceSchema,
 });
 
 export const ProvCommitExpandResultSchema = createProvenanceResultSchema(
@@ -273,7 +251,6 @@ export const ProvTreeExpandDataSchema = z.object({
   areas: z.array(TreeAreaSummarySchema),
   files: z.array(TreeFileSummarySchema),
   commits: TreeCommitActivitySchema,
-  evidence: LinkedEvidenceSchema,
   bounds: z.object({
     areas: ProvenanceBoundsSchema,
     files: ProvenanceBoundsSchema,
@@ -289,7 +266,6 @@ export const ProvWorktreeOverviewDataSchema = z.object({
   focusAreas: z.array(TreeAreaSummarySchema),
   files: z.array(TreeFileSummarySchema),
   commits: TreeCommitActivitySchema,
-  evidence: LinkedEvidenceSchema,
   bounds: z.object({
     focusAreas: ProvenanceBoundsSchema,
     files: ProvenanceBoundsSchema,
@@ -445,7 +421,6 @@ export const ProvPrMaterializeResultSchema = createProvenanceResultSchema(
 
 export const ProvPrExpandDataSchema = z.object({
   materialized: ProvPrMaterializeDataSchema,
-  evidence: LinkedEvidenceSchema,
 });
 
 export const ProvPrExpandResultSchema = createProvenanceResultSchema(ProvPrExpandDataSchema);
@@ -455,8 +430,6 @@ export type PatchText = z.infer<typeof PatchTextSchema>;
 export type PatchSummary = z.infer<typeof PatchSummarySchema>;
 export type DiffChangeSummary = z.infer<typeof DiffChangeSummarySchema>;
 export type NearbyFileSummary = z.infer<typeof NearbyFileSummarySchema>;
-export type EvidenceItemSummary = z.infer<typeof EvidenceItemSummarySchema>;
-export type LinkedEvidence = z.infer<typeof LinkedEvidenceSchema>;
 export type TreeScopeType = (typeof TREE_SCOPE_TYPE_VALUES)[number];
 export type TreeAreaKind = (typeof TREE_AREA_KIND_VALUES)[number];
 export type TreeStatusBreakdown = z.infer<typeof TreeStatusBreakdownSchema>;

@@ -16,7 +16,6 @@ import {
   sectionMatchesPaths,
   type ParsedDiffSection,
 } from "./diff-parser.ts";
-import { buildLinkedEvidence } from "./evidence.ts";
 import type {
   ChangeContextKey,
   DiffChangeSummary,
@@ -212,7 +211,6 @@ export async function resolveFileAnchorDiff(options: {
   requestedPath: string;
   base: string | undefined;
   limit: number | undefined;
-  maxItems: number | undefined;
   maxBytes: number | undefined;
   includePatch: boolean;
 }): Promise<FileAnchorResolution> {
@@ -245,17 +243,6 @@ export async function resolveFileAnchorDiff(options: {
     options.limit,
     DEFAULT_PROVENANCE_ITEM_LIMIT,
   );
-  const evidence = await buildLinkedEvidence({
-    rootDir: options.rootDir,
-    paths: [
-      ...changeCandidates.map((change) => change.path),
-      ...nearbyCandidates.map((file) => file.path),
-    ],
-    limit: options.limit,
-    maxItems: options.maxItems,
-    maxBytes: options.maxBytes,
-  });
-
   return {
     repoState,
     fileState,
@@ -270,7 +257,6 @@ export async function resolveFileAnchorDiff(options: {
       file: toProvFileStateData(fileState),
       changeSummaries: changeSummaries.items,
       nearbyFiles: nearbyFiles.items,
-      evidence,
       bounds: {
         changeSummaries: changeSummaries.bounds,
         nearbyFiles: nearbyFiles.bounds,

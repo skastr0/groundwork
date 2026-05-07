@@ -19,13 +19,6 @@ export {
   renderFrameworkSystemTransformGuidance,
   renderFrameworkToolDefinitionGuidance,
 } from "./runtime.ts";
-export {
-  DEFAULT_LOCAL_EVIDENCE_BYTE_LIMIT,
-  DEFAULT_LOCAL_EVIDENCE_SOURCE_LIMIT,
-	  LOCAL_EVIDENCE_SOURCE_VALUES,
-	  LOCAL_EVIDENCE_STATUS_VALUES,
-	  loadLocalPathEvidence,
-	} from "./local-evidence.ts";
 export type { CreateFrameworkProvenanceLayerOptions } from "./runtime.ts";
 export type {
   ApplyFrameworkAmbientBudgetOptions,
@@ -41,15 +34,3 @@ export type {
   FrameworkSupportedAmbientToolClassification,
   FrameworkUnsupportedAmbientToolClassification,
 } from "./classifier.ts";
-export type {
-  LocalEvidenceMatch,
-  LocalEvidenceSourceName,
-  LocalEvidenceSourceResult,
-  LocalEvidenceStatus,
-  LocalMessageEvidenceItem,
-  LocalPathEvidenceAnchor,
-	  LocalPathEvidenceOptions,
-	  LocalPathEvidenceRanking,
-	  LocalPathEvidenceResult,
-	  LocalWorkItemEvidenceItem,
-	} from "./local-evidence.ts";

@@ -5,7 +5,6 @@ Groundwork exposes Codex support through the same JSON-first CLI used by other i
 ## Install Surfaces
 
 - Plugin bundle: `.codex-plugin/plugin.json` with bundled `hooks/hooks.json`. Bundled hooks call `$HOME/.local/bin/groundwork` directly so hook execution does not depend on `PATH` or Bun global-link state.
-- Local marketplace: `.agents/plugins/marketplace.json` exposes this repo as a local `groundwork` plugin.
 - Project install: `groundwork codex install-project '{"target_dir":"."}'`.
 - User install: `groundwork codex install-user '{"codex_home":"/path/to/.codex"}'`.
 - Explicit hook command install: `groundwork codex install-project '{"target_dir":".","hook_command":"/absolute/path/to/groundwork codex hook"}'`.
@@ -21,7 +20,7 @@ User installs create:
 - `$CODEX_HOME/config.toml`, patched to include `[features] codex_hooks = true` while preserving existing settings.
 - `$CODEX_HOME/hooks.json` that calls the Groundwork CLI hook entrypoint.
 
-By default, existing hook files are skipped. Passing `force: true` overwrites Groundwork-managed hook files, but config files are still patched instead of replaced. Groundwork skills are managed from `ai-plugins`; the Groundwork package does not write skill folders into `.codex/`.
+By default, existing hook files are skipped. Passing `force: true` overwrites Groundwork-managed hook files, but config files are still patched instead of replaced. Groundwork skills are managed from Prism plugins; the Groundwork package does not write skill folders into `.codex/`.
 
 Generated hooks default to an absolute Bun executable plus the active CLI entrypoint, so hook execution does not depend on shell `PATH`. For local development, run `bun run build` and `bun run install:local` to install a standalone `groundwork` binary into `~/.local/bin`. Pass `hook_command` during project or user install when you want hooks to call a packaged binary or custom wrapper explicitly.
 
@@ -50,7 +49,7 @@ Codex hooks are best-effort guardrails, not a complete security boundary.
 - `PostToolUse` cannot undo side effects; it can only report feedback after the tool has run.
 - Tool-triggered synthetic prompt injection is unsupported in Codex V1. Prompt-mode policy guidance is surfaced through explicit CLI output, static skill guidance, or user-prompt hook context, not through automatic tool-triggered prompt injection.
 - Codex compaction hook parity is unsupported in V1. Use `groundwork session render-compaction` for explicit compact Groundwork context from local artifacts.
-- The ai-plugins Groundwork readiness skill teaches explicit CLI usage for paths hooks cannot cover.
+- The Groundwork readiness skill teaches explicit CLI usage for paths hooks cannot cover.
 - Use `groundwork context touched-paths` explicitly when hook coverage is missing or when you need deterministic context reminder output.
 - The full `gw_*` provenance registry is available through `groundwork provenance <tool-name>` commands and `groundwork provenance run`; `gw_block_read` remains an explicit blocking read command rather than a hidden policy side effect.
 
@@ -63,4 +62,4 @@ bun run verify
 groundwork codex doctor
 ```
 
-The test suite covers project/user install, `SessionStart` hook context, `UserPromptSubmit` policy command capture, `PreToolUse` Bash risk and policy denial, `PermissionRequest` denial, `PostToolUse` feedback, unsupported/no-config hook paths, and malformed hook payloads. Headless validation artifacts live under `.agents/validation/` when generated locally.
+The test suite covers project/user install, `SessionStart` hook context, `UserPromptSubmit` policy command capture, `PreToolUse` Bash risk and policy denial, `PermissionRequest` denial, `PostToolUse` feedback, unsupported/no-config hook paths, and malformed hook payloads.

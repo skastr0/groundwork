@@ -6,7 +6,6 @@ import { toDiffChangeSummary, toNearbyFileSummary } from "./change-summaries.ts"
 import type {
   CommitIdentity,
   CommitMaterializedData,
-  LinkedEvidence,
   ProvCommitExpandData,
 } from "./schemas.ts";
 import { EMPTY_TREE_HASH } from "./shared.ts";
@@ -171,13 +170,10 @@ export function buildCommitMaterializeSummary(data: CommitMaterializedData): str
 
 export function buildCommitExpandSummary(data: ProvCommitExpandData): string {
   const branchLabel = data.repo.branch.name ?? "detached HEAD";
-  return `Expanded commit ${data.materialized.commit.shortCommit}: ${data.materialized.touchedFiles.length} touched file(s), ${data.evidence.items.length} linked evidence item(s), repo ${branchLabel}.`;
+  return `Expanded commit ${data.materialized.commit.shortCommit}: ${data.materialized.touchedFiles.length} touched file(s), repo ${branchLabel}.`;
 }
 
-export function buildCommitSources(
-  data: CommitMaterializedData,
-  evidence?: LinkedEvidence,
-): ProvenanceEvidenceSource[] {
+export function buildCommitSources(data: CommitMaterializedData): ProvenanceEvidenceSource[] {
   const sources: ProvenanceEvidenceSource[] = [
     {
       kind: "git",
@@ -194,28 +190,6 @@ export function buildCommitSources(
       detail: data.commit.merge ? "first-parent diff base" : "direct parent diff base",
     },
   ];
-
-  if (!evidence) {
-    return sources;
-  }
-
-  const seen = new Set(sources.map((source) => `${source.kind}:${source.id}:${source.path ?? ""}`));
-  for (const item of evidence.items) {
-    const key = `${item.kind}:${item.id}:${item.path}`;
-    if (seen.has(key)) {
-      continue;
-    }
-
-    seen.add(key);
-    sources.push({
-      kind: item.kind,
-      id: item.id,
-      path: item.path,
-      label: item.label,
-      detail: item.detail,
-      ref: item.timestamp,
-    });
-  }
 
   return sources;
 }

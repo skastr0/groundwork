@@ -191,53 +191,13 @@ function createDetectedRemotePrResponses(prNumber: number): MockResponse[] {
   ];
 }
 
-async function seedEvidenceRoot(rootDir: string) {
+async function seedAuthRoot(rootDir: string) {
   await fs.mkdir(path.join(rootDir, "src", "auth"), { recursive: true });
-  await fs.mkdir(path.join(rootDir, ".agents", "messages"), { recursive: true });
-  await fs.mkdir(path.join(rootDir, ".agents", "sdlc", "done"), { recursive: true });
 
   await fs.writeFile(path.join(rootDir, "src", "auth", "login.ts"), "export const login = true;\n");
   await fs.writeFile(
     path.join(rootDir, "src", "auth", "logout.ts"),
     "export const logout = true;\n",
-  );
-  await fs.writeFile(
-    path.join(rootDir, ".agents", "messages", "2026-05-30T12-00-00Z-build.json"),
-    JSON.stringify(
-      {
-        from: "builder",
-        phase: "build",
-        type: "implementation",
-        content: {
-          summary: "Updated src/auth/login.ts and src/auth/logout.ts with auth provenance details.",
-        },
-        metadata: {
-          timestamp: "2026-05-30T12:00:00Z",
-          schema_id: "sdlc-core/implementation/v1",
-          work_item_ref: {
-            plugin: "sdlc-core",
-            id: "auth-pr-context",
-            path: ".agents/sdlc/done/auth-pr-context.md",
-          },
-        },
-      },
-      null,
-      2,
-    ),
-  );
-  await fs.writeFile(
-    path.join(rootDir, ".agents", "sdlc", "done", "auth-pr-context.md"),
-    [
-      "# Auth PR Context",
-      "",
-      "id: auth-pr-context",
-      "",
-      "## Context",
-      "Track src/auth/login.ts and src/auth/logout.ts through review.",
-      "",
-      "## Acceptance Criteria",
-      "- [x] Explain why src/auth/login.ts changed",
-    ].join("\n"),
   );
 }
 
@@ -255,7 +215,7 @@ describe("PR provenance tools", () => {
   });
 
   it("materializes explicit PR context with remote enrichment plus deterministic local branch files", async () => {
-    await seedEvidenceRoot(tempRoot);
+    await seedAuthRoot(tempRoot);
     const diffText = [
       "diff --git a/src/auth/login.ts b/src/auth/login.ts",
       "--- a/src/auth/login.ts",
@@ -333,7 +293,7 @@ describe("PR provenance tools", () => {
   });
 
   it("detects the current branch PR when no explicit PR number is provided", async () => {
-    await seedEvidenceRoot(tempRoot);
+    await seedAuthRoot(tempRoot);
     const seenCommands: string[] = [];
     const shell = createShellStub(
       [
@@ -377,7 +337,7 @@ describe("PR provenance tools", () => {
   });
 
   it("materializes PR review context when a PR has no submitted reviews", async () => {
-    await seedEvidenceRoot(tempRoot);
+    await seedAuthRoot(tempRoot);
     const shell = createShellStub([
       ...createLocalRepoResponses(""),
       {
@@ -451,7 +411,7 @@ describe("PR provenance tools", () => {
   });
 
   it("bounds large PR review context while preserving counts", async () => {
-    await seedEvidenceRoot(tempRoot);
+    await seedAuthRoot(tempRoot);
     const longComment = "review body ".repeat(80);
     const shell = createShellStub([
       ...createLocalRepoResponses(""),
@@ -544,7 +504,7 @@ describe("PR provenance tools", () => {
   });
 
   it("surfaces missing PR remote lookup and explicit local fallback", async () => {
-    await seedEvidenceRoot(tempRoot);
+    await seedAuthRoot(tempRoot);
     const diffText = [
       "diff --git a/src/auth/login.ts b/src/auth/login.ts",
       "--- a/src/auth/login.ts",
@@ -597,7 +557,7 @@ describe("PR provenance tools", () => {
   });
 
   it("keeps local PR materialization on the cheap no-remote path", async () => {
-    await seedEvidenceRoot(tempRoot);
+    await seedAuthRoot(tempRoot);
     const diffText = [
       "diff --git a/src/auth/login.ts b/src/auth/login.ts",
       "--- a/src/auth/login.ts",
@@ -782,8 +742,8 @@ describe("PR provenance tools", () => {
     );
   });
 
-  it("expands PR context into linked local evidence", async () => {
-    await seedEvidenceRoot(tempRoot);
+  it("expands PR context with remote metadata and local branch materialization", async () => {
+    await seedAuthRoot(tempRoot);
     const diffText = [
       "diff --git a/src/auth/login.ts b/src/auth/login.ts",
       "--- a/src/auth/login.ts",
@@ -811,7 +771,6 @@ describe("PR provenance tools", () => {
         base: "origin/main",
         mode: "hybrid",
         limit: 10,
-        max_items: 5,
         max_bytes: 4000,
       },
       {} as never,
@@ -820,14 +779,11 @@ describe("PR provenance tools", () => {
 
     expect(result.ok).toBe(true);
     expect(result.data.materialized.remote.status).toBe("available");
-    expect(result.data.evidence.items.map((item: { kind: string }) => item.kind)).toEqual(
-      expect.arrayContaining(["message", "work_item"]),
-    );
-    expect(result.summary).toContain("Linked");
+    expect(result.data).not.toHaveProperty("evidence");
   });
 
   it("fails early when remote PR metadata exceeds the pre-parse budget", async () => {
-    await seedEvidenceRoot(tempRoot);
+    await seedAuthRoot(tempRoot);
     const oversizedMetadata = "x".repeat(300_000);
     const shell = createShellStub([
       ...createLocalRepoResponses(""),

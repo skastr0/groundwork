@@ -4,7 +4,7 @@ import {
   type ProvenanceWarning,
 } from "../contracts.ts";
 import { logger } from "../utils/logger.ts";
-import type { ProvCommitExpandData, ProvDiffExpandData } from "./schemas.ts";
+import type { ProvDiffExpandData } from "./schemas.ts";
 import { createUnsupportedModeFailure, dedupeWarnings, getLowestConfidence } from "./shared.ts";
 import {
   GW_COMMIT_EXPAND_TOOL,
@@ -71,27 +71,6 @@ export function inferDiffExpandConfidence(data: ProvDiffExpandData): ProvenanceC
   return getLowestConfidence(candidates);
 }
 
-export function collectCommitExpandWarnings(
-  data: ProvCommitExpandData,
-  warnings: ProvenanceWarning[],
-): ProvenanceWarning[] {
-  const output = [...warnings];
-
-  if (data.evidence.bounds.truncated) {
-    output.push({
-      code: "EVIDENCE_ITEMS_TRUNCATED",
-      message: `Linked evidence was truncated to ${data.evidence.bounds.returned} ranked item(s).`,
-      ambiguity: "low",
-    });
-  }
-
-  if (data.evidence.bytes.truncated) {
-    output.push({
-      code: "EVIDENCE_BYTES_TRUNCATED",
-      message: `Linked evidence summaries hit the ${data.evidence.bytes.limit}-byte budget.`,
-      ambiguity: "low",
-    });
-  }
-
-  return dedupeWarnings(output);
+export function collectCommitExpandWarnings(warnings: ProvenanceWarning[]): ProvenanceWarning[] {
+  return dedupeWarnings(warnings);
 }

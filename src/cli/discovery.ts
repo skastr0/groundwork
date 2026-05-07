@@ -341,7 +341,7 @@ export const EXAMPLES = [
     command_id: "policy.skill-loaded",
     command: "policy skill-loaded",
     name: "Confirm policy skills for a hook session",
-    args: [`{"session_id":"example","skills":["sdlc"]}`],
+    args: [`{"session_id":"example","skills":["release-readiness"]}`],
   },
   {
     command_id: "provenance.file-state",

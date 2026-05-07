@@ -2,7 +2,6 @@ import { tool, type ToolDefinition } from "@opencode-ai/plugin";
 import {
   provenanceBaseArg,
   provenanceMaxBytesArg,
-  provenanceMaxItemsArg,
   provenanceModeArg,
   provenancePathArg,
 } from "../args.ts";
@@ -32,7 +31,6 @@ async function executeDiffExpandCore(
     path: string;
     base?: string;
     limit?: number;
-    max_items?: number;
     max_bytes?: number;
     include_patch?: boolean;
   },
@@ -53,7 +51,6 @@ async function executeDiffExpandCore(
         diffText: anchor.diffText ?? "",
         base: args.base,
         limit: args.limit,
-        maxItems: args.max_items,
         maxBytes: args.max_bytes,
         includePatch: args.include_patch ?? false,
       })
@@ -67,7 +64,6 @@ async function executeDiffExpandCore(
       requestedPath: anchor.resolvedPath,
       base: args.base,
       limit: args.limit,
-      maxItems: args.max_items,
       maxBytes: args.max_bytes,
       includePatch: args.include_patch ?? false,
     })
@@ -79,13 +75,12 @@ export function createDiffExpandTool(options: CreateStateToolsOptions): ToolDefi
 
   return tool({
     description:
-      "Expand one file or diff anchor into bounded change summaries, nearby files, and linked provenance evidence.",
+      "Expand one file or diff anchor into bounded change summaries and nearby files.",
     args: {
       path: provenancePathArg,
       base: provenanceBaseArg,
       mode: provenanceModeArg,
       limit: diffSummaryLimitArg,
-      max_items: provenanceMaxItemsArg,
       max_bytes: provenanceMaxBytesArg,
       include_patch: includePatchArg,
     },
@@ -100,7 +95,6 @@ export function createDiffExpandTool(options: CreateStateToolsOptions): ToolDefi
         path: args.path,
         base: args.base,
         limit: args.limit,
-        maxItems: args.max_items,
         maxBytes: args.max_bytes,
         includePatch: args.include_patch ?? false,
       });
@@ -124,7 +118,6 @@ export function createDiffExpandTool(options: CreateStateToolsOptions): ToolDefi
           anchorKind: data.anchor.kind,
           changes: data.changeSummaries.length,
           nearby: data.nearbyFiles.length,
-          evidence: data.evidence.items.length,
         });
 
         return JSON.stringify(response, null, 2);

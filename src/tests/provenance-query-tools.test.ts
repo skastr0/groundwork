@@ -82,14 +82,13 @@ describe("query provenance tools", () => {
     await fs.rm(tempRoot, { recursive: true, force: true });
   });
 
-  it("reads staged-only new files when matching message summaries are structured objects", async () => {
+  it("reads staged-only new files", async () => {
     await fs.mkdir(
       path.join(tempRoot, "plugin", "groundwork", "provenance", "tooling", "query"),
       {
         recursive: true,
       },
     );
-    await fs.mkdir(path.join(tempRoot, ".agents", "messages"), { recursive: true });
 
     await fs.writeFile(
       path.join(
@@ -104,33 +103,6 @@ describe("query provenance tools", () => {
       ["export const provenanceTools = true;", "export const loaded = true;"].join("\n") + "\n",
       "utf8",
     );
-    await fs.writeFile(
-      path.join(tempRoot, ".agents", "messages", "2026-05-30T12-45-00Z-review.json"),
-      JSON.stringify(
-        {
-          from: "reviewer",
-          phase: "review",
-          type: "findings",
-          content: {
-            summary: {
-              assessment: "Structured review assessment for staged provenance file.",
-            },
-            findings: [
-              {
-                file: QUERY_TOOL_PATH,
-              },
-            ],
-          },
-          metadata: {
-            timestamp: "2026-05-30T12:45:00Z",
-          },
-        },
-        null,
-        2,
-      ),
-      "utf8",
-    );
-
     const shell = makeShellStub([
       ["git branch --show-current", "feature/prov-read"],
       ["git branch -r", "origin/main\norigin/feature/prov-read"],
@@ -164,7 +136,6 @@ describe("query provenance tools", () => {
         path: QUERY_TOOL_PATH,
         layer: "worktree",
         limit: 5,
-        max_items: 5,
         max_bytes: 4000,
       },
       {} as never,
@@ -174,26 +145,16 @@ describe("query provenance tools", () => {
     expect(result.ok).toBe(true);
     expect(result.data.resolvedPath).toBe(QUERY_TOOL_PATH);
     expect(result.data.content.exists).toBe(true);
-    expect(result.data.evidence.items).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          kind: "message",
-          // Structured (non-string) content.summary falls back to a raw
-          // packet artifact label instead of crashing on .trim().
-          detail: `Packet artifact: 2026-05-30T12-45-00Z-review.json`,
-        }),
-      ]),
-    );
+    expect(result.data).not.toHaveProperty("evidence");
   });
 
-  it("reads block provenance with content window, lineage, diff, and evidence details", async () => {
+  it("reads block provenance with content window, lineage, and diff details", async () => {
     await fs.mkdir(
       path.join(tempRoot, "plugin", "groundwork", "provenance", "tooling", "query"),
       {
         recursive: true,
       },
     );
-    await fs.mkdir(path.join(tempRoot, ".agents", "messages"), { recursive: true });
 
     await fs.writeFile(
       path.join(tempRoot, BLOCK_TOOL_PATH),
@@ -202,31 +163,6 @@ describe("query provenance tools", () => {
       ) + "\n",
       "utf8",
     );
-    await fs.writeFile(
-      path.join(tempRoot, ".agents", "messages", "2026-05-30T10-00-00Z-block-review.json"),
-      JSON.stringify(
-        {
-          from: "reviewer",
-          phase: "review",
-          type: "findings",
-          content: {
-            summary: "Block target review summary.",
-            findings: [
-              {
-                file: BLOCK_TOOL_PATH,
-              },
-            ],
-          },
-          metadata: {
-            timestamp: "2026-05-30T10:00:00Z",
-          },
-        },
-        null,
-        2,
-      ),
-      "utf8",
-    );
-
     const indexContent =
       ["alpha();", "const target = 0;", "const changed = target + 1;", "omega();", "tail();"].join(
         "\n",
@@ -283,7 +219,6 @@ describe("query provenance tools", () => {
         end_line: 3,
         radius: 1,
         limit: 5,
-        max_items: 5,
         max_bytes: 4000,
       },
       {} as never,
@@ -303,7 +238,7 @@ describe("query provenance tools", () => {
       },
     });
     expect(result.summary).toBe(
-      `Read worktree block for ${BLOCK_TOOL_PATH}:2-3: 4 line(s) from 1-4, 1 nearby lineage item(s), 1 local diff range(s), 1 linked evidence item(s), repo feature/prov-block-read against origin/main.`,
+      `Read worktree block for ${BLOCK_TOOL_PATH}:2-3: 4 line(s) from 1-4, 1 nearby lineage item(s), 1 local diff range(s), repo feature/prov-block-read against origin/main.`,
     );
     expect(result.sources).toEqual(
       expect.arrayContaining([
@@ -317,10 +252,6 @@ describe("query provenance tools", () => {
           kind: "git",
           path: BLOCK_TOOL_PATH,
           label: "fedcba987654",
-        }),
-        expect.objectContaining({
-          kind: "message",
-          path: ".agents/messages/2026-05-30T10-00-00Z-block-review.json",
         }),
       ]),
     );
@@ -354,14 +285,7 @@ describe("query provenance tools", () => {
         }),
       ]),
     );
-    expect(result.data.evidence.items).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          kind: "message",
-          path: ".agents/messages/2026-05-30T10-00-00Z-block-review.json",
-        }),
-      ]),
-    );
+    expect(result.data).not.toHaveProperty("evidence");
   });
 
   it("rejects unsupported block-read modes before local state loading", async () => {

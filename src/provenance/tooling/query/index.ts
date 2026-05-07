@@ -12,7 +12,6 @@ import {
   provenanceLayerArg,
   provenanceLimitArg,
   provenanceMaxBytesArg,
-  provenanceMaxItemsArg,
   provenanceModeArg,
   provenancePathArg,
   provenanceRadiusArg,
@@ -28,20 +27,12 @@ import {
   createProvenanceSuccess,
   ProvenanceBoundsSchema,
   ProvenanceConfidenceSchema,
-  ProvenanceWarningSchema,
   type ProvenanceAmbiguity,
   type ProvenanceBounds,
   type ProvenanceConfidence,
   type ProvenanceEvidenceSource,
   type ProvenanceWarning,
 } from "../contracts.ts";
-import {
-  loadLocalPathEvidence,
-  toProvenanceEvidenceSource,
-  toProvenanceEvidenceSources,
-  type LocalEvidenceMatch,
-  type LocalEvidenceSourceResult,
-} from "../evidence/index.ts";
 import { ProvSpanHistoryDataSchema, resolveLocalSpanLineage } from "../lineage/index.ts";
 import {
   LOCAL_FILE_COMPARISON_STATUS_VALUES,
@@ -64,7 +55,6 @@ const GW_READ_TOOL = "gw_read" as const;
 const GW_BLOCK_READ_TOOL = "gw_block_read" as const;
 type QueryToolName = typeof GW_READ_TOOL | typeof GW_BLOCK_READ_TOOL;
 
-const EVIDENCE_ITEM_KIND_VALUES = ["message", "work_item"] as const;
 const BLOCK_WINDOW_SOURCE_VALUES = ["focus", "radius", "explicit"] as const;
 const DIFF_CONTEXT_RELATION_VALUES = ["overlap", "before", "after"] as const;
 const LOCAL_DIFF_CONTEXT_KEY_VALUES = ["head_to_index", "index_to_worktree"] as const;
@@ -97,53 +87,12 @@ const ProvReadContentSchema = z.object({
   detectionMethod: z.string().min(1),
 });
 
-const EvidenceSourceSummarySchema = z.discriminatedUnion("status", [
-  z.object({
-    status: z.literal("available"),
-    totalMatches: z.number().int().nonnegative(),
-    bounds: ProvenanceBoundsSchema,
-    warnings: z.array(ProvenanceWarningSchema),
-  }),
-  z.object({
-    status: z.literal("unavailable"),
-    code: z.string().min(1),
-    message: z.string().min(1),
-  }),
-  z.object({
-    status: z.literal("unsupported"),
-    code: z.string().min(1),
-    message: z.string().min(1),
-  }),
-]);
-
-const EvidenceItemSummarySchema = z.object({
-  kind: z.enum(EVIDENCE_ITEM_KIND_VALUES),
-  id: z.string().min(1),
-  path: z.string().min(1),
-  label: z.string().min(1),
-  detail: z.string().min(1).optional(),
-  timestamp: z.string().min(1).optional(),
-  score: z.number(),
-});
-
-const ProvReadEvidenceSchema = z.object({
-	  sources: z.object({
-	    messages: EvidenceSourceSummarySchema,
-	    workItems: EvidenceSourceSummarySchema,
-	  }),
-  items: z.array(EvidenceItemSummarySchema),
-  bounds: ProvenanceBoundsSchema,
-  bytes: ProvenanceBoundsSchema,
-  hints: z.array(z.string().min(1)),
-});
-
 export const ProvReadDataSchema = z.object({
   requestedPath: z.string().min(1),
   resolvedPath: z.string().min(1),
   repo: ProvRepoStateDataSchema,
   file: ProvFileStateDataSchema,
   content: ProvReadContentSchema,
-  evidence: ProvReadEvidenceSchema,
 });
 
 export const ProvReadResultSchema = createProvenanceResultSchema(ProvReadDataSchema);
@@ -224,7 +173,6 @@ export const ProvBlockReadDataSchema = z.object({
   content: ProvBlockContentSchema,
   lineage: ProvBlockLineageSchema,
   diff: ProvBlockDiffSchema,
-  evidence: ProvReadEvidenceSchema,
 });
 
 export const ProvBlockReadResultSchema = createProvenanceResultSchema(ProvBlockReadDataSchema);
@@ -809,104 +757,6 @@ function createDiffWarnings(diff: ProvBlockReadData["diff"]): ProvenanceWarning[
   return warnings;
 }
 
-function summarizeEvidenceSource<TItem extends LocalEvidenceMatch>(
-  source: LocalEvidenceSourceResult<TItem>,
-): z.infer<typeof EvidenceSourceSummarySchema> {
-  switch (source.status) {
-    case "available":
-      return {
-        status: "available",
-        totalMatches: source.totalMatches,
-        bounds: source.bounds,
-        warnings: source.warnings,
-      };
-    case "unavailable":
-      return {
-        status: "unavailable",
-        code: source.code,
-        message: source.message,
-      };
-    case "unsupported":
-      return {
-        status: "unsupported",
-        code: source.code,
-        message: source.message,
-      };
-  }
-}
-
-function summarizeEvidenceItem(
-  item: LocalEvidenceMatch,
-): z.infer<typeof EvidenceItemSummarySchema> {
-  const source = toProvenanceEvidenceSource(item);
-
-  return {
-    kind: item.kind,
-    id: source.id,
-    path: source.path ?? source.id,
-    label: source.label ?? source.id,
-    detail: source.detail,
-    timestamp: "timestamp" in item ? item.timestamp : undefined,
-    score: item.score,
-  };
-}
-
-function buildReadEvidence(
-  evidenceResult: Awaited<ReturnType<typeof loadLocalPathEvidence>>,
-): ProvReadData["evidence"] {
-	  const evidence: ProvReadData["evidence"] = {
-	    sources: {
-	      messages: summarizeEvidenceSource(evidenceResult.sources.messages),
-	      workItems: summarizeEvidenceSource(evidenceResult.sources.workItems),
-	    },
-    items: evidenceResult.ranked.items.map((item) => summarizeEvidenceItem(item)),
-    bounds: evidenceResult.ranked.bounds,
-    bytes: evidenceResult.ranked.bytes,
-    hints: [],
-  };
-  evidence.hints = buildEvidenceHints({
-    sources: evidence.sources,
-    bounds: evidence.bounds,
-    bytes: evidence.bytes,
-  });
-
-  return evidence;
-}
-
-function buildEvidenceHints(data: {
-  sources: ProvReadData["evidence"]["sources"];
-  bounds: ProvenanceBounds;
-  bytes: ProvenanceBounds;
-}): string[] {
-  const hints: string[] = [];
-	  const sourceEntries = [
-	    ["messages", data.sources.messages],
-	    ["work items", data.sources.workItems],
-	  ] as const;
-
-  for (const [label, source] of sourceEntries) {
-    if (source.status === "available" && source.bounds.truncated) {
-      hints.push(
-        `${label} evidence truncated to ${source.bounds.returned}/${source.totalMatches} match(es) by the per-source limit; rerun with a larger limit to inspect more.`,
-      );
-    }
-  }
-
-  if (data.bounds.truncated) {
-    hints.push(
-      `Linked evidence truncated to ${data.bounds.returned} ranked item(s); rerun with a larger max_items to inspect more.`,
-    );
-  }
-
-  if (data.bytes.truncated) {
-    hints.push(
-      `Linked evidence summaries hit the ${data.bytes.limit}-byte budget for this response and were trimmed to stay bounded.`,
-    );
-  }
-
-  return hints;
-}
-
 function createContentWarning(content: ProvReadData["content"]): ProvenanceWarning[] {
   const warnings: ProvenanceWarning[] = [];
 
@@ -922,44 +772,6 @@ function createContentWarning(content: ProvReadData["content"]): ProvenanceWarni
     warnings.push({
       code: "CONTENT_TRUNCATED",
       message: `Selected layer content was truncated to ${content.bounds.returned} byte(s).`,
-      ambiguity: "low",
-    });
-  }
-
-  return warnings;
-}
-
-function createEvidenceWarnings(evidence: ProvReadData["evidence"]): ProvenanceWarning[] {
-  const warnings: ProvenanceWarning[] = [];
-
-	  for (const source of [
-	    evidence.sources.messages,
-	    evidence.sources.workItems,
-	  ]) {
-    if (source.status === "available") {
-      warnings.push(...source.warnings);
-      if (source.bounds.truncated) {
-        warnings.push({
-          code: "EVIDENCE_SOURCE_TRUNCATED",
-          message: `A linked evidence source was truncated by the per-source limit.`,
-          ambiguity: "low",
-        });
-      }
-    }
-  }
-
-  if (evidence.bounds.truncated) {
-    warnings.push({
-      code: "EVIDENCE_ITEMS_TRUNCATED",
-      message: `Linked evidence was truncated to ${evidence.bounds.returned} ranked item(s).`,
-      ambiguity: "low",
-    });
-  }
-
-  if (evidence.bytes.truncated) {
-    warnings.push({
-      code: "EVIDENCE_BYTES_TRUNCATED",
-      message: `Linked evidence summaries hit the ${evidence.bytes.limit}-byte budget.`,
       ambiguity: "low",
     });
   }
@@ -991,7 +803,7 @@ function buildReadSummary(data: ProvReadData): string {
     ? `${data.content.bounds.returned} byte(s)${data.content.bounds.truncated ? ", truncated" : ""}`
     : "layer absent";
 
-  return `Read ${data.content.layer} layer for ${data.resolvedPath}: ${contentLabel}, ${data.evidence.items.length} linked evidence item(s), repo ${branchLabel} against ${baseLabel}.`;
+  return `Read ${data.content.layer} layer for ${data.resolvedPath}: ${contentLabel}, repo ${branchLabel} against ${baseLabel}.`;
 }
 
 function buildBlockReadSummary(data: ProvBlockReadData): string {
@@ -1005,7 +817,7 @@ function buildBlockReadSummary(data: ProvBlockReadData): string {
     0,
   );
 
-  return `Read ${data.content.layer} block for ${data.resolvedPath}:${data.content.focus.startLine}-${data.content.focus.endLine}: ${contentLabel}, ${data.lineage.data.lineage.length} nearby lineage item(s), ${nearbyDiffRanges} local diff range(s), ${data.evidence.items.length} linked evidence item(s), repo ${branchLabel} against ${baseLabel}.`;
+  return `Read ${data.content.layer} block for ${data.resolvedPath}:${data.content.focus.startLine}-${data.content.focus.endLine}: ${contentLabel}, ${data.lineage.data.lineage.length} nearby lineage item(s), ${nearbyDiffRanges} local diff range(s), repo ${branchLabel} against ${baseLabel}.`;
 }
 
 function buildContentSource(content: ProvReadData["content"]): ProvenanceEvidenceSource {
@@ -1042,7 +854,6 @@ interface ReadToolInput {
   base?: string;
   mode?: string;
   limit?: number;
-  max_items?: number;
   max_bytes?: number;
 }
 
@@ -1065,20 +876,18 @@ type BlockReadSuccessInputs = {
   content: ProvBlockReadData["content"];
   lineageResolution: Awaited<ReturnType<typeof resolveLocalSpanLineage>>;
   diff: Awaited<ReturnType<typeof buildLocalDiffContext>>;
-  evidenceResult: Awaited<ReturnType<typeof loadLocalPathEvidence>>;
 };
 
 function createReadTool(runtimeOptions: QueryToolRuntimeOptions): ToolDefinition {
   return tool({
     description:
-      "Read one file layer with bounded content plus compact repo, file, and linked evidence provenance summaries.",
+      "Read one file layer with bounded content plus compact repo and file provenance summaries.",
     args: {
       path: provenancePathArg,
       layer: provenanceLayerArg,
       base: provenanceBaseArg,
       mode: provenanceModeArg,
       limit: provenanceLimitArg,
-      max_items: provenanceMaxItemsArg,
       max_bytes: provenanceMaxBytesArg,
     },
     execute: (input: ReadToolInput) => executeReadTool(input, runtimeOptions),
@@ -1088,7 +897,7 @@ function createReadTool(runtimeOptions: QueryToolRuntimeOptions): ToolDefinition
 function createBlockReadTool(runtimeOptions: QueryToolRuntimeOptions): ToolDefinition {
   return tool({
     description:
-      "Read one bounded line window from a file layer with nearby lineage, local diff context, and linked evidence summaries.",
+      "Read one bounded line window from a file layer with nearby lineage and local diff context.",
     args: {
       path: provenancePathArg,
       start_line: provenanceStartLineArg,
@@ -1100,7 +909,6 @@ function createBlockReadTool(runtimeOptions: QueryToolRuntimeOptions): ToolDefin
       base: provenanceBaseArg,
       mode: provenanceModeArg,
       limit: provenanceLimitArg,
-      max_items: provenanceMaxItemsArg,
       max_bytes: provenanceMaxBytesArg,
     },
     execute: (input: BlockReadToolInput) => executeBlockReadTool(input, runtimeOptions),
@@ -1108,7 +916,7 @@ function createBlockReadTool(runtimeOptions: QueryToolRuntimeOptions): ToolDefin
 }
 
 async function executeReadTool(
-  { path: requestedPath, layer, base, mode, limit, max_items, max_bytes }: ReadToolInput,
+  { path: requestedPath, layer, base, mode, limit, max_bytes }: ReadToolInput,
   runtimeOptions: QueryToolRuntimeOptions,
 ): Promise<string> {
   const resolvedMode = mode ?? "local";
@@ -1141,7 +949,6 @@ async function executeReadTool(
     layer: selectedLayerName,
     base,
     limit,
-    maxItems: max_items,
     maxBytes: max_bytes,
   });
 
@@ -1153,23 +960,14 @@ async function executeReadTool(
       selectedLayerName,
       maxBytes: max_bytes,
     });
-    const evidenceResult = await loadQueryToolEvidence({
-      runtimeOptions,
-      normalizedPath,
-      fileState,
-      limit,
-      maxItems: max_items,
-    });
-    const evidence = buildReadEvidence(evidenceResult);
     const data = buildReadData({
       requestedPath: requestedPath.trim(),
       repoState,
       fileState,
       content,
-      evidence,
       limit,
     });
-    const response = buildReadResponse({ repoState, fileState, content, evidence, evidenceResult, data });
+    const response = buildReadResponse({ repoState, fileState, content, data });
 
     logger.info("gw_read end", {
       tool: GW_READ_TOOL,
@@ -1180,7 +978,6 @@ async function executeReadTool(
       layer: content.layer,
       exists: content.exists,
       contentBytes: content.bounds.returned,
-      evidenceItems: evidence.items.length,
     });
 
     return JSON.stringify(response, null, 2);
@@ -1289,28 +1086,11 @@ async function buildReadContent(options: {
   };
 }
 
-async function loadQueryToolEvidence(options: {
-  runtimeOptions: QueryToolRuntimeOptions;
-  normalizedPath: string;
-  fileState: ReadToolState["fileState"];
-  limit: number | undefined;
-  maxItems: number | undefined;
-}): Promise<Awaited<ReturnType<typeof loadLocalPathEvidence>>> {
-  return loadLocalPathEvidence({
-    rootDir: options.runtimeOptions.rootDir ?? process.cwd(),
-    path: options.normalizedPath,
-    aliases: buildEvidenceAliases(options.normalizedPath, options.fileState),
-    perSourceLimit: options.limit,
-    maxItems: options.maxItems,
-  });
-}
-
 function buildReadData(options: {
   requestedPath: string;
   repoState: ReadToolState["repoState"];
   fileState: ReadToolState["fileState"];
   content: ProvReadData["content"];
-  evidence: ProvReadData["evidence"];
   limit: number | undefined;
 }): ProvReadData {
   return {
@@ -1319,7 +1099,6 @@ function buildReadData(options: {
     repo: toProvRepoStateData(options.repoState, options.limit),
     file: toProvFileStateData(options.fileState),
     content: options.content,
-    evidence: options.evidence,
   };
 }
 
@@ -1327,15 +1106,12 @@ function buildReadResponse(options: {
   repoState: ReadToolState["repoState"];
   fileState: ReadToolState["fileState"];
   content: ProvReadData["content"];
-  evidence: ProvReadData["evidence"];
-  evidenceResult: Awaited<ReturnType<typeof loadLocalPathEvidence>>;
   data: ProvReadData;
 }): ReturnType<typeof createProvenanceSuccess<ProvReadData>> {
   const warnings = dedupeWarnings([
     ...toAmbiguityWarnings(options.repoState.ambiguity),
     ...toAmbiguityWarnings(options.fileState.ambiguity),
     ...createContentWarning(options.content),
-    ...createEvidenceWarnings(options.evidence),
   ]);
 
   return createProvenanceSuccess({
@@ -1354,10 +1130,7 @@ function buildReadResponse(options: {
     bounds: options.content.bounds,
     summary: buildReadSummary(options.data),
     warnings,
-    sources: [
-      buildContentSource(options.content),
-      ...toProvenanceEvidenceSources(options.evidenceResult.ranked.items),
-    ],
+    sources: [buildContentSource(options.content)],
     data: options.data,
   });
 }
@@ -1482,21 +1255,12 @@ async function loadBlockReadSuccessInputs(params: {
     focus: content.focus,
     limit: input.limit,
   });
-  const evidenceResult = await loadQueryToolEvidence({
-    runtimeOptions,
-    normalizedPath,
-    fileState,
-    limit: input.limit,
-    maxItems: input.max_items,
-  });
-
   return {
     repoState,
     fileState,
     content,
     lineageResolution,
     diff,
-    evidenceResult,
   };
 }
 
@@ -1535,19 +1299,6 @@ function createBlockReadFailure(params: {
   );
 }
 
-function buildEvidenceAliases(normalizedPath: string, fileState: LocalFileState): string[] {
-  const aliases = [
-    normalizedPath,
-    fileState.resolvedPath,
-    fileState.base.path,
-    fileState.head.path,
-    fileState.index.path,
-    fileState.worktree.path,
-  ].filter(Boolean);
-
-  return [...new Set(aliases)];
-}
-
 function logBlockReadStart(
   input: BlockReadToolInput,
   resolvedMode: string,
@@ -1566,7 +1317,6 @@ function logBlockReadStart(
     windowEnd: input.window_end,
     base: input.base,
     limit: input.limit,
-    maxItems: input.max_items,
     maxBytes: input.max_bytes,
   });
 }
@@ -1676,10 +1426,8 @@ function serializeBlockReadSuccess(params: {
   content: ProvBlockReadData["content"];
   lineageResolution: Awaited<ReturnType<typeof resolveLocalSpanLineage>>;
   diff: Awaited<ReturnType<typeof buildLocalDiffContext>>;
-  evidenceResult: Awaited<ReturnType<typeof loadLocalPathEvidence>>;
 }): string {
   const { input, normalizedPath, repoState, fileState, content, lineageResolution, diff } = params;
-  const evidence = buildReadEvidence(params.evidenceResult);
   const data: ProvBlockReadData = {
     requestedPath: input.path.trim(),
     resolvedPath: fileState.resolvedPath,
@@ -1696,7 +1444,6 @@ function serializeBlockReadSuccess(params: {
       confidence: lineageResolution.confidence,
     },
     diff,
-    evidence,
   };
   const warnings = dedupeWarnings([
     ...toAmbiguityWarnings(repoState.ambiguity),
@@ -1704,7 +1451,6 @@ function serializeBlockReadSuccess(params: {
     ...createBlockContentWarnings(content),
     ...lineageResolution.warnings,
     ...createDiffWarnings(diff),
-    ...createEvidenceWarnings(evidence),
   ]);
   const response = createProvenanceSuccess({
     tool: GW_BLOCK_READ_TOOL,
@@ -1726,7 +1472,6 @@ function serializeBlockReadSuccess(params: {
     sources: [
       buildBlockContentSource(content),
       ...lineageResolution.sources,
-      ...toProvenanceEvidenceSources(params.evidenceResult.ranked.items),
     ],
     data,
   });
@@ -1743,7 +1488,6 @@ function serializeBlockReadSuccess(params: {
     returnedLines: content.lines.length,
     lineageItems: data.lineage.data.lineage.length,
     diffComparisons: diff.comparisons.length,
-    evidenceItems: evidence.items.length,
   });
 
   return JSON.stringify(response, null, 2);

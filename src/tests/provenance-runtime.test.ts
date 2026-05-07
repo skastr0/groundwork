@@ -16,7 +16,6 @@ import {
 	  renderFrameworkSystemTransformGuidance,
 	  type GroundworkLayerHooks,
 	} from "../index.ts";
-import { loadLocalPathEvidence } from "../provenance/index.ts";
 import { createFrameworkHookHarness } from "./framework-test-harness.ts";
 
 vi.mock("@opencode-ai/plugin", async () => {
@@ -194,25 +193,7 @@ describe("framework provenance runtime", () => {
       expect(provenanceHooks?.["tool.execute.before"]).toBeUndefined();
       expect(provenanceHooks?.["tool.execute.after"]).toBeUndefined();
 
-      await expect(
-        fs.access(path.join(harness.rootDir, ".agents", "traces")),
-      ).rejects.toMatchObject({ code: "ENOENT" });
-
-      const evidence = await loadLocalPathEvidence({
-        rootDir: harness.rootDir,
-        path: "src/example.ts",
-      });
-
-      expect(evidence.sources.messages).toMatchObject({
-        status: "unavailable",
-        code: "directory_missing",
-      });
-      expect(evidence.sources.workItems).toMatchObject({
-        status: "unavailable",
-        code: "directory_missing",
-	      });
-	      expect(evidence.ranked.items).toEqual([]);
-	      expect(sessionStore.get(sessionID)).toBeNull();
+      expect(sessionStore.get(sessionID)).toBeNull();
     } finally {
       await harness.cleanup();
     }
@@ -247,7 +228,7 @@ describe("framework provenance runtime", () => {
       metadata: {
         policyRuntime: {
           completedInjectOnlyRules: ["guidance"],
-          confirmedSkills: ["groundwork-readiness", "sdlc"],
+          confirmedSkills: ["groundwork-readiness", "release-readiness"],
         },
       },
     });
@@ -301,7 +282,7 @@ describe("framework provenance runtime", () => {
     expect(output.context[0]).toMatchInlineSnapshot(`
       "Groundwork context:
       - context: injected files /repo/AGENTS.md, /repo/packages/feature/CLAUDE.md
-      - policy: active locks policy-pending-override (mutating-tools); confirmed skills groundwork-readiness, sdlc; completed prompt-only rules guidance
+      - policy: active locks policy-pending-override (mutating-tools); confirmed skills groundwork-readiness, release-readiness; completed prompt-only rules guidance
       - provenance: prompt role=user agent=builder model=openai/gpt-5.4 variant=careful tools edit=false, read=true, task=true; pending tools edit_file(src/main.ts)"
     `);
     expect(Buffer.byteLength(output.context[0] ?? "", "utf8")).toBeLessThanOrEqual(
@@ -354,7 +335,7 @@ text = "stay within guardrails"
 
       await harness.invokeChatMessage(
         { sessionID: "session-compaction-2" },
-        { parts: [{ type: "text", text: "/policy skill-loaded sdlc" }] },
+        { parts: [{ type: "text", text: "/policy skill-loaded release-readiness" }] },
       );
       await harness.invokeToolBefore(
         {
@@ -386,7 +367,7 @@ text = "stay within guardrails"
       expect(compactionOutput.context[0]).toContain("context: injected files");
       expect(compactionOutput.context[0]).toContain(parentPath);
       expect(compactionOutput.context[0]).toContain(childPath);
-      expect(compactionOutput.context[0]).toContain("confirmed skills sdlc");
+      expect(compactionOutput.context[0]).toContain("confirmed skills release-readiness");
       expect(compactionOutput.context[0]).toContain(
         "provenance: prompt role=user agent=builder model=openai/gpt-5.4 variant=careful",
       );

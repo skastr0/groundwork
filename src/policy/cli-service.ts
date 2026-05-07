@@ -17,7 +17,6 @@ import {
   extractChangeTargets,
   filterPathsByRuleContent,
   findMatchingRules,
-  hasMatchingWorkItem,
   loadMergedPolicyConfig,
   resolveRuleScope,
   ruleContentMatcherType,
@@ -31,7 +30,6 @@ import {
 } from "./config.ts";
 
 const SERVICE = "groundwork-policy";
-const POLICY_PACKET_SCHEMA_ID = "groundwork/policy-violation/v1";
 const POLICY_PENDING_OVERRIDE_LOCK_KEY = "policy-pending-override";
 const POLICY_TERMINATION_LOCK_KEY = "policy-terminated";
 const POLICY_COMPLETED_INJECT_ONLY_KEY = "policyCompletedInjectOnlyRules";
@@ -354,11 +352,6 @@ async function executePolicyAction(
     return;
   }
 
-  if (action.type === "require_work_item") {
-    await handleRequireWorkItemAction(context, { ...params, action });
-    return;
-  }
-
   if (action.type === "block_tool") {
     await handleBlockToolAction(context, { ...params, action });
     return;
@@ -420,26 +413,6 @@ async function handleEnsureSkillLoadedAction(
 
   if ((action.mode ?? "prompt") !== "prompt") {
     await recordViolation(context, rule, action.type, severity, message, paths);
-  }
-}
-
-async function handleRequireWorkItemAction(
-  context: PolicyEvaluationContext,
-  params: PolicyActionExecution & { action: Extract<GuardrailAction, { type: "require_work_item" }> },
-): Promise<void> {
-  const { action, rule, severity, paths } = params;
-  for (const normalizedPath of paths) {
-    if (await hasMatchingWorkItem(context.rootDir, normalizedPath)) continue;
-    await recordViolation(
-      context,
-      rule,
-      action.type,
-      severity,
-      action.message ??
-        `[groundwork:policy] Path '${normalizedPath}' requires a matching active work item before tool execution (rule: ${rule.id})`,
-      [normalizedPath],
-    );
-    return;
   }
 }
 
@@ -528,19 +501,6 @@ async function recordViolation(
   } satisfies PolicyViolation;
   context.messages.push(violation);
   context.violations.push(violation);
-  await writeViolationArtifact({
-    rootDir: context.rootDir,
-    sessionID: context.sessionID,
-    ruleId: rule.id,
-    severity,
-    actionType,
-    tool: context.tool,
-    phase: context.phase,
-    callID: context.callID,
-    message,
-    paths,
-    blocking,
-  });
 }
 
 function enforceSessionGuards(state: SessionArtifactState, tool: string): PolicyMessage | null {
@@ -803,54 +763,4 @@ function policyIdleResult(
     violations: [],
     ...extra,
   };
-}
-
-async function writeViolationArtifact(params: {
-  rootDir: string;
-  sessionID: string;
-  ruleId: string;
-  severity: GuardrailSeverity;
-  actionType: GuardrailAction["type"];
-  tool: string;
-  phase: EvaluationPhase;
-  callID: string;
-  message: string;
-  paths: string[];
-  blocking: boolean;
-}): Promise<void> {
-  const timestamp = new Date().toISOString();
-  const messagesDir = path.join(params.rootDir, ".agents", "messages");
-  const fileName = `${timestamp.replace(/[:.]/g, "-")}-groundwork-policy-${params.ruleId.replace(/[^a-zA-Z0-9._-]+/g, "-").slice(0, 80)}.json`;
-  const data = {
-    kind: "policy_violation",
-    session_id: params.sessionID,
-    rule_id: params.ruleId,
-    severity: params.severity,
-    action_type: params.actionType,
-    tool: params.tool,
-    phase: params.phase,
-    call_id: params.callID,
-    message: params.message,
-    paths: params.paths,
-  };
-  const packet = {
-    from: SERVICE,
-    to: "all",
-    phase: "review",
-    type: "artifact",
-    content: {
-      summary: `Policy violation for rule '${params.ruleId}' on ${params.tool}: ${params.message}`,
-      data,
-    },
-    metadata: {
-      timestamp,
-      schema_id: POLICY_PACKET_SCHEMA_ID,
-      parent_packet: null,
-      blocking: params.blocking,
-    },
-  };
-  await fs.mkdir(messagesDir, { recursive: true }).catch(() => undefined);
-  await fs
-    .writeFile(path.join(messagesDir, fileName), `${JSON.stringify(packet, null, 2)}\n`, "utf8")
-    .catch(() => undefined);
 }

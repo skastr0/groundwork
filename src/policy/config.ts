@@ -16,10 +16,6 @@ export type GuardrailAction =
       once_per_session?: boolean;
     }
   | {
-      type: "require_work_item";
-      message?: string;
-    }
-  | {
       type: "block_tool";
       message?: string;
     }
@@ -146,7 +142,6 @@ type PolicyLoadContext = {
 const PROJECT_GROUNDWORK_CONFIG_FILE = "groundwork.toml";
 const PROJECT_GROUNDWORK_CONFIG_DIR = ".groundwork";
 const GLOBAL_GROUNDWORK_CONFIG_DIR = ".groundwork";
-const ACTIVE_WORK_ITEM_FOLDERS = ["exploring", "committed", "building", "reviewing"];
 const AST_GREP_STRICTNESS = new Set<AstGrepStrictness>([
   "cst",
   "smart",
@@ -929,13 +924,6 @@ function parseAction(ruleId: string, value: unknown, index: number): GuardrailAc
       type: "inject_prompt",
       text: raw.text,
       once_per_session: raw.once_per_session === true,
-    };
-  }
-
-  if (raw.type === "require_work_item") {
-    return {
-      type: "require_work_item",
-      message: typeof raw.message === "string" ? raw.message : undefined,
     };
   }
 
@@ -2650,52 +2638,6 @@ function mergeRulesWithDuplicateCheck(
 
 function normalizeSlashes(value: string): string {
   return value.split(path.sep).join("/");
-}
-
-export async function hasMatchingWorkItem(
-  rootDir: string,
-  normalizedPath: string,
-): Promise<boolean> {
-  const workItemDir = path.join(rootDir, ".agents", "sdlc");
-  const target = normalizedPath.toLowerCase();
-
-  const tokens = new Set<string>([target]);
-  const dirname = path.posix.dirname(target);
-  if (dirname && dirname !== ".") tokens.add(dirname);
-
-  const parts = target.split("/").filter(Boolean);
-  if (parts.length >= 2) {
-    tokens.add(`${parts[0]}/${parts[1]}`);
-  }
-
-  for (const folder of ACTIVE_WORK_ITEM_FOLDERS) {
-    const folderPath = path.join(workItemDir, folder);
-    let entries: string[];
-    try {
-      entries = await fs.readdir(folderPath);
-    } catch {
-      continue;
-    }
-
-    for (const name of entries) {
-      if (!name.endsWith(".md")) continue;
-      const filePath = path.join(folderPath, name);
-      let content = "";
-      try {
-        content = (await fs.readFile(filePath, "utf8")).toLowerCase();
-      } catch {
-        continue;
-      }
-
-      for (const token of tokens) {
-        if (content.includes(token)) {
-          return true;
-        }
-      }
-    }
-  }
-
-  return false;
 }
 
 function globMatch(pattern: string, target: string): boolean {

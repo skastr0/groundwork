@@ -169,7 +169,7 @@ match = ["plugin/**"]
 
 [[rules.actions]]
 type = "ensure_skill_loaded"
-skills = ["sdlc", "groundwork-readiness"]
+skills = ["release-readiness", "groundwork-readiness"]
 mode = "block"
 `,
     });
@@ -188,7 +188,7 @@ mode = "block"
           parts: [
             {
               type: "text",
-              text: "/policy skill-loaded sdlc groundwork-readiness",
+              text: "/policy skill-loaded release-readiness groundwork-readiness",
             },
           ],
         },
@@ -205,7 +205,7 @@ mode = "block"
     }
   });
 
-  it("blocks tool execution and writes framework policy artifacts", async () => {
+  it("blocks tool execution without writing filesystem policy artifacts", async () => {
     const harness = await createPolicyRuntimeHarness({
       policyToml: `version = 1
 
@@ -227,110 +227,7 @@ message = "blocked by policy"
         ),
       ).rejects.toThrow("blocked by policy");
 
-      const artifactFiles = await fs.readdir(path.join(harness.rootDir, ".agents", "messages"));
-      const firstArtifact = artifactFiles.find((name) =>
-        name.includes("groundwork-policy-block-src"),
-      );
-      expect(firstArtifact).toBeTruthy();
-
-      const packet = JSON.parse(
-        await fs.readFile(
-          path.join(harness.rootDir, ".agents", "messages", firstArtifact!),
-          "utf8",
-        ),
-      ) as {
-        from?: string;
-        to?: string;
-        phase?: string;
-        type?: string;
-        stage?: string;
-        content?: {
-          summary?: string;
-          type?: string;
-          data?: {
-            kind?: string;
-            rule_id?: string;
-            action_type?: string;
-            phase?: string;
-            message?: string;
-            paths?: string[];
-          };
-        };
-        metadata?: {
-          timestamp?: string;
-          schema_id?: string;
-          work_item_ref?: unknown;
-          parent_packet?: unknown;
-          blocking?: boolean;
-        };
-      };
-
-      expect(packet).toMatchObject({
-        from: "groundwork-policy",
-        to: "all",
-        phase: "review",
-        type: "artifact",
-        content: {
-          data: {
-            kind: "policy_violation",
-            rule_id: "block-src",
-            action_type: "block_tool",
-            phase: "before",
-            message: "blocked by policy",
-            paths: ["src/main.ts"],
-          },
-        },
-        metadata: {
-          schema_id: "groundwork/policy-violation/v1",
-          parent_packet: null,
-          blocking: true,
-        },
-      });
-      expect(packet.content?.summary).toContain("block-src");
-      expect(packet.content?.summary).toContain("blocked by policy");
-      expect(packet.metadata?.timestamp).toEqual(expect.any(String));
-      expect(packet.metadata?.work_item_ref).toBeUndefined();
-    } finally {
-      await harness.cleanup();
-    }
-  });
-
-  it("requires a matching active work item before allowing execution", async () => {
-    const harness = await createPolicyRuntimeHarness({
-      policyToml: `version = 1
-
-[[rules]]
-id = "work-item-required"
-match = ["src/**"]
-
-[[rules.actions]]
-type = "require_work_item"
-`,
-    });
-
-    try {
-      await expect(
-        harness.invokeToolBefore(
-          { tool: "edit", callID: "call-1", sessionID: "session-1" },
-          { filePath: "src/main.ts" },
-        ),
-      ).rejects.toThrow("requires a matching active work item");
-
-      await fs.mkdir(path.join(harness.rootDir, ".agents", "sdlc", "building"), {
-        recursive: true,
-      });
-      await fs.writeFile(
-        path.join(harness.rootDir, ".agents", "sdlc", "building", "src-main.md"),
-        "# Active work\n\n## Context\nTouches src/main.ts\n",
-        "utf8",
-      );
-
-      await expect(
-        harness.invokeToolBefore(
-          { tool: "edit", callID: "call-2", sessionID: "session-1" },
-          { filePath: "src/main.ts" },
-        ),
-      ).resolves.toBeUndefined();
+      await expect(fs.readdir(harness.rootDir)).resolves.not.toContain("policy-messages");
     } finally {
       await harness.cleanup();
     }

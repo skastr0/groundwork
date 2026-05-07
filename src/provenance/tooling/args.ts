@@ -158,11 +158,6 @@ export const provenanceLimitArg = createBoundedNumberArg({
   description: "Max evidence rows to return",
 });
 
-export const provenanceMaxItemsArg = createBoundedNumberArg({
-  ...DEFAULT_PROVENANCE_ITEM_LIMIT,
-  description: "Max items to return in the payload",
-});
-
 export const provenanceMaxBytesArg = createBoundedNumberArg({
   ...DEFAULT_PROVENANCE_BYTE_LIMIT,
   description: "Max text bytes to include in the payload",
@@ -180,7 +175,6 @@ export const provenanceCommonArgs = {
   mode: provenanceModeArg,
   scope: provenanceScopeArg,
   limit: provenanceLimitArg,
-  max_items: provenanceMaxItemsArg,
   max_bytes: provenanceMaxBytesArg,
   max_depth: provenanceMaxDepthArg,
 };

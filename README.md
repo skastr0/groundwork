@@ -82,7 +82,7 @@ groundwork codex doctor
 The package also includes a Codex plugin bundle at `.codex-plugin/plugin.json`, with `hooks/hooks.json`.
 Bundled hooks call `$HOME/.local/bin/groundwork` directly so hook execution does not depend on `PATH` or Bun global-link state.
 
-Project and user installers patch `config.toml` to enable Codex hooks and install `hooks.json`. Skills are managed from `ai-plugins`, not from this package. Generated hooks default to an absolute Bun executable plus the active CLI entrypoint so hook execution does not depend on shell `PATH`. Pass an explicit `hook_command` to pin a packaged binary or custom wrapper:
+Project and user installers patch `config.toml` to enable Codex hooks and install `hooks.json`. Skills are managed from Prism plugins, not from this package. Generated hooks default to an absolute Bun executable plus the active CLI entrypoint so hook execution does not depend on shell `PATH`. Pass an explicit `hook_command` to pin a packaged binary or custom wrapper:
 
 ```sh
 groundwork codex install-project '{"target_dir":".","hook_command":"/absolute/path/to/groundwork codex hook"}'
@@ -101,8 +101,6 @@ For local OpenCode use, point OpenCode at this package/plugin path after buildin
 ```sh
 bun run build
 ```
-
-Headless validation evidence for OpenCode and Codex lives under `.agents/validation/`.
 
 ## Development
 
@@ -127,4 +125,3 @@ bun run verify
 - `src/server.ts` exports the OpenCode plugin entrypoint.
 - `.codex-plugin/` and `hooks/` define the Codex plugin/install surface.
 - `docs/` contains integration and session artifact notes.
-- `.agents/sdlc/` tracks work items and review evidence.

@@ -17,12 +17,6 @@ import {
   type ProvenanceWarning,
 } from "../contracts.ts";
 import {
-  loadLocalPathEvidence,
-  toProvenanceEvidenceSources,
-  type LocalEvidenceMatch,
-  type LocalEvidenceSourceResult,
-} from "../evidence/index.ts";
-import {
   normalizeCreateStateToolsOptions,
   normalizeRequestedPath,
   ProvRepoStateDataSchema,
@@ -42,8 +36,6 @@ import {
   type AuthorityAuthor,
   type AuthorityTotals,
   type AuthorSample,
-  type EvidenceSourceSummary,
-  type EvidenceSummary,
   type ExplainableScore,
   type HistorySummary,
   type HotspotItem,
@@ -99,7 +91,7 @@ const historyParseMaxOutputBytes = 256_000;
 
 const analysisLimitArg = createBoundedNumberArg({
   ...ANALYSIS_LIMIT_OPTIONS,
-  description: "Max ranked hotspot rows, authors, and evidence items to return",
+  description: "Max ranked hotspot rows and authors to return",
 });
 
 const historyMaxCommitsArg = createBoundedNumberArg({
@@ -615,16 +607,6 @@ function describePressure(score: number, positiveLabel: string, neutralLabel: st
   return "pressure is low";
 }
 
-function describeCoverage(score: number): string {
-  if (score >= 70) {
-    return "local evidence covers most recent commits";
-  }
-  if (score >= 35) {
-    return "local evidence covers part of the recent activity";
-  }
-  return "recent activity has little linked local evidence";
-}
-
 function buildRepoSources(
   repo: z.infer<typeof ProvRepoStateDataSchema>,
 ): ProvenanceEvidenceSource[] {
@@ -691,106 +673,6 @@ function buildHistorySource(options: {
     label: "history scan",
     detail: `${options.history.commits.length}/${options.history.totalCommits} commit(s) loaded`,
   };
-}
-
-function summarizeEvidenceSource<TItem extends LocalEvidenceMatch>(
-  source: LocalEvidenceSourceResult<TItem>,
-): EvidenceSourceSummary {
-  switch (source.status) {
-    case "available":
-      return {
-        status: "available",
-        totalMatches: source.totalMatches,
-        bounds: source.bounds,
-        warnings: source.warnings,
-      };
-    case "unavailable":
-      return {
-        status: "unavailable",
-        code: source.code,
-        message: source.message,
-      };
-    case "unsupported":
-      return {
-        status: "unsupported",
-        code: source.code,
-        message: source.message,
-      };
-  }
-}
-
-function buildEvidenceSummary(
-  evidence: Awaited<ReturnType<typeof loadLocalPathEvidence>>,
-): EvidenceSummary {
-	  const summary: EvidenceSummary = {
-	    sources: {
-	      messages: summarizeEvidenceSource(evidence.sources.messages),
-	      workItems: summarizeEvidenceSource(evidence.sources.workItems),
-	    },
-    rankedItems: evidence.ranked.items.length,
-    bounds: evidence.ranked.bounds,
-    bytes: evidence.ranked.bytes,
-    hints: [],
-  };
-
-  if (
-    summary.sources.messages.status === "available" &&
-    summary.sources.messages.bounds.truncated
-  ) {
-    summary.hints.push("Message evidence was truncated by the per-source limit.");
-  }
-  if (
-    summary.sources.workItems.status === "available" &&
-    summary.sources.workItems.bounds.truncated
-  ) {
-    summary.hints.push("Work-item evidence was truncated by the per-source limit.");
-  }
-  if (summary.bounds.truncated) {
-    summary.hints.push("Ranked evidence was truncated by the item limit.");
-  }
-  if (summary.bytes.truncated) {
-    summary.hints.push(`Ranked evidence hit the ${summary.bytes.limit}-byte budget.`);
-  }
-
-  return summary;
-}
-
-function toEvidenceWarnings(summary: EvidenceSummary): ProvenanceWarning[] {
-  const warnings: ProvenanceWarning[] = [];
-
-	  for (const source of [
-	    summary.sources.messages,
-	    summary.sources.workItems,
-	  ]) {
-    if (source.status === "available") {
-      warnings.push(...source.warnings);
-      if (source.bounds.truncated) {
-        warnings.push({
-          code: "EVIDENCE_SOURCE_TRUNCATED",
-          message: "A linked evidence source was truncated by the per-source limit.",
-          ambiguity: "low",
-        });
-      }
-    }
-  }
-
-  if (summary.bounds.truncated) {
-    warnings.push({
-      code: "EVIDENCE_ITEMS_TRUNCATED",
-      message: `Ranked evidence was truncated to ${summary.bounds.returned} item(s).`,
-      ambiguity: "low",
-    });
-  }
-
-  if (summary.bytes.truncated) {
-    warnings.push({
-      code: "EVIDENCE_BYTES_TRUNCATED",
-      message: `Ranked evidence hit the ${summary.bytes.limit}-byte budget.`,
-      ambiguity: "low",
-    });
-  }
-
-  return warnings;
 }
 
 function toRepoAmbiguityWarnings(
@@ -1443,10 +1325,6 @@ function buildAssessment(
   if (scores.ownershipClarity.value >= 70) {
     reasons.push("one recent steward dominates the observed history");
   }
-  if (scores.evidenceCoverage.value >= 70) {
-    reasons.push("local evidence covers most of the recent commit activity");
-  }
-
   if (scores.pendingChangePressure.value >= 70 || scores.recentChangePressure.value >= 70) {
     return {
       label: "volatile",
@@ -1464,7 +1342,7 @@ function buildAssessment(
   return {
     label: "watch",
     reasons:
-      reasons.length > 0 ? reasons : ["signals are mixed across recency, ownership, and evidence"],
+      reasons.length > 0 ? reasons : ["signals are mixed across recency and ownership"],
   };
 }
 
@@ -1664,14 +1542,13 @@ async function executeStabilityReport(
   },
 ): Promise<{
   data: z.infer<typeof ProvStabilityReportDataSchema>;
-  evidenceResult: Awaited<ReturnType<typeof loadLocalPathEvidence>>;
   historySourceID: string;
 }> {
   const resolvedPath = normalizeAnalysisPath(args.path, options.rootDir);
   const requestedPath = args.path?.trim() || ".";
   const limit = resolveBoundedNumber(args.limit, ANALYSIS_LIMIT_OPTIONS);
   const windows = resolveStabilityWindows(args);
-  const [repoState, history, evidenceResult] = await Promise.all([
+  const [repoState, history] = await Promise.all([
     resolveLocalRepoState({ shell: options.shell }),
     loadHistory({
       shell: options.shell,
@@ -1682,28 +1559,18 @@ async function executeStabilityReport(
       ),
       maxCommits: args.max_commits,
     }),
-    loadLocalPathEvidence({
-      rootDir: options.rootDir ?? process.cwd(),
-      path: resolvedPath,
-      perSourceLimit: limit,
-      maxItems: limit,
-    }),
   ]);
 
   const repo = toProvRepoStateData(repoState, limit);
   const historySourceID = buildAnalysisHistorySourceID("stability", resolvedPath);
-  const evidenceSourceID = `evidence:${resolvedPath}`;
   const aggregates = buildStabilityWindowAggregates({ history, resolvedPath, windows });
   const pending = collectStabilityPendingPaths(repoState, resolvedPath);
-  const evidence = buildEvidenceSummary(evidenceResult);
   const scores = buildStabilityScores({
     baselineAggregate: aggregates.baselineAggregate,
     recentAggregate: aggregates.recentAggregate,
     windows,
     pendingCount: pending.allPending.size,
-    evidence,
     historySourceID,
-    evidenceSourceID,
   });
 
   return {
@@ -1715,10 +1582,8 @@ async function executeStabilityReport(
       windows,
       aggregates,
       pending,
-      evidence,
       scores,
     }),
-    evidenceResult,
     historySourceID,
   };
 }
@@ -1911,42 +1776,8 @@ function buildPendingChangePressureScore(options: {
   });
 }
 
-function buildEvidenceCoverageScore(options: {
-  baselineAggregate: WindowAggregate;
-  evidence: EvidenceSummary;
-  evidenceSourceID: string;
-}): ExplainableScore {
-  return createScore({
-    key: "evidence_coverage",
-    label: "Evidence coverage",
-    formula: "100 * min(1, linked_evidence_items / max(1, baseline_commits))",
-    interpretation: describeCoverage(
-      toPercent(
-        Math.min(1, options.evidence.rankedItems / Math.max(1, options.baselineAggregate.commits)),
-      ),
-    ),
-    factors: [
-      shareFactor({
-        key: "linked_evidence_share",
-        label: "Linked evidence per baseline commit",
-        numerator: Math.min(
-          options.evidence.rankedItems,
-          Math.max(1, options.baselineAggregate.commits),
-        ),
-        denominator: Math.max(1, options.baselineAggregate.commits),
-        numeratorLabel: "Linked evidence items",
-        denominatorLabel: "Baseline commits",
-        weight: 1,
-        sourceIDs: [options.evidenceSourceID],
-        unit: "items",
-      }),
-    ],
-  });
-}
-
 function buildCompositeStabilityScore(scores: {
   ownershipClarity: ExplainableScore;
-  evidenceCoverage: ExplainableScore;
   recentChangePressure: ExplainableScore;
   pendingChangePressure: ExplainableScore;
 }): ExplainableScore {
@@ -1954,42 +1785,33 @@ function buildCompositeStabilityScore(scores: {
     key: "stability",
     label: "Stability",
     formula:
-      "(ownership_clarity + evidence_coverage + (100 - recent_change_pressure) + (100 - pending_change_pressure)) / 4",
+      "(ownership_clarity + (100 - recent_change_pressure) + (100 - pending_change_pressure)) / 3",
     interpretation: "watch",
     factors: [
       {
         key: "ownership_clarity_factor",
         label: "Ownership clarity",
-        weight: 0.25,
+        weight: 1 / 3,
         value: scores.ownershipClarity.value,
-        contribution: round(scores.ownershipClarity.value * 0.25),
+        contribution: round(scores.ownershipClarity.value / 3),
         explanation: "Higher recent ownership clarity improves stability.",
         signals: scores.ownershipClarity.signals,
       },
       {
-        key: "evidence_coverage_factor",
-        label: "Evidence coverage",
-        weight: 0.25,
-        value: scores.evidenceCoverage.value,
-        contribution: round(scores.evidenceCoverage.value * 0.25),
-        explanation: "More linked local evidence improves explainability and stability.",
-        signals: scores.evidenceCoverage.signals,
-      },
-      {
         key: "change_calmness_factor",
         label: "Change calmness",
-        weight: 0.25,
+        weight: 1 / 3,
         value: round(100 - scores.recentChangePressure.value),
-        contribution: round((100 - scores.recentChangePressure.value) * 0.25),
+        contribution: round((100 - scores.recentChangePressure.value) / 3),
         explanation: "Less short-window concentration improves stability.",
         signals: scores.recentChangePressure.signals,
       },
       {
         key: "clean_worktree_factor",
         label: "Clean worktree",
-        weight: 0.25,
+        weight: 1 / 3,
         value: round(100 - scores.pendingChangePressure.value),
-        contribution: round((100 - scores.pendingChangePressure.value) * 0.25),
+        contribution: round((100 - scores.pendingChangePressure.value) / 3),
         explanation: "Fewer pending changes on recently touched paths improves stability.",
         signals: scores.pendingChangePressure.signals,
       },
@@ -2010,17 +1832,13 @@ function buildStabilityScores(options: {
   recentAggregate: WindowAggregate;
   windows: StabilityWindows;
   pendingCount: number;
-  evidence: EvidenceSummary;
   historySourceID: string;
-  evidenceSourceID: string;
 }): z.infer<typeof ProvStabilityReportDataSchema>["scores"] {
   const ownershipClarity = buildOwnershipClarityScore(options);
   const recentChangePressure = buildRecentChangePressureScore(options);
   const pendingChangePressure = buildPendingChangePressureScore(options);
-  const evidenceCoverage = buildEvidenceCoverageScore(options);
   const stability = buildCompositeStabilityScore({
     ownershipClarity,
-    evidenceCoverage,
     recentChangePressure,
     pendingChangePressure,
   });
@@ -2033,7 +1851,6 @@ function buildStabilityScores(options: {
     ownershipClarity,
     recentChangePressure,
     pendingChangePressure,
-    evidenceCoverage,
   };
 }
 
@@ -2045,7 +1862,6 @@ function buildStabilityReportData(options: {
   windows: StabilityWindows;
   aggregates: StabilityWindowAggregates;
   pending: StabilityPendingPaths;
-  evidence: EvidenceSummary;
   scores: z.infer<typeof ProvStabilityReportDataSchema>["scores"];
 }): z.infer<typeof ProvStabilityReportDataSchema> {
   return {
@@ -2081,7 +1897,6 @@ function buildStabilityReportData(options: {
       untracked: options.pending.pendingPaths.untracked.size,
       totalPaths: options.pending.allPending.size,
     },
-    evidence: options.evidence,
     scores: options.scores,
     assessment: buildAssessment(options.scores),
   };
@@ -2349,7 +2164,7 @@ function createAuthorityTool(runtimeOptions: CreateStateToolsOptions): ToolDefin
 function createStabilityReportTool(runtimeOptions: CreateStateToolsOptions): ToolDefinition {
   return tool({
     description:
-      "Report recent path stability with explicit component scores, factor breakdowns, pending-change pressure, and linked evidence coverage.",
+      "Report recent path stability with explicit component scores, factor breakdowns, and pending-change pressure.",
     args: {
       path: optionalPathArg,
       recent_window_days: recentWindowArg,
@@ -2405,7 +2220,6 @@ function logStabilityReportStart(args: StabilityReportToolInput): void {
 
 function createStabilityReportSuccess(result: {
   data: z.infer<typeof ProvStabilityReportDataSchema>;
-  evidenceResult: Awaited<ReturnType<typeof loadLocalPathEvidence>>;
   historySourceID: string;
 }) {
   const warnings = createStabilityReportWarnings(result.data);
@@ -2436,7 +2250,6 @@ function createStabilityReportWarnings(
       resolvedPath: data.anchor.resolvedPath,
       emptyMessage: `No matching non-merge commits were found for '${data.anchor.resolvedPath}'.`,
     }),
-    ...toEvidenceWarnings(data.evidence),
   ]);
 }
 
@@ -2451,11 +2264,9 @@ function inferStabilityReportConfidence(
 
 function createStabilityReportSources(result: {
   data: z.infer<typeof ProvStabilityReportDataSchema>;
-  evidenceResult: Awaited<ReturnType<typeof loadLocalPathEvidence>>;
   historySourceID: string;
 }): ProvenanceEvidenceSource[] {
   const data = result.data;
-  const evidenceSourceID = `evidence:${data.anchor.resolvedPath}`;
   return dedupeSources([
     ...buildRepoSources(data.repo),
     buildHistorySource({
@@ -2463,14 +2274,6 @@ function createStabilityReportSources(result: {
       resolvedPath: data.anchor.resolvedPath,
       history: toLoadedHistoryFromSummary(data.history),
     }),
-    {
-      kind: "derived",
-      id: evidenceSourceID,
-      path: data.anchor.resolvedPath,
-      label: "linked evidence",
-      detail: `${data.evidence.rankedItems} ranked item(s)`,
-    },
-    ...toProvenanceEvidenceSources(result.evidenceResult.ranked.items),
   ]);
 }
 

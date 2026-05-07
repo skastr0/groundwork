@@ -14,7 +14,6 @@ import {
   provenanceBaseArg,
   provenanceMaxBytesArg,
   provenanceMaxDepthArg,
-  provenanceMaxItemsArg,
   provenanceModeArg,
   provenancePathArg,
   provenanceScopeArg,
@@ -41,7 +40,6 @@ import {
   parseUnifiedDiff,
   type ParsedDiffSection,
 } from "./diff-parser.ts";
-import { buildLinkedEvidence } from "./evidence.ts";
 import {
   GW_TREE_EXPAND_TOOL,
   GW_WORKTREE_OVERVIEW_TOOL,
@@ -722,19 +720,6 @@ async function loadCommitActivity(options: {
   };
 }
 
-function toEvidenceSources(
-  items: ReadonlyArray<ProvTreeExpandData["evidence"]["items"][number]>,
-): ProvenanceEvidenceSource[] {
-  return items.map((item) => ({
-    kind: item.kind,
-    id: item.id,
-    path: item.path,
-    label: item.label,
-    detail: item.detail,
-    ref: item.timestamp,
-  }));
-}
-
 function buildTreeSources(data: ProvTreeExpandData): ProvenanceEvidenceSource[] {
   const sources: ProvenanceEvidenceSource[] = [
     {
@@ -756,7 +741,7 @@ function buildTreeSources(data: ProvTreeExpandData): ProvenanceEvidenceSource[] 
     });
   }
 
-  return [...sources, ...toEvidenceSources(data.evidence.items)];
+  return sources;
 }
 
 function buildWorktreeOverviewSources(data: ProvWorktreeOverviewData): ProvenanceEvidenceSource[] {
@@ -780,7 +765,7 @@ function buildWorktreeOverviewSources(data: ProvWorktreeOverviewData): Provenanc
     });
   }
 
-  return [...sources, ...toEvidenceSources(data.evidence.items)];
+  return sources;
 }
 
 function collectTreeWarnings(data: {
@@ -788,7 +773,6 @@ function collectTreeWarnings(data: {
   summary: ProvTreeExpandData["summary"];
   bounds: ProvTreeExpandData["bounds"];
   commits: TreeCommitActivity;
-  evidence: ProvTreeExpandData["evidence"];
   warnings: ProvenanceWarning[];
 }): ProvenanceWarning[] {
   const output = [...data.warnings];
@@ -833,22 +817,6 @@ function collectTreeWarnings(data: {
     });
   }
 
-  if (data.evidence.bounds.truncated) {
-    output.push({
-      code: "EVIDENCE_ITEMS_TRUNCATED",
-      message: `Linked evidence was truncated to ${data.evidence.bounds.returned} ranked item(s).`,
-      ambiguity: "low",
-    });
-  }
-
-  if (data.evidence.bytes.truncated) {
-    output.push({
-      code: "EVIDENCE_BYTES_TRUNCATED",
-      message: `Linked evidence summaries hit the ${data.evidence.bytes.limit}-byte budget.`,
-      ambiguity: "low",
-    });
-  }
-
   return dedupeWarnings(output);
 }
 
@@ -859,7 +827,6 @@ async function resolveTreeExpandCore(
     base?: string;
     scope?: TreeScopeType;
     limit?: number;
-    max_items?: number;
     max_bytes?: number;
     max_depth?: number;
   },
@@ -901,22 +868,12 @@ async function resolveTreeExpandCore(
     baseRef: repoState.base.ref,
     limit: args.limit,
   });
-  const evidence = await buildLinkedEvidence({
-    rootDir,
-    paths: files.flatMap(
-      (file) => [file.matchedPath, file.path, file.oldPath].filter(Boolean) as string[],
-    ),
-    limit: args.limit,
-    maxItems: args.max_items,
-    maxBytes: args.max_bytes,
-  });
   const summary = {
     areas: areas.length,
     changedFiles: files.length,
     additions: files.reduce((sum, file) => sum + file.additions, 0),
     deletions: files.reduce((sum, file) => sum + file.deletions, 0),
     commits: commits.count,
-    evidenceItems: evidence.items.length,
     checkout: summarizeCheckout({
       anchorPath: anchor.resolvedPath,
       indexFiles: repoState.index.files,
@@ -942,7 +899,6 @@ async function resolveTreeExpandCore(
     areas: areaBounds.items,
     files: fileBounds.items,
     commits,
-    evidence,
     bounds: {
       areas: areaBounds.bounds,
       files: fileBounds.bounds,
@@ -953,7 +909,6 @@ async function resolveTreeExpandCore(
     summary,
     bounds: data.bounds,
     commits,
-    evidence,
     warnings: [...anchor.warnings, ...scopedSections.warnings],
   });
 
@@ -973,13 +928,11 @@ function toWorktreeOverviewData(data: ProvTreeExpandData): ProvWorktreeOverviewD
       additions: data.summary.additions,
       deletions: data.summary.deletions,
       commits: data.summary.commits,
-      evidenceItems: data.summary.evidenceItems,
       checkout: data.summary.checkout,
     },
     focusAreas: data.areas,
     files: data.files,
     commits: data.commits,
-    evidence: data.evidence,
     bounds: {
       focusAreas: data.bounds.areas,
       files: data.bounds.files,
@@ -989,7 +942,7 @@ function toWorktreeOverviewData(data: ProvTreeExpandData): ProvWorktreeOverviewD
 
 function buildTreeExpandSummary(data: ProvTreeExpandData): string {
   const anchorLabel = data.anchor.resolvedPath === "." ? "repo root" : data.anchor.resolvedPath;
-  return `Expanded ${anchorLabel} in ${data.scope.type} scope: ${data.summary.changedFiles} changed file(s), ${data.summary.areas} focus area(s), ${data.summary.commits} commit(s), ${data.summary.evidenceItems} linked evidence item(s).`;
+  return `Expanded ${anchorLabel} in ${data.scope.type} scope: ${data.summary.changedFiles} changed file(s), ${data.summary.areas} focus area(s), ${data.summary.commits} commit(s).`;
 }
 
 function buildWorktreeOverviewSummary(data: ProvWorktreeOverviewData): string {
@@ -1001,14 +954,13 @@ export function createTreeExpandTool(options: CreateStateToolsOptions): ToolDefi
 
   return tool({
     description:
-      "Expand one directory or package path into bounded changed-file, focus-area, commit-activity, and linked-evidence summaries.",
+      "Expand one directory or package path into bounded changed-file, focus-area, and commit-activity summaries.",
     args: {
       path: provenancePathArg,
       base: provenanceBaseArg,
       scope: provenanceScopeArg,
       mode: provenanceModeArg,
       limit: treeSummaryLimitArg,
-      max_items: provenanceMaxItemsArg,
       max_bytes: provenanceMaxBytesArg,
       max_depth: provenanceMaxDepthArg,
     },
@@ -1024,7 +976,6 @@ export function createTreeExpandTool(options: CreateStateToolsOptions): ToolDefi
         base: args.base,
         scope: args.scope ?? "branch",
         limit: args.limit,
-        maxItems: args.max_items,
         maxBytes: args.max_bytes,
         maxDepth: args.max_depth,
       });
@@ -1055,7 +1006,6 @@ export function createTreeExpandTool(options: CreateStateToolsOptions): ToolDefi
           changedFiles: resolved.data.summary.changedFiles,
           areas: resolved.data.summary.areas,
           commits: resolved.data.summary.commits,
-          evidence: resolved.data.summary.evidenceItems,
         });
 
         return JSON.stringify(response, null, 2);
@@ -1082,13 +1032,12 @@ export function createWorktreeOverviewTool(options: CreateStateToolsOptions): To
 
   return tool({
     description:
-      "Summarize the current local worktree into bounded focus areas, changed files, commit activity, and linked evidence.",
+      "Summarize the current local worktree into bounded focus areas, changed files, and commit activity.",
     args: {
       base: provenanceBaseArg,
       scope: provenanceScopeArg,
       mode: provenanceModeArg,
       limit: treeSummaryLimitArg,
-      max_items: provenanceMaxItemsArg,
       max_bytes: provenanceMaxBytesArg,
       max_depth: provenanceMaxDepthArg,
     },
@@ -1103,7 +1052,6 @@ export function createWorktreeOverviewTool(options: CreateStateToolsOptions): To
         base: args.base,
         scope: args.scope ?? "working_tree",
         limit: args.limit,
-        maxItems: args.max_items,
         maxBytes: args.max_bytes,
         maxDepth: args.max_depth,
       });
@@ -1114,7 +1062,6 @@ export function createWorktreeOverviewTool(options: CreateStateToolsOptions): To
           base: args.base,
           scope: args.scope ?? "working_tree",
           limit: args.limit,
-          max_items: args.max_items,
           max_bytes: args.max_bytes,
           max_depth: args.max_depth,
         });

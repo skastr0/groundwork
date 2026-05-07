@@ -87,7 +87,7 @@ describe("tree provenance tools", () => {
     await fs.rm(tempRoot, { recursive: true, force: true });
   });
 
-  it("expands a directory anchor into bounded focus areas, commits, and linked evidence", async () => {
+  it("expands a directory anchor into bounded focus areas and commits", async () => {
     await fs.mkdir(path.join(tempRoot, TOOLING_ROOT_PATH, "expand"), {
       recursive: true,
     });
@@ -97,8 +97,6 @@ describe("tree provenance tools", () => {
     await fs.mkdir(path.join(tempRoot, TOOLING_ROOT_PATH, "query"), {
       recursive: true,
     });
-    await fs.mkdir(path.join(tempRoot, ".agents", "messages"), { recursive: true });
-    await fs.mkdir(path.join(tempRoot, ".agents", "sdlc", "building"), { recursive: true });
 
     await fs.writeFile(
       path.join(tempRoot, TOOLING_ROOT_PATH, "expand", "tree-tools.ts"),
@@ -115,44 +113,6 @@ describe("tree provenance tools", () => {
       "export const query = true;\n",
       "utf8",
     );
-    await fs.writeFile(
-      path.join(tempRoot, ".agents", "messages", "2026-05-30T10-00-00Z-build.json"),
-      JSON.stringify(
-        {
-          from: "builder",
-          phase: "build",
-          type: "implementation",
-          content: {
-            summary: `Touched ${TREE_TOOLS_FILE} while refining the tree view.`,
-          },
-          metadata: {
-            timestamp: "2026-05-30T10:00:00Z",
-            schema_id: "sdlc-core/implementation/v1",
-            work_item_ref: {
-              plugin: "sdlc-core",
-              id: "tree-tool-item",
-              path: ".agents/sdlc/building/tree-tool-item.md",
-            },
-          },
-        },
-        null,
-        2,
-      ),
-      "utf8",
-    );
-    await fs.writeFile(
-      path.join(tempRoot, ".agents", "sdlc", "building", "tree-tool-item.md"),
-      [
-        "# Tree Tool Item",
-        "",
-        "id: tree-tool-item",
-        "",
-        "## Context",
-        `Update ${STATE_FILE} and ${QUERY_FILE}.`,
-      ].join("\n"),
-      "utf8",
-    );
-
     const shell = makeShellStub([
       [
         `git diff --find-renames --unified=0 origin/main..HEAD -- ${TOOLING_ROOT_POSIX}`,
@@ -205,7 +165,6 @@ describe("tree provenance tools", () => {
         path: TOOLING_ROOT_POSIX,
         scope: "branch",
         limit: 2,
-        max_items: 5,
         max_bytes: 4000,
         max_depth: 1,
       },
@@ -239,9 +198,7 @@ describe("tree provenance tools", () => {
       returned: 2,
       truncated: true,
     });
-    expect(result.data.evidence.items.map((item: { kind: string }) => item.kind)).toEqual(
-      expect.arrayContaining(["message", "work_item"]),
-    );
+    expect(result.data).not.toHaveProperty("evidence");
     expect(result.meta.warnings).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ code: "TREE_AREAS_TRUNCATED" }),
@@ -261,7 +218,6 @@ describe("tree provenance tools", () => {
     await fs.mkdir(path.join(tempRoot, TOOLING_ROOT_PATH, "tests"), {
       recursive: true,
     });
-    await fs.mkdir(path.join(tempRoot, ".agents", "messages"), { recursive: true });
 
     await fs.writeFile(
       path.join(tempRoot, TOOLING_ROOT_PATH, "expand", "tree-tools.ts"),
@@ -278,52 +234,6 @@ describe("tree provenance tools", () => {
       "export const created = true;\n",
       "utf8",
     );
-    await fs.writeFile(
-      path.join(tempRoot, ".agents", "messages", "2026-05-30T11-00-00Z-build.json"),
-      JSON.stringify(
-        {
-          from: "builder",
-          phase: "build",
-          type: "implementation",
-          content: {
-            summary: `Adjusted ${TREE_TOOLS_FILE} for worktree overview.`,
-          },
-          metadata: {
-            timestamp: "2026-05-30T11:00:00Z",
-            schema_id: "sdlc-core/implementation/v1",
-          },
-        },
-        null,
-        2,
-      ),
-      "utf8",
-    );
-    await fs.writeFile(
-      path.join(tempRoot, ".agents", "messages", "2026-05-30T11-30-00Z-review.json"),
-      JSON.stringify(
-        {
-          from: "reviewer",
-          phase: "review",
-          type: "findings",
-          content: {
-            summary: `Structured worktree assessment for ${STATE_FILE}.`,
-            findings: [
-              {
-                file: STATE_FILE,
-              },
-            ],
-          },
-          metadata: {
-            timestamp: "2026-05-30T11:30:00Z",
-            schema_id: "sdlc-core/review-findings/v1",
-          },
-        },
-        null,
-        2,
-      ),
-      "utf8",
-    );
-
     const shell = makeShellStub([
       [
         "git diff --cached --find-renames --unified=0 -- .",
@@ -374,7 +284,6 @@ describe("tree provenance tools", () => {
       {
         scope: "working_tree",
         limit: 3,
-        max_items: 5,
         max_bytes: 4000,
         max_depth: 3,
       },
@@ -405,13 +314,6 @@ describe("tree provenance tools", () => {
       STATE_FILE,
       TOOLING_TEST_FILE,
     ]);
-    expect(result.data.evidence.items.length).toBeGreaterThan(0);
-    expect(
-      result.data.evidence.items.some(
-        (item: { kind: string; detail?: string }) =>
-          item.kind === "message" &&
-          item.detail === `Structured worktree assessment for ${STATE_FILE}.`,
-      ),
-    ).toBe(true);
+    expect(result.data).not.toHaveProperty("evidence");
   });
 });

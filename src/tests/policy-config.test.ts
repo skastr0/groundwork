@@ -7,7 +7,6 @@ import {
   extractChangeTargets,
   filterPathsByRuleContent,
   findMatchingRules,
-  hasMatchingWorkItem,
   loadMergedPolicyConfig,
   mergePolicyConfigs,
   normalizePathForMatching,
@@ -188,7 +187,7 @@ describe("policy config parser", () => {
           actions: [
             {
               type: "ensure_skill_loaded",
-              skills: ["auth-hardening", "sdlc"],
+              skills: ["auth-hardening", "release-readiness"],
               mode: "block",
             },
           ],
@@ -246,14 +245,14 @@ describe("path matching", () => {
   it("extracts candidate paths from nested args", () => {
     const paths = extractCandidatePaths({
       filePath: "plugin/review/index.ts",
-      output_path: ".agents/local-stories/out.artifact",
+      output_path: "artifacts/local-stories/out.artifact",
       nested: {
         items: [{ path: "./plugin/review/local-story.ts" }],
       },
     });
 
     expect(paths).toContain("plugin/review/index.ts");
-    expect(paths).toContain(".agents/local-stories/out.artifact");
+    expect(paths).toContain("artifacts/local-stories/out.artifact");
     expect(paths).toContain("./plugin/review/local-story.ts");
   });
 
@@ -1480,36 +1479,6 @@ text = "b"
     expect(resolveGlobalPolicyConfigPaths({ HOME: "/home/tester" })).toEqual([
       "/home/tester/.groundwork/groundwork.toml",
     ]);
-  });
-});
-
-describe("work item requirement", () => {
-  it("returns false without active matching work item", async () => {
-    const root = await createTempRoot();
-    await fs.mkdir(path.join(root, ".agents", "sdlc", "committed"), {
-      recursive: true,
-    });
-    await fs.writeFile(
-      path.join(root, ".agents", "sdlc", "committed", "unrelated.md"),
-      "# Unrelated\n\nNo matching paths here.",
-    );
-
-    const covered = await hasMatchingWorkItem(root, "infra/prod/main.tf");
-    expect(covered).toBe(false);
-  });
-
-  it("returns true when active work item references target path", async () => {
-    const root = await createTempRoot();
-    await fs.mkdir(path.join(root, ".agents", "sdlc", "building"), {
-      recursive: true,
-    });
-    await fs.writeFile(
-      path.join(root, ".agents", "sdlc", "building", "policy.md"),
-      "# Policy guardrail\n\nTouches plugin/review/index.ts and plugin/review/local-story.ts",
-    );
-
-    const covered = await hasMatchingWorkItem(root, "plugin/review/index.ts");
-    expect(covered).toBe(true);
   });
 });
 

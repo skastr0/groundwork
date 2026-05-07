@@ -12,10 +12,6 @@ skills = ["groundwork-readiness"]
 mode = "prompt"
 once_per_session = true
 
-[[rules.actions]]
-type = "require_work_item"
-message = "Groundwork policy/runtime changes need an active SDLC work item."
-
 [[rules]]
 id = "groundwork-cli-surface-edits"
 description = "CLI protocol changes should preserve JSON-first agentic CLI contracts"
@@ -36,10 +32,6 @@ once_per_session = true
 id = "groundwork-risk-policy-core-edits"
 description = "Policy and risk core changes have high guardrail blast radius"
 match = ["src/policy/**", "src/risk/**"]
-
-[[rules.actions]]
-type = "require_work_item"
-message = "Policy/risk core changes need explicit SDLC tracking with validation and rollback notes."
 
 [[rules.actions]]
 type = "inject_prompt"

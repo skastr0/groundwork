@@ -7,9 +7,9 @@
 - `layer/` — hook composition and dispatch order
 - `kernel/` — shared session state, caches, budgets, and prompt context helpers
 - `logger/` — shared framework logger
-- `policy/` — policy config parsing, matching, enforcement, and violation artifacts
+- `policy/` — policy config parsing, matching, and enforcement
 - `context/` — `AGENTS.md` and `CLAUDE.md` discovery plus prompt injection
-- `provenance/` — runtime hooks, `gw_*` tool registry, local evidence, and provenance tooling
+- `provenance/` — runtime hooks, `gw_*` tool registry, and provenance tooling
 - `risk/` — destructive command evaluation and bash gating
 - `tests/` — framework-owned coverage for policy, context, provenance, risk, and composition
 
@@ -26,7 +26,7 @@ That order matters:
 
 - `policy` blocks or injects before other layers add context.
 - `context` injects inherited instructions before provenance augments tool guidance.
-- `provenance` enriches tool definitions and exposes local evidence tools after policy and context are settled.
+- `provenance` enriches tool definitions and exposes Groundwork provenance tools after policy and context are settled.
 - `risk` is the final stop for destructive bash commands.
 
 ## Policy
@@ -43,16 +43,13 @@ Supported behavior includes:
 - rule-level tool filters, content matchers, and scope controls
 - session commands: `/policy override <reason>` and `/policy skill-loaded <skill...>`
 
-Policy violations are recorded as IAP artifacts under `.agents/messages/` using the file pattern:
-
-- `<timestamp>-groundwork-policy-<rule>.json`
+Policy violations are returned through hook or CLI results and stored only in Groundwork session artifacts.
 
 ## Provenance
 
 The framework owns the full `gw_*` tool surface under `provenance/`:
 
 - tool builders: `provenance/tooling/`
-- local evidence ranking: `provenance/local-evidence.ts`
 - runtime hooks and tool-definition augmentation: `provenance/runtime.ts`
 
 ## Validation Anchors

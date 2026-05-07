@@ -20,7 +20,6 @@ export const PROVENANCE_SOURCE_KIND_VALUES = [
   "git",
   "message",
   "session",
-  "work_item",
   "review",
   "derived",
 ] as const;

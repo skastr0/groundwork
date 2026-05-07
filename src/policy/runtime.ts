@@ -26,7 +26,6 @@ import {
   extractChangeTargets,
   filterPathsByRuleContent,
   findMatchingRules,
-  hasMatchingWorkItem,
   loadMergedPolicyConfig,
   resolveRuleScope,
   ruleContentMatcherType,
@@ -40,7 +39,6 @@ import {
 } from "./config.ts";
 
 const SERVICE = "groundwork-policy";
-const POLICY_PACKET_SCHEMA_ID = "groundwork/policy-violation/v1";
 const MUTATING_TOOLS = new Set<string>(DEFAULT_EDIT_FOCUSED_TOOLS);
 const POLICY_RUNTIME_METADATA_KEY = "policyRuntime";
 const POLICY_CONTENT_MATCH_CACHE_BUCKET = "policy-content-matches";
@@ -733,10 +731,6 @@ async function executeAction(params: ExecuteActionParams): Promise<void> {
       return executeEnsureSkillLoadedAction(
         params as ExecuteActionParams<PolicyActionOf<"ensure_skill_loaded">>,
       );
-    case "require_work_item":
-      return executeRequireWorkItemAction(
-        params as ExecuteActionParams<PolicyActionOf<"require_work_item">>,
-      );
     case "block_tool":
       return executeBlockToolAction(params as ExecuteActionParams<PolicyActionOf<"block_tool">>);
     case "require_human_override":
@@ -809,26 +803,6 @@ async function executeEnsureSkillLoadedAction(
   }
 
   await enforceViolationForAction(params, message);
-}
-
-async function executeRequireWorkItemAction(
-  params: ExecuteActionParams<PolicyActionOf<"require_work_item">>,
-): Promise<void> {
-  const { action, normalizedPaths, rootDir, rule } = params;
-  for (const normalizedPath of normalizedPaths) {
-    const covered = await hasMatchingWorkItem(rootDir, normalizedPath);
-    if (covered) {
-      continue;
-    }
-
-    await enforceViolationForAction(
-      params,
-      action.message ??
-        `[groundwork:policy] Path '${normalizedPath}' requires a matching active work item before tool execution (rule: ${rule.id})`,
-      [normalizedPath],
-    );
-    return;
-  }
 }
 
 async function executeBlockToolAction(
@@ -929,27 +903,12 @@ async function enforceViolation(params: {
     severity,
     message,
     normalizedPaths,
-    rootDir,
     client,
     sessionStore,
     state,
     runtimeState,
     forceTerminate = false,
   } = params;
-
-  await writeViolationArtifact({
-    rootDir,
-    sessionID,
-    ruleId: rule.id,
-    severity,
-    actionType,
-    tool,
-    phase,
-    callID,
-    message,
-    paths: normalizedPaths,
-    blocking: forceTerminate || isBlockingSeverity(severity),
-  });
 
   await log(client, severityToLogLevel(severity), "Policy violation", {
     phase,
@@ -991,101 +950,6 @@ async function enforceViolation(params: {
     source: SERVICE,
     code: actionType,
   });
-}
-
-async function writeViolationArtifact(params: {
-  rootDir: string;
-  sessionID: string;
-  ruleId: string;
-  severity: GuardrailSeverity;
-  actionType: GuardrailAction["type"];
-  tool: string;
-  phase: EvaluationPhase;
-  callID: string;
-  message: string;
-  paths: string[];
-  blocking: boolean;
-}): Promise<void> {
-  const {
-    rootDir,
-    sessionID,
-    ruleId,
-    severity,
-    actionType,
-    tool,
-    phase,
-    callID,
-    message,
-    paths,
-    blocking,
-  } = params;
-
-  const timestamp = new Date().toISOString();
-  const messagesDir = path.join(rootDir, ".agents", "messages");
-  const fileName = `${timestamp.replace(/[:.]/g, "-")}-groundwork-policy-${sanitizeFilePart(ruleId)}.json`;
-  const filePath = path.join(messagesDir, fileName);
-  const data = {
-    kind: "policy_violation",
-    session_id: sessionID,
-    rule_id: ruleId,
-    severity,
-    action_type: actionType,
-    tool,
-    phase,
-    call_id: callID,
-    message,
-    paths,
-  } satisfies {
-    kind: "policy_violation";
-    session_id: string;
-    rule_id: string;
-    severity: GuardrailSeverity;
-    action_type: GuardrailAction["type"];
-    tool: string;
-    phase: EvaluationPhase;
-    call_id: string;
-    message: string;
-    paths: string[];
-  };
-  const summary = `Policy violation for rule '${ruleId}' on ${tool}: ${message}`;
-  const packet = {
-    from: SERVICE,
-    to: "all",
-    phase: "review",
-    type: "artifact",
-    content: {
-      summary,
-      data,
-    },
-    metadata: {
-      timestamp,
-      schema_id: POLICY_PACKET_SCHEMA_ID,
-      parent_packet: null,
-      blocking,
-    },
-  } satisfies {
-    from: typeof SERVICE;
-    to: "all";
-    phase: "review";
-    type: "artifact";
-    content: {
-      summary: string;
-      data: typeof data;
-    };
-    metadata: {
-      timestamp: string;
-      schema_id: typeof POLICY_PACKET_SCHEMA_ID;
-      parent_packet: null;
-      blocking: boolean;
-    };
-  };
-
-  try {
-    await fs.mkdir(messagesDir, { recursive: true });
-    await fs.writeFile(filePath, `${JSON.stringify(packet, null, 2)}\n`, "utf8");
-  } catch {
-    // ignore artifact write failures so enforcement still proceeds.
-  }
 }
 
 function materializeGuardrailTargets(
@@ -1380,10 +1244,6 @@ function severityToLogLevel(severity: GuardrailSeverity): "info" | "warn" | "err
   if (severity === "advisory") return "info";
   if (severity === "warn") return "warn";
   return "error";
-}
-
-function sanitizeFilePart(value: string): string {
-  return value.replace(/[^a-zA-Z0-9._-]+/g, "-").slice(0, 80);
 }
 
 function createContentMatchCacheKey(ruleId: string, normalizedPath: string): string {

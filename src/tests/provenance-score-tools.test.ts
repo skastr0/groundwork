@@ -146,55 +146,12 @@ function createFileHistoryLog(): string {
   ].join("\n");
 }
 
-async function seedEvidenceRoot(rootDir: string) {
+async function seedScoreRoot(rootDir: string) {
   await fs.mkdir(path.join(rootDir, "src"), { recursive: true });
-  await fs.mkdir(path.join(rootDir, ".agents", "messages"), { recursive: true });
-  await fs.mkdir(path.join(rootDir, ".agents", "sdlc", "done"), { recursive: true });
 
   await fs.writeFile(path.join(rootDir, "src", "a.ts"), "export const a = true;\n", "utf8");
   await fs.writeFile(path.join(rootDir, "src", "b.ts"), "export const b = true;\n", "utf8");
   await fs.writeFile(path.join(rootDir, "src", "c.ts"), "export const c = true;\n", "utf8");
-
-  await fs.writeFile(
-    path.join(rootDir, ".agents", "messages", "2026-05-30T12-10-00Z-build.json"),
-    JSON.stringify(
-      {
-        from: "builder",
-        phase: "build",
-        type: "implementation",
-        content: {
-          summary: "Updated src/a.ts with recent provenance context.",
-        },
-        metadata: {
-          timestamp: "2026-05-30T12:10:00Z",
-          schema_id: "sdlc-core/implementation/v1",
-          work_item_ref: {
-            plugin: "sdlc-core",
-            id: "score-evidence-item",
-            path: ".agents/sdlc/done/score-evidence-item.md",
-          },
-        },
-      },
-      null,
-      2,
-    ),
-    "utf8",
-  );
-  await fs.writeFile(
-    path.join(rootDir, ".agents", "sdlc", "done", "score-evidence-item.md"),
-    [
-      "# Score Evidence Item",
-      "",
-      "id: score-evidence-item",
-      "",
-      "## Context",
-      "Track src/a.ts with explicit work-item evidence.",
-      "",
-      "## Acceptance Criteria",
-      "- [x] Explain src/a.ts changes",
-    ].join("\n"),
-    "utf8",
-  );
 }
 
 describe("provenance score tools", () => {
@@ -641,8 +598,8 @@ describe("provenance score tools", () => {
     ).toBe(true);
   });
 
-  it("builds a stability report with cited component scores and linked evidence", async () => {
-    await seedEvidenceRoot(tempRoot);
+  it("builds a stability report with cited component scores", async () => {
+    await seedScoreRoot(tempRoot);
     const shell = createShellStub([
       ...createRepoResponses("MM src/a.ts", ""),
       ...createHistoryResponses("src/a.ts", 2, createFileHistoryLog()),
@@ -670,7 +627,7 @@ describe("provenance score tools", () => {
       unstaged: 1,
       totalPaths: 1,
     });
-    expect(result.data.evidence.rankedItems).toBeGreaterThan(0);
+    expect(result.data).not.toHaveProperty("evidence");
     expect(result.data.scores.ownershipClarity.value).toBe(50);
     expect(result.data.scores.recentChangePressure.value).toBe(100);
     expect(result.data.scores.pendingChangePressure.value).toBe(100);
@@ -678,7 +635,6 @@ describe("provenance score tools", () => {
       result.data.scores.stability.factors.map((factor: { key: string }) => factor.key),
     ).toEqual([
       "ownership_clarity_factor",
-      "evidence_coverage_factor",
       "change_calmness_factor",
       "clean_worktree_factor",
     ]);
@@ -686,14 +642,11 @@ describe("provenance score tools", () => {
     expect(result.sources).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ id: "stability-history:src/a.ts" }),
-        expect.objectContaining({ id: "evidence:src/a.ts" }),
-        expect.objectContaining({ kind: "message" }),
-        expect.objectContaining({ kind: "work_item" }),
       ]),
     );
   });
 
-  it("builds a stability report for empty history without evidence", async () => {
+  it("builds a stability report for empty history", async () => {
     const shell = createShellStub([
       ...createRepoResponses("", ""),
       ...createHistoryResponses("src/missing.ts", 0, ""),
@@ -743,25 +696,23 @@ describe("provenance score tools", () => {
       untracked: 0,
       totalPaths: 0,
     });
-    expect(result.data.evidence.rankedItems).toBe(0);
+    expect(result.data).not.toHaveProperty("evidence");
     expect(result.data.scores).toMatchObject({
       ownershipClarity: { value: 0 },
       recentChangePressure: { value: 0 },
       pendingChangePressure: { value: 0 },
-      evidenceCoverage: { value: 0 },
       stability: {
-        value: 50,
+        value: 66.66,
         interpretation: "mixed recent stability",
       },
     });
     expect(result.data.assessment).toMatchObject({
       label: "watch",
-      reasons: ["signals are mixed across recency, ownership, and evidence"],
+      reasons: ["signals are mixed across recency and ownership"],
     });
     expect(result.sources).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ id: "stability-history:src/missing.ts" }),
-        expect.objectContaining({ id: "evidence:src/missing.ts" }),
       ]),
     );
   });

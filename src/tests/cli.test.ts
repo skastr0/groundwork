@@ -696,7 +696,7 @@ message = "bash command blocked by policy"
         hook_event_name: "UserPromptSubmit",
         session_id: "codex-prompt-session",
         cwd: rootDir,
-        prompt: "/policy skill-loaded sdlc\n/policy override reviewed by human",
+        prompt: "/policy skill-loaded release-readiness\n/policy override reviewed by human",
       }),
     );
     expect(result.exitCode).toBe(0);
@@ -716,7 +716,7 @@ message = "bash command blocked by policy"
       data: {
         state: {
           policy: {
-            confirmedSkills: ["sdlc"],
+            confirmedSkills: ["release-readiness"],
             overrides: [expect.objectContaining({ reason: "reviewed by human" })],
           },
         },
@@ -1998,7 +1998,7 @@ message = "infra needs override"
     await runGroundwork([
       "session",
       "skill-loaded",
-      JSON.stringify({ root_dir: rootDir, session_id: sessionId, skills: ["sdlc"] }),
+      JSON.stringify({ root_dir: rootDir, session_id: sessionId, skills: ["release-readiness"] }),
     ]);
     await runGroundwork([
       "session",
@@ -2040,12 +2040,12 @@ message = "infra needs override"
       command: "session render-compaction",
       data: {
         summary: {
-          confirmed_skills: ["sdlc"],
+          confirmed_skills: ["release-readiness"],
           overrides: [expect.objectContaining({ reason: "approved" })],
 	          active_locks: [expect.objectContaining({ reason: "infra needs override" })],
 	          context_reminders: [expect.objectContaining({ path: expect.stringContaining("AGENTS.md") })],
 	        },
-        text: expect.stringContaining("Confirmed skills: sdlc"),
+        text: expect.stringContaining("Confirmed skills: release-readiness"),
       },
     });
     expect(parseJson(result.stdout)).toMatchObject({
@@ -2080,7 +2080,7 @@ message = "infra needs override"
     await runGroundwork([
       "session",
       "skill-loaded",
-      JSON.stringify({ root_dir: rootDir, session_id: sessionId, skills: ["sdlc"] }),
+      JSON.stringify({ root_dir: rootDir, session_id: sessionId, skills: ["release-readiness"] }),
     ]);
     const sessionRoot = path.join(rootDir, ".groundwork", "sessions");
     const [encodedDir] = await fs.readdir(sessionRoot);
@@ -2120,7 +2120,7 @@ match = ["src/**"]
 
 [[rules.actions]]
 type = "ensure_skill_loaded"
-skills = ["sdlc"]
+skills = ["release-readiness"]
 mode = "prompt"
 
 [[rules]]
@@ -2270,7 +2270,7 @@ text = "Use the repository policy checklist."
     });
   }, 30_000);
 
-  it("records warn-only human override artifacts without locking mutating tools", async () => {
+  it("records warn-only human override state without locking mutating tools", async () => {
     const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "groundwork-policy-warn-override-"));
     await fs.writeFile(
       path.join(rootDir, "groundwork.toml"),
@@ -2336,33 +2336,7 @@ message = "operator review recommended"
       },
     });
 
-    const artifactFiles = await fs.readdir(path.join(rootDir, ".agents", "messages"));
-    const artifact = artifactFiles.find((name) =>
-      name.includes("groundwork-policy-warn-human-override"),
-    );
-    expect(artifact).toBeTruthy();
-    const packet = JSON.parse(
-      await fs.readFile(path.join(rootDir, ".agents", "messages", artifact!), "utf8"),
-    );
-    expect(packet).toMatchObject({
-      from: "groundwork-policy",
-      content: {
-        data: {
-          kind: "policy_violation",
-          rule_id: "warn-human-override",
-          severity: "warn",
-          action_type: "require_human_override",
-          phase: "before",
-          call_id: "warn-human-1",
-          message: "operator review recommended",
-          paths: ["ops/deploy.yml"],
-        },
-      },
-      metadata: {
-        schema_id: "groundwork/policy-violation/v1",
-        blocking: false,
-      },
-    });
+    expect((await fs.readdir(rootDir)).sort()).toEqual([".groundwork", "groundwork.toml"]);
   }, 30_000);
 
   it("uses policy override locks and post-tool result evaluation", async () => {
