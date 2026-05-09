@@ -3,12 +3,12 @@ plugins = ["groundwork-effect"]
 
 [[rules]]
 id = "groundwork-policy-config-edits"
-description = "Groundwork policy config changes should use the canonical readiness guidance"
+description = "Groundwork policy config changes should use the canonical Groundwork guidance"
 match = ["groundwork.toml", ".groundwork/*.toml", "src/policy/**"]
 
 [[rules.actions]]
 type = "ensure_skill_loaded"
-skills = ["groundwork-readiness"]
+skills = ["groundwork"]
 mode = "prompt"
 once_per_session = true
 

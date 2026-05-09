@@ -169,7 +169,7 @@ match = ["plugin/**"]
 
 [[rules.actions]]
 type = "ensure_skill_loaded"
-skills = ["release-readiness", "groundwork-readiness"]
+skills = ["release-readiness", "groundwork"]
 mode = "block"
 `,
     });
@@ -188,7 +188,7 @@ mode = "block"
           parts: [
             {
               type: "text",
-              text: "/policy skill-loaded release-readiness groundwork-readiness",
+              text: "/policy skill-loaded release-readiness groundwork",
             },
           ],
         },

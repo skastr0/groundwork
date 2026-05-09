@@ -228,7 +228,7 @@ describe("framework provenance runtime", () => {
       metadata: {
         policyRuntime: {
           completedInjectOnlyRules: ["guidance"],
-          confirmedSkills: ["groundwork-readiness", "release-readiness"],
+          confirmedSkills: ["groundwork", "release-readiness"],
         },
       },
     });
@@ -282,7 +282,7 @@ describe("framework provenance runtime", () => {
     expect(output.context[0]).toMatchInlineSnapshot(`
       "Groundwork context:
       - context: injected files /repo/AGENTS.md, /repo/packages/feature/CLAUDE.md
-      - policy: active locks policy-pending-override (mutating-tools); confirmed skills groundwork-readiness, release-readiness; completed prompt-only rules guidance
+      - policy: active locks policy-pending-override (mutating-tools); confirmed skills groundwork, release-readiness; completed prompt-only rules guidance
       - provenance: prompt role=user agent=builder model=openai/gpt-5.4 variant=careful tools edit=false, read=true, task=true; pending tools edit_file(src/main.ts)"
     `);
     expect(Buffer.byteLength(output.context[0] ?? "", "utf8")).toBeLessThanOrEqual(

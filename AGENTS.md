@@ -41,10 +41,10 @@ OpenCode integration entrypoints:
 
 Keep harness integrations thin. Shared behavior belongs in the Groundwork foundations under `src/policy/`, `src/context/`, `src/provenance/`, `src/risk/`, `src/session/`, and `src/cli/`.
 
-Do not put the Groundwork readiness skill inside this runtime repo. The skill source lives in `/Users/guilhermecastro/Projects/prism-plugins/groundwork-readiness/skills/groundwork-readiness` and is installed into harness skill directories from there.
+Do not put the Groundwork skill inside this runtime repo. The skill source lives in `/Users/guilhermecastro/Projects/prism-plugins/groundwork/skills/groundwork` and is installed into harness skill directories from there.
 
 ## Validation Expectations
 
 For narrow changes, run the closest targeted test or check. For integration, CLI, policy, risk, or package surface changes, run `bun run verify`.
 
-Before changing `groundwork.toml`, `.groundwork/*.toml`, `src/policy/**`, or harness integration files, load the `groundwork-readiness` skill.
+Before changing `groundwork.toml`, `.groundwork/*.toml`, `src/policy/**`, or harness integration files, load the `groundwork` skill.
