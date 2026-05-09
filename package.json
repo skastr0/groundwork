@@ -10,6 +10,7 @@
   "exports": {
     ".": "./dist/server.js",
     "./server": "./dist/server.js",
+    "./metadata": "./dist/metadata.js",
     "./cli": "./dist/cli.js"
   },
   "files": [
@@ -21,7 +22,7 @@
   ],
   "scripts": {
     "build": "bun run build:cli && bun run build:js",
-    "build:js": "bun build ./src/server.ts ./src/cli.ts --outdir ./dist --target bun --format esm --external @opencode-ai/plugin",
+    "build:js": "bun build ./src/server.ts ./src/cli.ts ./src/metadata.ts --outdir ./dist --target bun --format esm --external @opencode-ai/plugin",
     "build:cli": "bun scripts/build-cli.ts",
     "install:local": "bun scripts/install.ts",
     "check:imports": "bun -e \"await import('./dist/server.js')\"",
