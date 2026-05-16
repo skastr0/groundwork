@@ -231,6 +231,18 @@ type WindowAggregate = {
   rawTouchedPaths: number;
 };
 
+type MutableWindowTotals = {
+  additions: number;
+  deletions: number;
+  lastTouchedAt: string | null;
+};
+
+type PerCommitPathMetrics = {
+  additions: number;
+  deletions: number;
+  churn: number;
+};
+
 type StabilityWindows = {
   recentWindowDays: number;
   baselineWindowDays: number;
@@ -975,6 +987,124 @@ function filterHistoryByWindow(
   return commits.filter((commit) => commit.authoredAtMs >= sinceTimestamp);
 }
 
+function getAuthorKey(commit: HistoryCommit): string {
+  return `${commit.authorName}<${commit.authorEmail}>`;
+}
+
+function createAuthorStats(commit: HistoryCommit): AuthorStats {
+  return {
+    authorName: commit.authorName,
+    authorEmail: commit.authorEmail,
+    commits: 0,
+    uniquePaths: new Set<string>(),
+    additions: 0,
+    deletions: 0,
+    churn: 0,
+    lastTouchedAt: null,
+  };
+}
+
+function createPathStats(pathKey: string): MutablePathStats {
+  return {
+    path: pathKey,
+    commitCount: 0,
+    additions: 0,
+    deletions: 0,
+    churn: 0,
+    lastTouchedAt: null,
+    authors: new Set<string>(),
+    authorMetadata: new Map<string, { authorName: string; authorEmail: string }>(),
+    authorCommitCounts: new Map<string, number>(),
+  };
+}
+
+function updateLatestTimestamp(current: string | null, candidate: string): string {
+  return !current || candidate > current ? candidate : current;
+}
+
+function groupCommitChangesByPath(options: {
+  commit: HistoryCommit;
+  anchorPath: string;
+  groupBy: "file" | "directory";
+  directoryDepth: number;
+  rawTouchedPaths: Set<string>;
+  totals: MutableWindowTotals;
+}): {
+  grouped: Map<string, PerCommitPathMetrics>;
+  rawPaths: Set<string>;
+} {
+  const grouped = new Map<string, PerCommitPathMetrics>();
+  const rawPaths = new Set<string>();
+
+  for (const change of options.commit.changes) {
+    options.rawTouchedPaths.add(change.path);
+    rawPaths.add(change.path);
+    options.totals.additions += change.additions;
+    options.totals.deletions += change.deletions;
+
+    const key =
+      options.groupBy === "file"
+        ? change.path
+        : getDirectoryGroupKey(change.path, options.anchorPath, options.directoryDepth);
+    const existing = grouped.get(key) ?? { additions: 0, deletions: 0, churn: 0 };
+    existing.additions += change.additions;
+    existing.deletions += change.deletions;
+    existing.churn += change.churn;
+    grouped.set(key, existing);
+  }
+
+  return { grouped, rawPaths };
+}
+
+function accumulateAuthorStats(options: {
+  commit: HistoryCommit;
+  authorKey: string;
+  rawPaths: Set<string>;
+  authorStats: Map<string, AuthorStats>;
+}): void {
+  const author = options.authorStats.get(options.authorKey) ?? createAuthorStats(options.commit);
+  author.commits += 1;
+
+  for (const rawPath of options.rawPaths) {
+    author.uniquePaths.add(rawPath);
+  }
+
+  for (const change of options.commit.changes) {
+    author.additions += change.additions;
+    author.deletions += change.deletions;
+    author.churn += change.churn;
+  }
+
+  author.lastTouchedAt = updateLatestTimestamp(author.lastTouchedAt, options.commit.authoredAt);
+  options.authorStats.set(options.authorKey, author);
+}
+
+function accumulatePathStats(options: {
+  commit: HistoryCommit;
+  authorKey: string;
+  grouped: Map<string, PerCommitPathMetrics>;
+  pathStats: Map<string, MutablePathStats>;
+}): void {
+  for (const [key, metrics] of options.grouped.entries()) {
+    const stats = options.pathStats.get(key) ?? createPathStats(key);
+    stats.commitCount += 1;
+    stats.additions += metrics.additions;
+    stats.deletions += metrics.deletions;
+    stats.churn += metrics.churn;
+    stats.authors.add(options.authorKey);
+    stats.authorMetadata.set(options.authorKey, {
+      authorName: options.commit.authorName,
+      authorEmail: options.commit.authorEmail,
+    });
+    stats.authorCommitCounts.set(
+      options.authorKey,
+      (stats.authorCommitCounts.get(options.authorKey) ?? 0) + 1,
+    );
+    stats.lastTouchedAt = updateLatestTimestamp(stats.lastTouchedAt, options.commit.authoredAt);
+    options.pathStats.set(key, stats);
+  }
+}
+
 function aggregateWindow(options: {
   commits: readonly HistoryCommit[];
   anchorPath: string;
@@ -985,101 +1115,50 @@ function aggregateWindow(options: {
   const authorStats = new Map<string, AuthorStats>();
   const uniqueAuthors = new Set<string>();
   const rawTouchedPaths = new Set<string>();
-  let additions = 0;
-  let deletions = 0;
-  let lastTouchedAt: string | null = null;
+  const totals: MutableWindowTotals = {
+    additions: 0,
+    deletions: 0,
+    lastTouchedAt: null,
+  };
 
   for (const commit of options.commits) {
-    const perCommitGrouped = new Map<
-      string,
-      { additions: number; deletions: number; churn: number }
-    >();
-    const perCommitRawPaths = new Set<string>();
-    const authorKey = `${commit.authorName}<${commit.authorEmail}>`;
+    const authorKey = getAuthorKey(commit);
     uniqueAuthors.add(authorKey);
-
-    for (const change of commit.changes) {
-      rawTouchedPaths.add(change.path);
-      perCommitRawPaths.add(change.path);
-      additions += change.additions;
-      deletions += change.deletions;
-
-      const key =
-        options.groupBy === "file"
-          ? change.path
-          : getDirectoryGroupKey(change.path, options.anchorPath, options.directoryDepth);
-      const existing = perCommitGrouped.get(key) ?? { additions: 0, deletions: 0, churn: 0 };
-      existing.additions += change.additions;
-      existing.deletions += change.deletions;
-      existing.churn += change.churn;
-      perCommitGrouped.set(key, existing);
+    if (commit.authoredAt) {
+      totals.lastTouchedAt = updateLatestTimestamp(totals.lastTouchedAt, commit.authoredAt);
     }
 
-    if (commit.authoredAt && (!lastTouchedAt || commit.authoredAt > lastTouchedAt)) {
-      lastTouchedAt = commit.authoredAt;
-    }
+    const perCommit = groupCommitChangesByPath({
+      commit,
+      anchorPath: options.anchorPath,
+      groupBy: options.groupBy,
+      directoryDepth: options.directoryDepth,
+      rawTouchedPaths,
+      totals,
+    });
 
-    const author = authorStats.get(authorKey) ?? {
-      authorName: commit.authorName,
-      authorEmail: commit.authorEmail,
-      commits: 0,
-      uniquePaths: new Set<string>(),
-      additions: 0,
-      deletions: 0,
-      churn: 0,
-      lastTouchedAt: null,
-    };
-    author.commits += 1;
-    for (const rawPath of perCommitRawPaths) {
-      author.uniquePaths.add(rawPath);
-    }
-    for (const change of commit.changes) {
-      author.additions += change.additions;
-      author.deletions += change.deletions;
-      author.churn += change.churn;
-    }
-    if (!author.lastTouchedAt || commit.authoredAt > author.lastTouchedAt) {
-      author.lastTouchedAt = commit.authoredAt;
-    }
-    authorStats.set(authorKey, author);
-
-    for (const [key, metrics] of perCommitGrouped.entries()) {
-      const stats = pathStats.get(key) ?? {
-        path: key,
-        commitCount: 0,
-        additions: 0,
-        deletions: 0,
-        churn: 0,
-        lastTouchedAt: null,
-        authors: new Set<string>(),
-        authorMetadata: new Map<string, { authorName: string; authorEmail: string }>(),
-        authorCommitCounts: new Map<string, number>(),
-      };
-      stats.commitCount += 1;
-      stats.additions += metrics.additions;
-      stats.deletions += metrics.deletions;
-      stats.churn += metrics.churn;
-      stats.authors.add(authorKey);
-      stats.authorMetadata.set(authorKey, {
-        authorName: commit.authorName,
-        authorEmail: commit.authorEmail,
-      });
-      stats.authorCommitCounts.set(authorKey, (stats.authorCommitCounts.get(authorKey) ?? 0) + 1);
-      if (!stats.lastTouchedAt || commit.authoredAt > stats.lastTouchedAt) {
-        stats.lastTouchedAt = commit.authoredAt;
-      }
-      pathStats.set(key, stats);
-    }
+    accumulateAuthorStats({
+      commit,
+      authorKey,
+      rawPaths: perCommit.rawPaths,
+      authorStats,
+    });
+    accumulatePathStats({
+      commit,
+      authorKey,
+      grouped: perCommit.grouped,
+      pathStats,
+    });
   }
 
   return {
     commits: options.commits.length,
     touchedPaths: pathStats.size,
-    additions,
-    deletions,
-    churn: additions + deletions,
+    additions: totals.additions,
+    deletions: totals.deletions,
+    churn: totals.additions + totals.deletions,
     uniqueAuthors: uniqueAuthors.size,
-    lastTouchedAt,
+    lastTouchedAt: totals.lastTouchedAt,
     pathStats: [...pathStats.values()],
     authorStats: [...authorStats.values()],
     rawTouchedPaths: rawTouchedPaths.size,
