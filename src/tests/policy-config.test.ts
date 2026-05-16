@@ -106,6 +106,136 @@ describe("policy config parser", () => {
     ).toThrow("Unsupported action type");
   });
 
+  it("parses all policy action variants", () => {
+    const config = parsePolicyConfig({
+      version: 1,
+      rules: [
+        {
+          id: "actions",
+          match: ["**/*"],
+          actions: [
+            { type: "inject_prompt", text: "remember this", once_per_session: true },
+            { type: "block_tool", message: "blocked" },
+            { type: "require_human_override", message: "review first" },
+            { type: "stop_session", message: "stop now" },
+            {
+              type: "ensure_skill_loaded",
+              skills: ["groundwork", "agentic"],
+              mode: "prompt",
+              message: "load skills",
+              once_per_session: true,
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(config.rules[0]?.actions).toEqual([
+      { type: "inject_prompt", text: "remember this", once_per_session: true },
+      { type: "block_tool", message: "blocked" },
+      { type: "require_human_override", message: "review first" },
+      { type: "stop_session", message: "stop now" },
+      {
+        type: "ensure_skill_loaded",
+        skills: ["groundwork", "agentic"],
+        mode: "prompt",
+        message: "load skills",
+        once_per_session: true,
+      },
+    ]);
+  });
+
+  it("preserves policy action validation errors", () => {
+    expect(() =>
+      parsePolicyConfig({
+        version: 1,
+        rules: [{ id: "bad-object", match: ["**/*"], actions: [null] }],
+      }),
+    ).toThrow("Action 0 in rule 'bad-object' must be an object");
+
+    expect(() =>
+      parsePolicyConfig({
+        version: 1,
+        rules: [
+          { id: "bad-inject", match: ["**/*"], actions: [{ type: "inject_prompt", text: " " }] },
+        ],
+      }),
+    ).toThrow("inject_prompt action in rule 'bad-inject' requires non-empty text");
+
+    expect(() =>
+      parsePolicyConfig({
+        version: 1,
+        rules: [
+          {
+            id: "bad-skills",
+            match: ["**/*"],
+            actions: [{ type: "ensure_skill_loaded", skills: [] }],
+          },
+        ],
+      }),
+    ).toThrow("ensure_skill_loaded action in rule 'bad-skills' requires non-empty skills");
+
+    expect(() =>
+      parsePolicyConfig({
+        version: 1,
+        rules: [
+          {
+            id: "bad-mode-type",
+            match: ["**/*"],
+            actions: [{ type: "ensure_skill_loaded", skills: ["groundwork"], mode: true }],
+          },
+        ],
+      }),
+    ).toThrow("Action 0 in rule 'bad-mode-type' has invalid mode");
+
+    expect(() =>
+      parsePolicyConfig({
+        version: 1,
+        rules: [
+          {
+            id: "bad-mode-value",
+            match: ["**/*"],
+            actions: [{ type: "ensure_skill_loaded", skills: ["groundwork"], mode: "warn" }],
+          },
+        ],
+      }),
+    ).toThrow("Action 0 in rule 'bad-mode-value' has unsupported mode 'warn'");
+  });
+
+  it("preserves non-string message and once-per-session parsing", () => {
+    const config = parsePolicyConfig({
+      version: 1,
+      rules: [
+        {
+          id: "optionals",
+          match: ["**/*"],
+          actions: [
+            { type: "inject_prompt", text: "x", once_per_session: "true" },
+            { type: "block_tool", message: 123 },
+            {
+              type: "ensure_skill_loaded",
+              skills: ["groundwork"],
+              message: 123,
+              once_per_session: "true",
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(config.rules[0]?.actions).toEqual([
+      { type: "inject_prompt", text: "x", once_per_session: false },
+      { type: "block_tool", message: undefined },
+      {
+        type: "ensure_skill_loaded",
+        skills: ["groundwork"],
+        mode: undefined,
+        message: undefined,
+        once_per_session: false,
+      },
+    ]);
+  });
+
   it("throws for unsupported content matcher type", () => {
     expect(() =>
       parsePolicyConfig({
