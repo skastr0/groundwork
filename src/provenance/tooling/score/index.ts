@@ -275,6 +275,14 @@ type HotspotsToolInput = {
   mode?: "local" | "remote" | "hybrid";
 };
 
+type AuthorityToolInput = {
+  path?: string;
+  window_days?: number;
+  limit?: number;
+  max_commits?: number;
+  mode?: "local" | "remote" | "hybrid";
+};
+
 type StabilityReportToolInput = {
   path?: string;
   recent_window_days?: number;
@@ -2157,87 +2165,115 @@ function createAuthorityTool(runtimeOptions: CreateStateToolsOptions): ToolDefin
       max_commits: historyMaxCommitsArg,
       mode: provenanceModeArg,
     },
-    async execute(args) {
-      const mode = args.mode ?? "local";
-      if (mode !== "local") {
-        logger.warn("gw_authority unsupported mode", { tool: GW_AUTHORITY_TOOL, mode });
-        return createUnsupportedModeFailure(GW_AUTHORITY_TOOL, mode);
-      }
-
-      logger.info("gw_authority start", {
-        tool: GW_AUTHORITY_TOOL,
-        path: args.path ?? ".",
-        windowDays: args.window_days,
-        limit: args.limit,
-        maxCommits: args.max_commits,
-      });
-
-      try {
-        const data = await executeAuthority(runtimeOptions, args);
-        const historySourceID = buildAnalysisHistorySourceID(
-          "authority",
-          data.anchor.resolvedPath,
-        );
-        const warnings = dedupeWarnings([
-          ...toRepoAmbiguityWarnings(data.repo),
-          ...createHistoryWarnings({
-            prefix: "Authority",
-            totalCommits: data.history.totalCommits,
-            loadedCommits: data.history.loadedCommits,
-            resolvedPath: data.anchor.resolvedPath,
-            emptyCode: "AUTHORITY_EMPTY",
-            emptyMessage: `No recent authority signals were found for '${data.anchor.resolvedPath}'.`,
-          }),
-        ]);
-        const sources = dedupeSources([
-          ...buildRepoSources(data.repo),
-          buildHistorySource({
-            id: historySourceID,
-            resolvedPath: data.anchor.resolvedPath,
-            history: toLoadedHistoryFromSummary(data.history),
-          }),
-        ]);
-        const response = createProvenanceSuccess({
-          tool: GW_AUTHORITY_TOOL,
-          mode: "local",
-          confidence: getLowestConfidence([
-            data.repo.branch.confidence,
-            data.totals.commits > 0 ? (data.history.bounds.truncated ? "medium" : "high") : "low",
-          ]),
-          ambiguity: getHighestAmbiguity([
-            data.repo.ambiguity.level,
-            ...warnings.map((warning) => warning.ambiguity ?? "low"),
-          ]),
-          summary: buildAuthoritySummary(data),
-          warnings,
-          sources,
-          data,
-        });
-
-        logger.info("gw_authority end", {
-          tool: GW_AUTHORITY_TOOL,
-          path: data.anchor.resolvedPath,
-          leaders: data.leaders.length,
-          commits: data.totals.commits,
-        });
-
-        return JSON.stringify(response, null, 2);
-      } catch (error) {
-        const message = toErrorMessage(error);
-        logger.error("gw_authority failed", {
-          tool: GW_AUTHORITY_TOOL,
-          path: args.path ?? ".",
-          error: message,
-        });
-        return createToolFailure(
-          GW_AUTHORITY_TOOL,
-          `Failed to resolve authority for '${args.path ?? "."}'.`,
-          "AUTHORITY_UNAVAILABLE",
-          message,
-        );
-      }
-    },
+    execute: (args: AuthorityToolInput) => executeAuthorityTool(runtimeOptions, args),
   });
+}
+
+async function executeAuthorityTool(
+  runtimeOptions: CreateStateToolsOptions,
+  args: AuthorityToolInput,
+): Promise<string> {
+  const mode = args.mode ?? "local";
+  if (mode !== "local") {
+    logger.warn("gw_authority unsupported mode", { tool: GW_AUTHORITY_TOOL, mode });
+    return createUnsupportedModeFailure(GW_AUTHORITY_TOOL, mode);
+  }
+
+  logAuthorityStart(args);
+
+  try {
+    const data = await executeAuthority(runtimeOptions, args);
+    const warnings = buildAuthorityWarnings(data);
+    const response = createProvenanceSuccess({
+      tool: GW_AUTHORITY_TOOL,
+      mode: "local",
+      confidence: getAuthorityConfidence(data),
+      ambiguity: getHighestAmbiguity([
+        data.repo.ambiguity.level,
+        ...warnings.map((warning) => warning.ambiguity ?? "low"),
+      ]),
+      summary: buildAuthoritySummary(data),
+      warnings,
+      sources: buildAuthoritySources(data),
+      data,
+    });
+
+    logAuthorityEnd(data);
+    return JSON.stringify(response, null, 2);
+  } catch (error) {
+    return createAuthorityFailure(args, error);
+  }
+}
+
+function logAuthorityStart(args: AuthorityToolInput): void {
+  logger.info("gw_authority start", {
+    tool: GW_AUTHORITY_TOOL,
+    path: args.path ?? ".",
+    windowDays: args.window_days,
+    limit: args.limit,
+    maxCommits: args.max_commits,
+  });
+}
+
+function buildAuthorityWarnings(data: z.infer<typeof ProvAuthorityDataSchema>): ProvenanceWarning[] {
+  return dedupeWarnings([
+    ...toRepoAmbiguityWarnings(data.repo),
+    ...createHistoryWarnings({
+      prefix: "Authority",
+      totalCommits: data.history.totalCommits,
+      loadedCommits: data.history.loadedCommits,
+      resolvedPath: data.anchor.resolvedPath,
+      emptyCode: "AUTHORITY_EMPTY",
+      emptyMessage: `No recent authority signals were found for '${data.anchor.resolvedPath}'.`,
+    }),
+  ]);
+}
+
+function buildAuthoritySources(
+  data: z.infer<typeof ProvAuthorityDataSchema>,
+): ProvenanceEvidenceSource[] {
+  const historySourceID = buildAnalysisHistorySourceID("authority", data.anchor.resolvedPath);
+  return dedupeSources([
+    ...buildRepoSources(data.repo),
+    buildHistorySource({
+      id: historySourceID,
+      resolvedPath: data.anchor.resolvedPath,
+      history: toLoadedHistoryFromSummary(data.history),
+    }),
+  ]);
+}
+
+function getAuthorityConfidence(
+  data: z.infer<typeof ProvAuthorityDataSchema>,
+): ProvenanceConfidence {
+  return getLowestConfidence([
+    data.repo.branch.confidence,
+    data.totals.commits > 0 ? (data.history.bounds.truncated ? "medium" : "high") : "low",
+  ]);
+}
+
+function logAuthorityEnd(data: z.infer<typeof ProvAuthorityDataSchema>): void {
+  logger.info("gw_authority end", {
+    tool: GW_AUTHORITY_TOOL,
+    path: data.anchor.resolvedPath,
+    leaders: data.leaders.length,
+    commits: data.totals.commits,
+  });
+}
+
+function createAuthorityFailure(args: AuthorityToolInput, error: unknown): string {
+  const message = toErrorMessage(error);
+  logger.error("gw_authority failed", {
+    tool: GW_AUTHORITY_TOOL,
+    path: args.path ?? ".",
+    error: message,
+  });
+  return createToolFailure(
+    GW_AUTHORITY_TOOL,
+    `Failed to resolve authority for '${args.path ?? "."}'.`,
+    "AUTHORITY_UNAVAILABLE",
+    message,
+  );
 }
 
 function createStabilityReportTool(runtimeOptions: CreateStateToolsOptions): ToolDefinition {
