@@ -1226,6 +1226,24 @@ text = "base rule"
     expect(merged.config?.rules.map((rule) => rule.id)).toEqual(["auth", "queue", "base"]);
   });
 
+  it("throws when an include glob matches no files", async () => {
+    const root = await createTempRoot();
+    const projectDir = path.join(root, ".groundwork");
+    const projectPath = path.join(projectDir, "policy.toml");
+
+    await fs.mkdir(projectDir, { recursive: true });
+    await fs.writeFile(
+      projectPath,
+      `version = 1
+includes = ["missing.*.toml"]
+`,
+    );
+
+    await expect(loadMergedPolicyConfig(root, { HOME: path.join(root, "home") })).rejects.toThrow(
+      `Include pattern 'missing.*.toml' in '${projectPath}' matched no files`,
+    );
+  });
+
   it("loads named policy plugins from user Groundwork config", async () => {
     const home = await createTempRoot();
     const root = await createTempRoot();
@@ -1253,6 +1271,22 @@ text = "project"
 
     const merged = await loadMergedPolicyConfig(root, { HOME: home });
     expect(merged.config?.rules.map((rule) => rule.id)).toEqual(["effect-plugin", "project"]);
+  });
+
+  it("throws when a named policy plugin contains invalid characters", async () => {
+    const root = await createTempRoot();
+    const projectPath = path.join(root, "groundwork.toml");
+
+    await fs.writeFile(
+      projectPath,
+      `version = 1
+plugins = ["bad plugin!"]
+`,
+    );
+
+    await expect(loadMergedPolicyConfig(root, { HOME: path.join(root, "home") })).rejects.toThrow(
+      `Invalid policy plugin name 'bad plugin!' in '${projectPath}'`,
+    );
   });
 
   it("loads tilde policy plugin paths using the configured HOME", async () => {
