@@ -1,0 +1,223 @@
+import {
+  DEFAULT_PROVENANCE_BYTE_LIMIT,
+  resolveBoundedNumber,
+  type ProvenanceContentLayer,
+} from "../args.ts";
+import type {
+  ProvenanceBounds,
+  ProvenanceEvidenceSource,
+  ProvenanceWarning,
+} from "../contracts.ts";
+import type { LocalFileLayerState } from "../state/index.ts";
+import {
+  buildContentHints,
+  createContentWarning,
+} from "./text-content.ts";
+import type {
+  BlockLine,
+  ProvBlockReadData,
+  RequestedBlockSpan,
+  ResolvedBlockWindow,
+} from "./schemas.ts";
+
+export function resolveRequestedWindow(options: {
+  startLine: number;
+  endLine: number;
+  radius: number | undefined;
+  windowStart: number | undefined;
+  windowEnd: number | undefined;
+  totalLines: number;
+}): ResolvedBlockWindow {
+  if (options.endLine < options.startLine) {
+    throw new Error("end_line must be greater than or equal to start_line.");
+  }
+
+  const hasExplicitWindow = options.windowStart !== undefined || options.windowEnd !== undefined;
+  if (hasExplicitWindow && options.radius !== undefined) {
+    throw new Error("radius cannot be combined with window_start or window_end.");
+  }
+
+  if (hasExplicitWindow && (options.windowStart === undefined || options.windowEnd === undefined)) {
+    throw new Error("window_start and window_end must be provided together.");
+  }
+
+  if (
+    options.windowStart !== undefined &&
+    options.windowEnd !== undefined &&
+    options.windowEnd < options.windowStart
+  ) {
+    throw new Error("window_end must be greater than or equal to window_start.");
+  }
+
+  if (
+    options.windowStart !== undefined &&
+    options.windowEnd !== undefined &&
+    (options.windowStart > options.startLine || options.windowEnd < options.endLine)
+  ) {
+    throw new Error("Explicit window must fully include the requested start_line and end_line.");
+  }
+
+  const source =
+    options.windowStart !== undefined ? "explicit" : options.radius ? "radius" : "focus";
+  const requestedStart =
+    options.windowStart ?? Math.max(1, options.startLine - (options.radius ?? 0));
+  const requestedEnd = options.windowEnd ?? options.endLine + (options.radius ?? 0);
+
+  if (options.totalLines <= 0) {
+    return {
+      startLine: requestedStart,
+      endLine: requestedEnd,
+      source,
+      clamped: false,
+    };
+  }
+
+  return {
+    startLine: Math.min(requestedStart, options.totalLines),
+    endLine: Math.min(requestedEnd, options.totalLines),
+    source,
+    clamped:
+      requestedStart !== Math.min(requestedStart, options.totalLines) ||
+      requestedEnd !== Math.min(requestedEnd, options.totalLines),
+  };
+}
+
+export function buildBlockLines(options: {
+  lines: readonly string[];
+  focus: RequestedBlockSpan;
+  window: ResolvedBlockWindow;
+}): BlockLine[] {
+  if (options.lines.length === 0 || options.window.endLine < options.window.startLine) {
+    return [];
+  }
+
+  return options.lines
+    .slice(options.window.startLine - 1, options.window.endLine)
+    .map((text, index) => {
+      const number = options.window.startLine + index;
+      return {
+        number,
+        text,
+        inFocus: number >= options.focus.startLine && number <= options.focus.endLine,
+      };
+    });
+}
+
+export function applyBlockLineBudget(
+  lines: readonly BlockLine[],
+  requestedBytes: number | undefined,
+): {
+  lines: BlockLine[];
+  text: string;
+  bounds: ProvenanceBounds;
+  byteCount: number;
+} {
+  const limit = resolveBoundedNumber(requestedBytes, DEFAULT_PROVENANCE_BYTE_LIMIT);
+  const byteCount = Buffer.byteLength(lines.map((line) => line.text).join("\n"), "utf8");
+
+  if (lines.length === 0 || byteCount <= limit) {
+    const text = lines.map((line) => line.text).join("\n");
+    return {
+      lines: [...lines],
+      text,
+      bounds: {
+        requested: requestedBytes,
+        limit,
+        returned: Buffer.byteLength(text, "utf8"),
+        truncated: false,
+      },
+      byteCount,
+    };
+  }
+
+  const boundedLines: BlockLine[] = [];
+  let used = 0;
+
+  for (const line of lines) {
+    const prefix = boundedLines.length > 0 ? "\n" : "";
+    const size = Buffer.byteLength(`${prefix}${line.text}`, "utf8");
+    if (used + size > limit) {
+      break;
+    }
+    boundedLines.push(line);
+    used += size;
+  }
+
+  const text = boundedLines.map((line) => line.text).join("\n");
+  return {
+    lines: boundedLines,
+    text,
+    bounds: {
+      requested: requestedBytes,
+      limit,
+      returned: Buffer.byteLength(text, "utf8"),
+      truncated: boundedLines.length !== lines.length,
+    },
+    byteCount,
+  };
+}
+
+export function buildBlockContentHints(options: {
+  layer: ProvenanceContentLayer;
+  selectedLayer: LocalFileLayerState;
+  window: ResolvedBlockWindow;
+  bounds: ProvenanceBounds;
+  byteCount: number;
+}): string[] {
+  const hints = buildContentHints({
+    layer: options.layer,
+    selectedLayer: options.selectedLayer,
+    bounds: options.bounds,
+    byteCount: options.byteCount,
+  });
+
+  if (options.window.clamped) {
+    hints.push(
+      `Requested context window was clamped to available lines ${options.window.startLine}-${options.window.endLine}.`,
+    );
+  }
+
+  return hints;
+}
+
+export function createBlockContentWarnings(
+  content: ProvBlockReadData["content"],
+): ProvenanceWarning[] {
+  const warnings = createContentWarning({
+    layer: content.layer,
+    ref: content.ref,
+    path: content.path,
+    exists: content.exists,
+    text: content.text,
+    bounds: content.bounds,
+    byteCount: content.byteCount,
+    hints: content.hints,
+    confidence: content.confidence,
+    detectionMethod: content.detectionMethod,
+  });
+
+  if (content.window.clamped) {
+    warnings.push({
+      code: "BLOCK_WINDOW_CLAMPED",
+      message: `Requested block context was clamped to available lines ${content.window.startLine}-${content.window.endLine}.`,
+      ambiguity: "low",
+    });
+  }
+
+  return warnings;
+}
+
+export function buildBlockContentSource(
+  content: ProvBlockReadData["content"],
+): ProvenanceEvidenceSource {
+  return {
+    kind: "git",
+    id: `content:${content.layer}`,
+    ref: content.ref ?? content.layer,
+    path: content.path,
+    label: `${content.layer} block`,
+    detail: content.exists
+      ? `${content.window.startLine}-${content.window.endLine} (${content.lines.length} line(s))${content.bounds.truncated ? " (truncated)" : ""}`
+      : "absent",
+  };
+}
