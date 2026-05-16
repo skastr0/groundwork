@@ -1684,6 +1684,37 @@ message = "console logging should be reviewed"
     });
   });
 
+  it("reports unsupported repo-state modes through provenance run", async () => {
+    const result = await runGroundwork([
+      "provenance",
+      "run",
+      JSON.stringify({
+        tool: "gw_repo_state",
+        args: { mode: "remote" },
+      }),
+    ]);
+    expect(result.exitCode).toBe(0);
+    expect(result.stderr).toBe("");
+    expect(parseJson(result.stdout)).toMatchObject({
+      ok: true,
+      command: "provenance run",
+      data: {
+        ok: false,
+        summary: "Unsupported provenance mode 'remote' for gw_repo_state.",
+        meta: {
+          tool: "gw_repo_state",
+          mode: "remote",
+          confidence: "unknown",
+          ambiguity: "high",
+        },
+        error: {
+          code: "MODE_NOT_SUPPORTED",
+          message: "gw_repo_state currently supports only local mode.",
+        },
+      },
+    });
+  });
+
   it("keeps gw_block_read available as an explicit blocking provenance command", async () => {
     const result = await runGroundwork([
       "provenance",
