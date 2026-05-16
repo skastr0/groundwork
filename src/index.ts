@@ -30,6 +30,7 @@ export {
   rememberFrameworkSyntheticInjection,
   resolveSessionPromptContext,
   setFrameworkCacheEntry,
+  toSessionPromptContext,
   truncateFrameworkTextByBytes,
 } from "./kernel/index.ts";
 export {
@@ -107,6 +108,7 @@ export type {
   FrameworkPromptContextMessage,
   FrameworkPromptContextMessageInfo,
   FrameworkPromptContextMessagesResult,
+  FrameworkSessionPromptContext,
   FrameworkPromptContext,
   FrameworkSessionKernelState,
   FrameworkSessionLock,

@@ -20,7 +20,7 @@ export {
   createSessionKernelState,
   createSessionKernelStore,
 } from "./state.ts";
-export { resolveSessionPromptContext } from "./prompt-context.ts";
+export { resolveSessionPromptContext, toSessionPromptContext } from "./prompt-context.ts";
 export { extractFrameworkToolTargets } from "./tool-targets.ts";
 export type {
   CreateSessionKernelStateOptions,
@@ -67,4 +67,5 @@ export type {
   FrameworkPromptContextMessage,
   FrameworkPromptContextMessageInfo,
   FrameworkPromptContextMessagesResult,
+  FrameworkSessionPromptContext,
 } from "./prompt-context.ts";

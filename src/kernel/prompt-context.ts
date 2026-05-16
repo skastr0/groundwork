@@ -1,5 +1,14 @@
 import type { FrameworkJsonObject, FrameworkModelRef, FrameworkPromptContext } from "./state.ts";
 
+export interface FrameworkSessionPromptContext {
+  messageID?: string;
+  agent?: string;
+  model?: FrameworkPromptContext["model"];
+  system?: string;
+  variant?: string;
+  tools?: Record<string, boolean>;
+}
+
 export interface FrameworkPromptContextMessageInfo {
   messageID?: unknown;
   role?: unknown;
@@ -61,6 +70,36 @@ function toPromptContext(info: FrameworkPromptContextMessageInfo): FrameworkProm
     system: isString(info.system) ? info.system : undefined,
     variant: isString(info.variant) ? info.variant : undefined,
     tools: cloneTools(info.tools),
+  };
+}
+
+function normalizePromptTools(
+  tools: FrameworkPromptContext["tools"],
+): Record<string, boolean> | undefined {
+  if (!tools) {
+    return undefined;
+  }
+
+  const result: Record<string, boolean> = {};
+  for (const [toolName, enabled] of Object.entries(tools)) {
+    if (typeof enabled === "boolean") {
+      result[toolName] = enabled;
+    }
+  }
+
+  return Object.keys(result).length > 0 ? result : undefined;
+}
+
+export function toSessionPromptContext(
+  promptContext: FrameworkPromptContext,
+): FrameworkSessionPromptContext {
+  return {
+    messageID: promptContext.messageID,
+    agent: promptContext.agent,
+    model: promptContext.model,
+    system: promptContext.system,
+    variant: promptContext.variant,
+    tools: normalizePromptTools(promptContext.tools),
   };
 }
 

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { resolveSessionPromptContext } from "../index.ts";
+import { resolveSessionPromptContext, toSessionPromptContext } from "../index.ts";
 
 describe("session prompt context resolver", () => {
   it("selects the first user message and preserves prompt context safely", async () => {
@@ -123,5 +123,35 @@ describe("session prompt context resolver", () => {
     );
 
     expect(promptContext).toBeNull();
+  });
+
+  it("serializes session prompt context while filtering non-boolean tools", () => {
+    expect(
+      toSessionPromptContext({
+        messageID: "message-1",
+        role: "user",
+        agent: "builder",
+        model: { providerID: "openai", modelID: "gpt-5.4" },
+        system: "preserve system prompt",
+        variant: "careful",
+        tools: {
+          edit: true,
+          read: false,
+          nested: { enabled: true },
+          label: "enabled",
+          unset: undefined,
+        },
+      }),
+    ).toEqual({
+      messageID: "message-1",
+      agent: "builder",
+      model: { providerID: "openai", modelID: "gpt-5.4" },
+      system: "preserve system prompt",
+      variant: "careful",
+      tools: {
+        edit: true,
+        read: false,
+      },
+    });
   });
 });

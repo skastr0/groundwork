@@ -13,6 +13,7 @@ import {
   getFrameworkCacheEntry,
   rememberFrameworkAction,
   resolveSessionPromptContext,
+  toSessionPromptContext,
   truncateFrameworkTextByBytes,
   type FrameworkPromptContext,
   type FrameworkPromptContextClient,
@@ -411,41 +412,6 @@ function wrapContextReminder(reminders: readonly string[]): string {
   }
 
   return `${CONTEXT_REMINDER_PREFIX}${body}${CONTEXT_REMINDER_SUFFIX}`;
-}
-
-function toSessionPromptContext(promptContext: FrameworkPromptContext): {
-  messageID?: string;
-  agent?: string;
-  model?: FrameworkPromptContext["model"];
-  system?: string;
-  variant?: string;
-  tools?: Record<string, boolean>;
-} {
-  return {
-    messageID: promptContext.messageID,
-    agent: promptContext.agent,
-    model: promptContext.model,
-    system: promptContext.system,
-    variant: promptContext.variant,
-    tools: normalizePromptTools(promptContext.tools),
-  };
-}
-
-function normalizePromptTools(
-  tools: FrameworkPromptContext["tools"],
-): Record<string, boolean> | undefined {
-  if (!tools) {
-    return undefined;
-  }
-
-  const result: Record<string, boolean> = {};
-  for (const [toolName, enabled] of Object.entries(tools)) {
-    if (typeof enabled === "boolean") {
-      result[toolName] = enabled;
-    }
-  }
-
-  return Object.keys(result).length > 0 ? result : undefined;
 }
 
 async function log(

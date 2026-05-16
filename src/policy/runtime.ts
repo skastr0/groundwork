@@ -14,6 +14,7 @@ import {
   rememberFrameworkAction,
   resolveSessionPromptContext,
   setFrameworkCacheEntry,
+  toSessionPromptContext,
   type FrameworkJsonObject,
   type FrameworkPromptContext,
   type FrameworkPromptContextClient,
@@ -1152,41 +1153,6 @@ async function resolvePolicyPromptContext(
   }
 
   return promptContext;
-}
-
-function toSessionPromptContext(promptContext: FrameworkPromptContext): {
-  messageID?: string;
-  agent?: string;
-  model?: FrameworkPromptContext["model"];
-  system?: string;
-  variant?: string;
-  tools?: Record<string, boolean>;
-} {
-  return {
-    messageID: promptContext.messageID,
-    agent: promptContext.agent,
-    model: promptContext.model,
-    system: promptContext.system,
-    variant: promptContext.variant,
-    tools: normalizePromptTools(promptContext.tools),
-  };
-}
-
-function normalizePromptTools(
-  tools: FrameworkPromptContext["tools"],
-): Record<string, boolean> | undefined {
-  if (!tools) {
-    return undefined;
-  }
-
-  const result: Record<string, boolean> = {};
-  for (const [toolName, enabled] of Object.entries(tools)) {
-    if (typeof enabled === "boolean") {
-      result[toolName] = enabled;
-    }
-  }
-
-  return Object.keys(result).length > 0 ? result : undefined;
 }
 
 function parsePolicyCommands(parts: unknown): ParsedPolicyCommand[] {
