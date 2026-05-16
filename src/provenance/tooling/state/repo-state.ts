@@ -22,6 +22,8 @@ import {
 } from "./base-detection.ts";
 import { getStatusSnapshot } from "./status.ts";
 
+type RepoStatusSnapshot = Awaited<ReturnType<typeof getStatusSnapshot>>;
+
 function getLocalRepoConfidence(state: {
   ambiguity: LocalRepoAmbiguityState;
   currentBranch: LocalCurrentBranchState;
@@ -111,14 +113,7 @@ function buildAmbiguityState(state: {
 
 export async function getIndexState(shell: Shell): Promise<LocalIndexState> {
   const snapshot = await getStatusSnapshot(shell);
-  return {
-    ref: "index",
-    dirty: snapshot.indexFiles.length > 0,
-    count: snapshot.indexFiles.length,
-    files: snapshot.indexFiles,
-    confidence: "high",
-    detectionMethod: INDEX_DETECTION_METHOD,
-  };
+  return toIndexState(snapshot);
 }
 
 export async function getUntrackedFiles(shell: Shell): Promise<LocalUntrackedFilesState> {
@@ -147,6 +142,21 @@ export async function getUntrackedFiles(shell: Shell): Promise<LocalUntrackedFil
 
 export async function getWorktreeState(shell: Shell): Promise<LocalWorktreeState> {
   const snapshot = await getStatusSnapshot(shell);
+  return toWorktreeState(snapshot);
+}
+
+function toIndexState(snapshot: RepoStatusSnapshot): LocalIndexState {
+  return {
+    ref: "index",
+    dirty: snapshot.indexFiles.length > 0,
+    count: snapshot.indexFiles.length,
+    files: snapshot.indexFiles,
+    confidence: "high",
+    detectionMethod: INDEX_DETECTION_METHOD,
+  };
+}
+
+function toWorktreeState(snapshot: RepoStatusSnapshot): LocalWorktreeState {
   return {
     ref: "worktree",
     dirty: snapshot.worktreeFiles.length > 0,
@@ -154,6 +164,30 @@ export async function getWorktreeState(shell: Shell): Promise<LocalWorktreeState
     files: snapshot.worktreeFiles,
     confidence: "high",
     detectionMethod: WORKTREE_DETECTION_METHOD,
+  };
+}
+
+function buildLocalRepoState(state: {
+  currentBranch: LocalCurrentBranchState;
+  base: LocalRepoState["base"];
+  head: LocalRepoState["head"];
+  index: LocalIndexState;
+  worktree: LocalWorktreeState;
+  untracked: LocalUntrackedFilesState;
+}): LocalRepoState {
+  const ambiguity = buildAmbiguityState(state);
+  const confidence = getLocalRepoConfidence({ ...state, ambiguity });
+
+  return {
+    currentBranch: state.currentBranch,
+    head: state.head,
+    base: state.base,
+    confidence,
+    detectionMethod: REPO_STATE_DETECTION_METHOD,
+    index: state.index,
+    worktree: state.worktree,
+    untracked: state.untracked,
+    ambiguity,
   };
 }
 
@@ -173,49 +207,12 @@ export async function resolveLocalRepoState(options: {
     getUntrackedFiles(options.shell),
   ]);
 
-  const head = toHeadState(currentBranch, commit);
-  const index: LocalIndexState = {
-    ref: "index",
-    dirty: snapshot.indexFiles.length > 0,
-    count: snapshot.indexFiles.length,
-    files: snapshot.indexFiles,
-    confidence: "high",
-    detectionMethod: INDEX_DETECTION_METHOD,
-  };
-  const worktree: LocalWorktreeState = {
-    ref: "worktree",
-    dirty: snapshot.worktreeFiles.length > 0,
-    count: snapshot.worktreeFiles.length,
-    files: snapshot.worktreeFiles,
-    confidence: "high",
-    detectionMethod: WORKTREE_DETECTION_METHOD,
-  };
-  const ambiguity = buildAmbiguityState({
+  return buildLocalRepoState({
     currentBranch,
     base,
-    index,
-    worktree,
+    head: toHeadState(currentBranch, commit),
+    index: toIndexState(snapshot),
+    worktree: toWorktreeState(snapshot),
     untracked,
   });
-  const confidence = getLocalRepoConfidence({
-    ambiguity,
-    currentBranch,
-    base,
-    head,
-    index,
-    worktree,
-    untracked,
-  });
-
-  return {
-    currentBranch,
-    head,
-    base,
-    confidence,
-    detectionMethod: REPO_STATE_DETECTION_METHOD,
-    index,
-    worktree,
-    untracked,
-    ambiguity,
-  };
 }
