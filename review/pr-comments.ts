@@ -40,6 +40,22 @@ const REVIEW_THREAD_STATES_QUERY = `
   }
 `;
 
+const THREAD_COMMENTS_QUERY = `
+  query($id: ID!, $cursor: String) {
+    node(id: $id) {
+      ... on PullRequestReviewThread {
+        comments(first: 100, after: $cursor) {
+          nodes { databaseId }
+          pageInfo {
+            hasNextPage
+            endCursor
+          }
+        }
+      }
+    }
+  }
+`;
+
 export interface GitHubUser {
   login: string;
 }
@@ -150,6 +166,11 @@ interface GraphQLThreadCommentsResponse {
   };
 }
 
+interface ThreadCommentsPage {
+  ids: number[];
+  nextCursor: string | null;
+}
+
 function createReviewThreadStatesCommand(
   prNumber: number,
   cursor: string | null,
@@ -173,6 +194,93 @@ function createReviewThreadStatesCommand(
   }
 
   return command;
+}
+
+function createThreadCommentsCommand(
+  threadId: string,
+  cursor: string | null,
+): readonly [string, ...string[]] {
+  const command: [string, ...string[]] = [
+    "gh",
+    "api",
+    "graphql",
+    "-f",
+    `query=${THREAD_COMMENTS_QUERY}`,
+    "-F",
+    `id=${threadId}`,
+  ];
+
+  if (cursor) {
+    command.push("-F", `cursor=${cursor}`);
+  }
+
+  return command;
+}
+
+function validateThreadCommentsPageRequest(
+  threadId: string,
+  cursor: string | null,
+  seenCursors: Set<string>,
+  pageCount: number,
+): Result<void> {
+  if (pageCount > MAX_GRAPHQL_PAGES) {
+    return {
+      success: false,
+      error: `GraphQL thread comments pagination exceeded ${MAX_GRAPHQL_PAGES} pages for thread '${threadId}'.`,
+    };
+  }
+
+  if (cursor && seenCursors.has(cursor)) {
+    return {
+      success: false,
+      error: `GraphQL thread comments pagination repeated cursor '${cursor}' for thread '${threadId}'.`,
+    };
+  }
+
+  if (cursor) {
+    seenCursors.add(cursor);
+  }
+
+  return { success: true, data: undefined };
+}
+
+function parseThreadCommentsPage(data: string): Result<ThreadCommentsPage> {
+  try {
+    const parsed: GraphQLThreadCommentsResponse = JSON.parse(data);
+    const comments = parsed.data.node?.comments;
+    if (!comments) {
+      return { success: true, data: { ids: [], nextCursor: null } };
+    }
+
+    return {
+      success: true,
+      data: {
+        ids: collectThreadCommentIds(comments),
+        nextCursor: resolveThreadCommentsNextCursor(comments),
+      },
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: `Failed to parse GraphQL thread comments: ${error}`,
+    };
+  }
+}
+
+function collectThreadCommentIds(comments: GraphQLReviewThreadComments): number[] {
+  const ids: number[] = [];
+  for (const comment of comments.nodes) {
+    if (comment.databaseId == null) continue;
+    ids.push(comment.databaseId);
+  }
+  return ids;
+}
+
+function resolveThreadCommentsNextCursor(comments: GraphQLReviewThreadComments): string | null {
+  if (!comments.pageInfo.hasNextPage || !comments.pageInfo.endCursor) {
+    return null;
+  }
+  return comments.pageInfo.endCursor;
 }
 
 function parseReviewThreadStatesPage(raw: string): Result<GraphQLReviewThreadConnection> {
@@ -815,22 +923,6 @@ export class PRCommentsManager {
     threadId: string,
     cursor: string | null,
   ): Promise<Result<number[]>> {
-    const query = `
-      query($id: ID!, $cursor: String) {
-        node(id: $id) {
-          ... on PullRequestReviewThread {
-            comments(first: 100, after: $cursor) {
-              nodes { databaseId }
-              pageInfo {
-                hasNextPage
-                endCursor
-              }
-            }
-          }
-        }
-      }
-    `;
-
     const ids: number[] = [];
     const seenCursors = new Set<string>();
     let nextCursor: string | null = cursor;
@@ -838,66 +930,30 @@ export class PRCommentsManager {
 
     while (true) {
       pageCount += 1;
-      if (pageCount > MAX_GRAPHQL_PAGES) {
-        return {
-          success: false,
-          error: `GraphQL thread comments pagination exceeded ${MAX_GRAPHQL_PAGES} pages for thread '${threadId}'.`,
-        };
-      }
-
-      if (nextCursor && seenCursors.has(nextCursor)) {
-        return {
-          success: false,
-          error: `GraphQL thread comments pagination repeated cursor '${nextCursor}' for thread '${threadId}'.`,
-        };
-      }
-      if (nextCursor) {
-        seenCursors.add(nextCursor);
-      }
+      const pageRequest = validateThreadCommentsPageRequest(
+        threadId,
+        nextCursor,
+        seenCursors,
+        pageCount,
+      );
+      if (!pageRequest.success) return pageRequest;
 
       const result = await this.runCommand(
         "gh api graphql",
-        nextCursor
-          ? [
-              "gh",
-              "api",
-              "graphql",
-              "-f",
-              `query=${query}`,
-              "-F",
-              `id=${threadId}`,
-              "-F",
-              `cursor=${nextCursor}`,
-            ]
-          : ["gh", "api", "graphql", "-f", `query=${query}`, "-F", `id=${threadId}`],
+        createThreadCommentsCommand(threadId, nextCursor),
         { tool: "pr_comments", endpoint: "graphql thread comments" },
       );
 
       if (!result.success) return result;
 
-      try {
-        const parsed: GraphQLThreadCommentsResponse = JSON.parse(result.data);
-        const comments = parsed.data.node?.comments;
-        if (!comments) {
-          break;
-        }
+      const page = parseThreadCommentsPage(result.data);
+      if (!page.success) return page;
 
-        for (const comment of comments.nodes) {
-          if (comment.databaseId == null) continue;
-          ids.push(comment.databaseId);
-        }
-
-        if (!comments.pageInfo.hasNextPage || !comments.pageInfo.endCursor) {
-          break;
-        }
-
-        nextCursor = comments.pageInfo.endCursor;
-      } catch (error) {
-        return {
-          success: false,
-          error: `Failed to parse GraphQL thread comments: ${error}`,
-        };
+      ids.push(...page.data.ids);
+      if (!page.data.nextCursor) {
+        break;
       }
+      nextCursor = page.data.nextCursor;
     }
 
     return { success: true, data: ids };
