@@ -870,12 +870,30 @@ type ReadToolState = {
   fileState: Awaited<ReturnType<typeof resolveLocalFileState>>;
 };
 
+type ReadToolRequest = {
+  input: ReadToolInput;
+  resolvedMode: "local";
+  selectedLayerName: ProvenanceContentLayer;
+  normalizedPath: string;
+};
+
 type BlockReadSuccessInputs = {
   repoState: ReadToolState["repoState"];
   fileState: ReadToolState["fileState"];
   content: ProvBlockReadData["content"];
   lineageResolution: Awaited<ReturnType<typeof resolveLocalSpanLineage>>;
   diff: Awaited<ReturnType<typeof buildLocalDiffContext>>;
+};
+
+type BlockContentLayerText = {
+  selectedLayer: LocalFileLayerState;
+  textLines: string[];
+  totalLines: number;
+};
+
+type BlockContentWindow = {
+  focus: z.infer<typeof RequestedBlockSpanSchema>;
+  window: z.infer<typeof ResolvedBlockWindowSchema>;
 };
 
 function createReadTool(runtimeOptions: QueryToolRuntimeOptions): ToolDefinition {
@@ -916,10 +934,45 @@ function createBlockReadTool(runtimeOptions: QueryToolRuntimeOptions): ToolDefin
 }
 
 async function executeReadTool(
-  { path: requestedPath, layer, base, mode, limit, max_bytes }: ReadToolInput,
+  input: ReadToolInput,
   runtimeOptions: QueryToolRuntimeOptions,
 ): Promise<string> {
-  const resolvedMode = mode ?? "local";
+  const request = normalizeReadToolRequest(input, runtimeOptions);
+  if (typeof request === "string") {
+    return request;
+  }
+
+  logReadToolStart(request);
+
+  try {
+    const { repoState, fileState } = await loadQueryToolState(
+      runtimeOptions,
+      request.normalizedPath,
+      input.base,
+    );
+    const content = await buildReadContent({
+      runtimeOptions,
+      fileState,
+      selectedLayerName: request.selectedLayerName,
+      maxBytes: input.max_bytes,
+    });
+
+    return serializeReadToolSuccess({
+      request,
+      repoState,
+      fileState,
+      content,
+    });
+  } catch (error) {
+    return createReadToolFailure(request, error);
+  }
+}
+
+function normalizeReadToolRequest(
+  input: ReadToolInput,
+  runtimeOptions: QueryToolRuntimeOptions,
+): string | ReadToolRequest {
+  const resolvedMode = input.mode ?? "local";
 
   if (resolvedMode !== "local") {
     logger.warn("gw_read unsupported mode", {
@@ -929,84 +982,90 @@ async function executeReadTool(
     return createUnsupportedModeFailure(GW_READ_TOOL, resolvedMode);
   }
 
-  const selectedLayerName = layer ?? "worktree";
-  let normalizedPath: string;
   try {
-    normalizedPath = normalizeRequestedPath(requestedPath, runtimeOptions.rootDir);
+    return {
+      input,
+      resolvedMode,
+      selectedLayerName: input.layer ?? "worktree",
+      normalizedPath: normalizeRequestedPath(input.path, runtimeOptions.rootDir),
+    };
   } catch (error) {
     return createPathNormalizationFailure({
       tool: GW_READ_TOOL,
-      requestedPath,
+      requestedPath: input.path,
       code: "GW_READ_PATH_INVALID",
       error,
     });
   }
+}
 
+function logReadToolStart(request: ReadToolRequest): void {
   logger.info("gw_read start", {
     tool: GW_READ_TOOL,
-    mode: resolvedMode,
-    path: normalizedPath,
-    layer: selectedLayerName,
-    base,
-    limit,
-    maxBytes: max_bytes,
+    mode: request.resolvedMode,
+    path: request.normalizedPath,
+    layer: request.selectedLayerName,
+    base: request.input.base,
+    limit: request.input.limit,
+    maxBytes: request.input.max_bytes,
+  });
+}
+
+function serializeReadToolSuccess(params: {
+  request: ReadToolRequest;
+  repoState: ReadToolState["repoState"];
+  fileState: ReadToolState["fileState"];
+  content: ProvReadData["content"];
+}): string {
+  const { request, repoState, fileState, content } = params;
+  const data = buildReadData({
+    requestedPath: request.input.path.trim(),
+    repoState,
+    fileState,
+    content,
+    limit: request.input.limit,
+  });
+  const response = buildReadResponse({ repoState, fileState, content, data });
+
+  logger.info("gw_read end", {
+    tool: GW_READ_TOOL,
+    confidence: response.meta.confidence,
+    ambiguity: response.meta.ambiguity,
+    path: request.normalizedPath,
+    resolvedPath: data.resolvedPath,
+    layer: content.layer,
+    exists: content.exists,
+    contentBytes: content.bounds.returned,
   });
 
-  try {
-    const { repoState, fileState } = await loadQueryToolState(runtimeOptions, normalizedPath, base);
-    const content = await buildReadContent({
-      runtimeOptions,
-      fileState,
-      selectedLayerName,
-      maxBytes: max_bytes,
-    });
-    const data = buildReadData({
-      requestedPath: requestedPath.trim(),
-      repoState,
-      fileState,
-      content,
-      limit,
-    });
-    const response = buildReadResponse({ repoState, fileState, content, data });
+  return JSON.stringify(response, null, 2);
+}
 
-    logger.info("gw_read end", {
+function createReadToolFailure(request: ReadToolRequest, error: unknown): string {
+  const errorMessage = toErrorMessage(error);
+  logger.error("gw_read failed", {
+    tool: GW_READ_TOOL,
+    mode: request.resolvedMode,
+    path: request.normalizedPath,
+    layer: request.selectedLayerName,
+    error: errorMessage,
+  });
+
+  return JSON.stringify(
+    createProvenanceFailure({
       tool: GW_READ_TOOL,
-      confidence: response.meta.confidence,
-      ambiguity: response.meta.ambiguity,
-      path: normalizedPath,
-      resolvedPath: data.resolvedPath,
-      layer: content.layer,
-      exists: content.exists,
-      contentBytes: content.bounds.returned,
-    });
-
-    return JSON.stringify(response, null, 2);
-  } catch (error) {
-    const errorMessage = toErrorMessage(error);
-    logger.error("gw_read failed", {
-      tool: GW_READ_TOOL,
-      mode: resolvedMode,
-      path: normalizedPath,
-      layer: selectedLayerName,
-      error: errorMessage,
-    });
-
-    return JSON.stringify(
-      createProvenanceFailure({
-        tool: GW_READ_TOOL,
-        mode: "local",
-        confidence: "unknown",
-        ambiguity: "high",
-        summary: `Failed to read provenance for '${normalizedPath}'.`,
-        error: {
-          code: "GW_READ_UNAVAILABLE",
-          message: errorMessage,
-        },
-      }),
-      null,
-      2,
-    );
-  }
+      mode: "local",
+      confidence: "unknown",
+      ambiguity: "high",
+      summary: `Failed to read provenance for '${request.normalizedPath}'.`,
+      error: {
+        code: "GW_READ_UNAVAILABLE",
+        message: errorMessage,
+      },
+    }),
+    null,
+    2,
+  );
 }
 
 function createPathNormalizationFailure(options: {
@@ -1335,39 +1394,98 @@ async function resolveBlockReadContent(params: {
     }
 > {
   const { input, runtimeOptions, rootDir, selectedLayerName, fileState } = params;
-  const selectedLayer = getSelectedLayerState(fileState, selectedLayerName);
-  const rawText = await readSelectedLayerText({
-    shell: runtimeOptions.shell,
+  const layerText = await loadBlockContentLayerText({
+    runtimeOptions,
     rootDir,
-    layer: selectedLayerName,
+    selectedLayerName,
+    fileState,
+  });
+
+  const rangeFailure = validateBlockContentRange(input, selectedLayerName, layerText);
+  if (rangeFailure) {
+    return rangeFailure;
+  }
+
+  const window = resolveBlockContentWindow(input, layerText.totalLines);
+  if (typeof window === "string") {
+    return window;
+  }
+
+  return {
+    selectedLayer: layerText.selectedLayer,
+    content: assembleBlockReadContent({
+      input,
+      selectedLayerName,
+      layerText,
+      window,
+    }),
+  };
+}
+
+async function loadBlockContentLayerText(params: {
+  runtimeOptions: QueryToolRuntimeOptions;
+  rootDir: string;
+  selectedLayerName: ProvenanceContentLayer;
+  fileState: LocalFileState;
+}): Promise<BlockContentLayerText> {
+  const selectedLayer = getSelectedLayerState(params.fileState, params.selectedLayerName);
+  const rawText = await readSelectedLayerText({
+    shell: params.runtimeOptions.shell,
+    rootDir: params.rootDir,
+    layer: params.selectedLayerName,
     selectedLayer,
   });
   const textLines = normalizeTextLines(rawText);
-  const totalLines = textLines.length;
 
+  return {
+    selectedLayer,
+    textLines,
+    totalLines: textLines.length,
+  };
+}
+
+function validateBlockContentRange(
+  input: BlockReadToolInput,
+  selectedLayerName: ProvenanceContentLayer,
+  layerText: BlockContentLayerText,
+): string | undefined {
   if (
-    selectedLayer.exists &&
-    (totalLines === 0 || input.start_line > totalLines || input.end_line > totalLines)
+    !layerText.selectedLayer.exists ||
+    (layerText.totalLines > 0 &&
+      input.start_line <= layerText.totalLines &&
+      input.end_line <= layerText.totalLines)
   ) {
-    return createBlockValidationFailure({
-      tool: GW_BLOCK_READ_TOOL,
-      requestedPath: input.path,
-      summary: `Requested block '${input.path}:${input.start_line}-${input.end_line}' is outside the selected layer.`,
-      code: "BLOCK_RANGE_OUT_OF_BOUNDS",
-      message: `Requested block exceeds the selected ${selectedLayerName} layer length of ${totalLines} line(s).`,
-    });
+    return undefined;
   }
 
-  let window: z.infer<typeof ResolvedBlockWindowSchema>;
+  return createBlockValidationFailure({
+    tool: GW_BLOCK_READ_TOOL,
+    requestedPath: input.path,
+    summary: `Requested block '${input.path}:${input.start_line}-${input.end_line}' is outside the selected layer.`,
+    code: "BLOCK_RANGE_OUT_OF_BOUNDS",
+    message: `Requested block exceeds the selected ${selectedLayerName} layer length of ${layerText.totalLines} line(s).`,
+  });
+}
+
+function resolveBlockContentWindow(
+  input: BlockReadToolInput,
+  totalLines: number,
+): string | BlockContentWindow {
   try {
-    window = resolveRequestedWindow({
-      startLine: input.start_line,
-      endLine: input.end_line,
-      radius: input.radius,
-      windowStart: input.window_start,
-      windowEnd: input.window_end,
-      totalLines,
-    });
+    return {
+      focus: {
+        startLine: input.start_line,
+        endLine: input.end_line,
+      },
+      window: resolveRequestedWindow({
+        startLine: input.start_line,
+        endLine: input.end_line,
+        radius: input.radius,
+        windowStart: input.window_start,
+        windowEnd: input.window_end,
+        totalLines,
+      }),
+    };
   } catch (error) {
     return createBlockValidationFailure({
       tool: GW_BLOCK_READ_TOOL,
@@ -1377,44 +1495,45 @@ async function resolveBlockReadContent(params: {
       message: toErrorMessage(error),
     });
   }
+}
 
-  const focus = {
-    startLine: input.start_line,
-    endLine: input.end_line,
-  } satisfies z.infer<typeof RequestedBlockSpanSchema>;
+function assembleBlockReadContent(params: {
+  input: BlockReadToolInput;
+  selectedLayerName: ProvenanceContentLayer;
+  layerText: BlockContentLayerText;
+  window: BlockContentWindow;
+}): ProvBlockReadData["content"] {
+  const { input, selectedLayerName, layerText, window } = params;
   const boundedBlock = applyBlockLineBudget(
     buildBlockLines({
-      lines: textLines,
-      focus,
-      window,
+      lines: layerText.textLines,
+      focus: window.focus,
+      window: window.window,
     }),
     input.max_bytes,
   );
 
   return {
-    selectedLayer,
-    content: {
+    layer: selectedLayerName,
+    ref: layerText.selectedLayer.ref,
+    path: layerText.selectedLayer.path,
+    exists: layerText.selectedLayer.exists,
+    focus: window.focus,
+    window: window.window,
+    totalLines: layerText.totalLines,
+    lines: boundedBlock.lines,
+    text: boundedBlock.text,
+    bounds: boundedBlock.bounds,
+    byteCount: boundedBlock.byteCount,
+    hints: buildBlockContentHints({
       layer: selectedLayerName,
-      ref: selectedLayer.ref,
-      path: selectedLayer.path,
-      exists: selectedLayer.exists,
-      focus,
-      window,
-      totalLines,
-      lines: boundedBlock.lines,
-      text: boundedBlock.text,
+      selectedLayer: layerText.selectedLayer,
+      window: window.window,
       bounds: boundedBlock.bounds,
       byteCount: boundedBlock.byteCount,
-      hints: buildBlockContentHints({
-        layer: selectedLayerName,
-        selectedLayer,
-        window,
-        bounds: boundedBlock.bounds,
-        byteCount: boundedBlock.byteCount,
-      }),
-      confidence: selectedLayer.confidence,
-      detectionMethod: selectedLayer.detectionMethod,
-    },
+    }),
+    confidence: layerText.selectedLayer.confidence,
+    detectionMethod: layerText.selectedLayer.detectionMethod,
   };
 }
 
