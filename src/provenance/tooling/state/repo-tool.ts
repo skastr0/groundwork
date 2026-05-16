@@ -133,65 +133,100 @@ export function toProvRepoStateData(
   state: LocalRepoState,
   requestedLimit: number | undefined,
 ): ProvRepoStateData {
-  const staged = getBoundedItems(state.index.files, requestedLimit);
-  const unstaged = getBoundedItems(state.worktree.files, requestedLimit);
-  const untracked = getBoundedItems(state.untracked.files, requestedLimit);
-
   return {
-    branch: {
-      name: state.currentBranch.name,
-      ref: state.currentBranch.ref,
-      detached: state.currentBranch.detached,
-      upstream: state.currentBranch.upstream,
-      hasMatchingRemoteBranch: state.currentBranch.hasMatchingRemoteBranch,
-      isLocalOnly: state.currentBranch.isLocalOnly,
-      confidence: state.currentBranch.confidence,
-      detectionMethod: state.currentBranch.detectionMethod,
-    },
-    base: {
-      ref: state.base.ref,
-      branchName: state.base.branchName,
-      detectionKind: state.base.detection.kind,
-      explicit: state.base.detection.explicit,
-      confidence: state.base.confidence,
-      detectionMethod: state.base.detectionMethod,
-    },
-    head: {
-      ref: state.head.ref,
-      commit: state.head.commit,
-      shortCommit: state.head.shortCommit,
-      detached: state.head.detached,
-      branchName: state.head.branchName,
-      confidence: state.head.confidence,
-      detectionMethod: state.head.detectionMethod,
-    },
-    staged: {
-      ref: state.index.ref,
-      dirty: state.index.dirty,
-      count: state.index.count,
-      truncated: staged.truncated,
-      files: staged.items,
-      confidence: state.index.confidence,
-      detectionMethod: state.index.detectionMethod,
-    },
-    unstaged: {
-      ref: state.worktree.ref,
-      dirty: state.worktree.dirty,
-      count: state.worktree.count,
-      truncated: unstaged.truncated,
-      files: unstaged.items,
-      confidence: state.worktree.confidence,
-      detectionMethod: state.worktree.detectionMethod,
-    },
-    untracked: {
-      ref: state.untracked.ref,
-      count: state.untracked.count,
-      truncated: untracked.truncated,
-      files: untracked.items,
-      confidence: state.untracked.confidence,
-      detectionMethod: state.untracked.detectionMethod,
-    },
+    branch: toRepoBranchData(state.currentBranch),
+    base: toRepoBaseData(state.base),
+    head: toRepoHeadData(state.head),
+    staged: toRepoTrackedChangeData(state.index, requestedLimit),
+    unstaged: toRepoTrackedChangeData(state.worktree, requestedLimit),
+    untracked: toRepoUntrackedData(state.untracked, requestedLimit),
     ambiguity: state.ambiguity,
+  };
+}
+
+function toRepoBranchData(branch: LocalRepoState["currentBranch"]): ProvRepoStateData["branch"] {
+  return {
+    name: branch.name,
+    ref: branch.ref,
+    detached: branch.detached,
+    upstream: branch.upstream,
+    hasMatchingRemoteBranch: branch.hasMatchingRemoteBranch,
+    isLocalOnly: branch.isLocalOnly,
+    confidence: branch.confidence,
+    detectionMethod: branch.detectionMethod,
+  };
+}
+
+function toRepoBaseData(base: LocalRepoState["base"]): ProvRepoStateData["base"] {
+  return {
+    ref: base.ref,
+    branchName: base.branchName,
+    detectionKind: base.detection.kind,
+    explicit: base.detection.explicit,
+    confidence: base.confidence,
+    detectionMethod: base.detectionMethod,
+  };
+}
+
+function toRepoHeadData(head: LocalRepoState["head"]): ProvRepoStateData["head"] {
+  return {
+    ref: head.ref,
+    commit: head.commit,
+    shortCommit: head.shortCommit,
+    detached: head.detached,
+    branchName: head.branchName,
+    confidence: head.confidence,
+    detectionMethod: head.detectionMethod,
+  };
+}
+
+function toRepoTrackedChangeData(
+  changes: LocalRepoState["index"],
+  requestedLimit: number | undefined,
+): ProvRepoStateData["staged"];
+function toRepoTrackedChangeData(
+  changes: LocalRepoState["worktree"],
+  requestedLimit: number | undefined,
+): ProvRepoStateData["unstaged"];
+function toRepoTrackedChangeData(
+  changes: LocalRepoState["index"] | LocalRepoState["worktree"],
+  requestedLimit: number | undefined,
+): ProvRepoStateData["staged"] | ProvRepoStateData["unstaged"] {
+  const fields = toRepoTrackedChangeFields(changes, requestedLimit);
+  if (changes.ref === "index") {
+    return { ref: "index", ...fields };
+  }
+
+  return { ref: "worktree", ...fields };
+}
+
+function toRepoTrackedChangeFields(
+  changes: LocalRepoState["index"] | LocalRepoState["worktree"],
+  requestedLimit: number | undefined,
+): Omit<ProvRepoStateData["staged"], "ref"> {
+  const bounded = getBoundedItems(changes.files, requestedLimit);
+  return {
+    dirty: changes.dirty,
+    count: changes.count,
+    truncated: bounded.truncated,
+    files: bounded.items,
+    confidence: changes.confidence,
+    detectionMethod: changes.detectionMethod,
+  };
+}
+
+function toRepoUntrackedData(
+  untracked: LocalRepoState["untracked"],
+  requestedLimit: number | undefined,
+): ProvRepoStateData["untracked"] {
+  const bounded = getBoundedItems(untracked.files, requestedLimit);
+  return {
+    ref: untracked.ref,
+    count: untracked.count,
+    truncated: bounded.truncated,
+    files: bounded.items,
+    confidence: untracked.confidence,
+    detectionMethod: untracked.detectionMethod,
   };
 }
 
