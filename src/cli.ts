@@ -70,6 +70,10 @@ function validateCommandShape(args: string[]): CommandShapeFailure | undefined {
     return shapeFailure(undefined, "Missing command", { expected: knownTopLevelCommands() });
   }
 
+  return validateTopLevelCommand(commandArgs);
+}
+
+function validateTopLevelCommand(commandArgs: string[]): CommandShapeFailure | undefined {
   const [group, subcommand, input] = commandArgs;
   switch (group) {
     case "capabilities":
