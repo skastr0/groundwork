@@ -44,71 +44,117 @@ function formatCommentMarkdown(comment: ProcessedComment): string {
   return output;
 }
 
-export function formatMarkdown(
-  processed: ProcessedComments,
-  options?: { filter?: CommentFilter; filterSummary?: string },
-): string {
+function createMarkdownPlan(options?: {
+  filter?: CommentFilter;
+  filterSummary?: string;
+}): {
+  includeReviews: boolean;
+  includeIssues: boolean;
+  filterSummary?: string;
+} {
   const filter = options?.filter ?? "all";
-  const includeReviews = filter === "all" || filter === "reviews";
-  const includeIssues = filter === "all" || filter === "issues";
-  const filterSummary = options?.filterSummary;
+  return {
+    includeReviews: filter === "all" || filter === "reviews",
+    includeIssues: filter === "all" || filter === "issues",
+    filterSummary: options?.filterSummary,
+  };
+}
+
+function formatMarkdownHeader(filterSummary?: string): string {
   let output = "## PR Comments";
   if (filterSummary) {
     output += ` - ${filterSummary}`;
   }
-  output += "\n\n";
+  return `${output}\n\n`;
+}
 
-  if (includeReviews) {
-    output += `### Reviews (${processed.reviews.length})\n\n`;
-    if (processed.reviews.length === 0) {
-      output += "_No reviews found._\n\n";
-    } else {
-      for (const review of processed.reviews) {
-        output += `#### ${review.id} (${review.state ?? "REVIEW"})\n`;
-        output += `**Author:** ${review.author} | **Submitted:** ${review.created_at}\n`;
-        if (review.body.trim()) {
-          output += `\n${review.body.trim()}\n`;
-        }
-        output += "\n";
-        const flattened = review.children ? flattenProcessed(review.children) : [];
-        if (flattened.length === 0) {
-          output += "_No inline comments for this review._\n\n";
-        } else {
-          output += "##### Inline Comments\n\n";
-          for (const comment of flattened) {
-            output += formatCommentMarkdown(comment);
-          }
-        }
-      }
-    }
+function formatReviewSections(
+  reviews: ProcessedComment[],
+  orphanedReviewComments: ProcessedComment[],
+): string {
+  return (
+    formatReviewsSection(reviews) + formatOrphanedReviewCommentsSection(orphanedReviewComments)
+  );
+}
 
-    output += `### Orphaned Review Comments (${processed.orphanedReviewComments.length})\n\n`;
-    if (processed.orphanedReviewComments.length === 0) {
-      output += "_No orphaned review comments._\n\n";
-    } else {
-      const flattened = flattenProcessed(processed.orphanedReviewComments);
-      for (const comment of flattened) {
-        output += formatCommentMarkdown(comment);
-      }
-    }
+function formatReviewsSection(reviews: ProcessedComment[]): string {
+  let output = `### Reviews (${reviews.length})\n\n`;
+  if (reviews.length === 0) {
+    return output + "_No reviews found._\n\n";
   }
 
-  if (includeIssues) {
-    output += `### Discussion Comments (${processed.issueComments.length})\n\n`;
-    if (processed.issueComments.length === 0) {
-      output += "_No discussion comments found._\n";
-    } else {
-      for (const comment of processed.issueComments) {
-        output += `#### ${comment.id}\n`;
-        output += `**Author:** ${comment.author} | **Created:** ${comment.created_at}\n`;
-        if (comment.body.trim()) {
-          output += `\n${comment.body.trim()}\n`;
-        }
-        output += "\n";
-      }
-    }
+  for (const review of reviews) {
+    output += formatReviewMarkdown(review);
+  }
+  return output;
+}
+
+function formatReviewMarkdown(review: ProcessedComment): string {
+  let output = `#### ${review.id} (${review.state ?? "REVIEW"})\n`;
+  output += `**Author:** ${review.author} | **Submitted:** ${review.created_at}\n`;
+  if (review.body.trim()) {
+    output += `\n${review.body.trim()}\n`;
+  }
+  output += "\n";
+
+  const flattened = review.children ? flattenProcessed(review.children) : [];
+  if (flattened.length === 0) {
+    return output + "_No inline comments for this review._\n\n";
   }
 
+  output += "##### Inline Comments\n\n";
+  for (const comment of flattened) {
+    output += formatCommentMarkdown(comment);
+  }
+  return output;
+}
+
+function formatOrphanedReviewCommentsSection(comments: ProcessedComment[]): string {
+  let output = `### Orphaned Review Comments (${comments.length})\n\n`;
+  if (comments.length === 0) {
+    return output + "_No orphaned review comments._\n\n";
+  }
+
+  for (const comment of flattenProcessed(comments)) {
+    output += formatCommentMarkdown(comment);
+  }
+  return output;
+}
+
+function formatDiscussionCommentsSection(comments: ProcessedComment[]): string {
+  let output = `### Discussion Comments (${comments.length})\n\n`;
+  if (comments.length === 0) {
+    return output + "_No discussion comments found._\n";
+  }
+
+  for (const comment of comments) {
+    output += formatDiscussionCommentMarkdown(comment);
+  }
+  return output;
+}
+
+function formatDiscussionCommentMarkdown(comment: ProcessedComment): string {
+  let output = `#### ${comment.id}\n`;
+  output += `**Author:** ${comment.author} | **Created:** ${comment.created_at}\n`;
+  if (comment.body.trim()) {
+    output += `\n${comment.body.trim()}\n`;
+  }
+  output += "\n";
+  return output;
+}
+
+export function formatMarkdown(
+  processed: ProcessedComments,
+  options?: { filter?: CommentFilter; filterSummary?: string },
+): string {
+  const plan = createMarkdownPlan(options);
+  let output = formatMarkdownHeader(plan.filterSummary);
+  if (plan.includeReviews) {
+    output += formatReviewSections(processed.reviews, processed.orphanedReviewComments);
+  }
+  if (plan.includeIssues) {
+    output += formatDiscussionCommentsSection(processed.issueComments);
+  }
   return output;
 }
 
