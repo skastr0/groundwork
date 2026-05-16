@@ -3,11 +3,16 @@ import { existsSync, promises as fs, readdirSync, type Dirent } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { parse as parseToml } from "@iarna/toml";
+import { collapseLineNumbers } from "../kernel/line-ranges.ts";
 import {
   isPatchTextKey,
   mergeChangeTarget,
   mergeLineRanges,
 } from "./change-targets.ts";
+import { extractPathsFromPatchText, extractTargetsFromPatchText } from "./patch-targets.ts";
+import { normalizePathForMatching } from "./paths.ts";
+
+export { normalizePathForMatching } from "./paths.ts";
 
 export type GuardrailSeverity = "advisory" | "warn" | "block" | "terminate";
 export type GuardrailMatcherExpectation = "present" | "absent";
@@ -160,9 +165,6 @@ const GUARDRAIL_SEVERITY = new Set<GuardrailSeverity>(["advisory", "warn", "bloc
 const MATCHER_EXPECTATION = new Set<GuardrailMatcherExpectation>(["present", "absent"]);
 const SKILL_ENFORCEMENT_MODE = new Set<GuardrailSkillEnforcementMode>(["prompt", "block"]);
 const CONTENT_SCOPE = new Set<GuardrailContentScope>(["changed_lines", "full_file"]);
-const MAX_PATCH_TEXT_BYTES = 5 * 1024 * 1024;
-const MAX_PATCH_HEADER_PATHS = 4096;
-const MAX_PATCH_PATH_LENGTH = 4096;
 const CHANGED_LINE_WINDOW_PADDING = 12;
 const MAX_SNIPPET_WINDOWS = 8;
 const MAX_SNIPPET_WINDOW_LINES = 160;
@@ -1068,156 +1070,6 @@ function collectChangeTargets(
   }
 }
 
-function extractPathsFromPatchText(patchText: string): string[] {
-  if (patchText.length > MAX_PATCH_TEXT_BYTES) {
-    throw new Error(`Patch text exceeds safe inspection size (${MAX_PATCH_TEXT_BYTES} bytes)`);
-  }
-
-  const results: string[] = [];
-
-  for (const rawLine of patchText.split(/\r?\n/)) {
-    const line = rawLine.trim();
-    const fileMatch = line.match(/^\*\*\* (?:Update|Add|Delete) File: (.+)$/);
-    if (fileMatch?.[1]) {
-      const patchPath = fileMatch[1].trim();
-      if (!isSafePatchPath(patchPath)) {
-        continue;
-      }
-
-      results.push(patchPath);
-      if (results.length > MAX_PATCH_HEADER_PATHS) {
-        throw new Error(`Patch text references too many paths (${MAX_PATCH_HEADER_PATHS} max)`);
-      }
-      continue;
-    }
-
-    const moveMatch = line.match(/^\*\*\* Move to: (.+)$/);
-    if (moveMatch?.[1]) {
-      const patchPath = moveMatch[1].trim();
-      if (!isSafePatchPath(patchPath)) {
-        continue;
-      }
-
-      results.push(patchPath);
-      if (results.length > MAX_PATCH_HEADER_PATHS) {
-        throw new Error(`Patch text references too many paths (${MAX_PATCH_HEADER_PATHS} max)`);
-      }
-    }
-  }
-
-  return results.filter((entry) => entry.length > 0);
-}
-
-function extractTargetsFromPatchText(rootDir: string, patchText: string): GuardrailChangeTarget[] {
-  if (patchText.length > MAX_PATCH_TEXT_BYTES) {
-    throw new Error(`Patch text exceeds safe inspection size (${MAX_PATCH_TEXT_BYTES} bytes)`);
-  }
-
-  const results = new Map<string, GuardrailChangeTarget>();
-  let currentPath: string | null = null;
-  let currentAddedLines: number[] = [];
-  let currentDeletedLines: number[] = [];
-  let currentBeforeLine: number | null = null;
-  let currentAfterLine: number | null = null;
-
-  const flushCurrent = () => {
-    if (!currentPath) return;
-    mergeChangeTarget(results, {
-      normalizedPath: normalizePathForMatching(rootDir, currentPath),
-      changedLineRanges: collapseLineNumbers(currentAddedLines),
-      deletedLineRanges: collapseLineNumbers(currentDeletedLines),
-    });
-    currentPath = null;
-    currentAddedLines = [];
-    currentDeletedLines = [];
-    currentBeforeLine = null;
-    currentAfterLine = null;
-  };
-
-  for (const rawLine of patchText.split(/\r?\n/)) {
-    const line = rawLine.trim();
-    const fileMatch = line.match(/^\*\*\* (?:Update|Add|Delete) File: (.+)$/);
-    if (fileMatch?.[1]) {
-      flushCurrent();
-      const patchPath = fileMatch[1].trim();
-      if (!isSafePatchPath(patchPath)) {
-        currentPath = null;
-        currentAddedLines = [];
-        currentDeletedLines = [];
-        currentBeforeLine = null;
-        currentAfterLine = null;
-        continue;
-      }
-
-      currentPath = patchPath;
-      continue;
-    }
-
-    const moveMatch = line.match(/^\*\*\* Move to: (.+)$/);
-    if (moveMatch?.[1]) {
-      const patchPath = moveMatch[1].trim();
-      if (!isSafePatchPath(patchPath)) {
-        currentPath = null;
-        currentAddedLines = [];
-        currentDeletedLines = [];
-        currentBeforeLine = null;
-        currentAfterLine = null;
-        continue;
-      }
-
-      currentPath = patchPath;
-      continue;
-    }
-
-    const hunkMatch = rawLine.match(/^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/);
-    if (!hunkMatch?.[1] || !currentPath) {
-      if (currentBeforeLine === null || currentAfterLine === null) {
-        continue;
-      }
-
-      if (rawLine.startsWith("+")) {
-        currentAddedLines.push(currentAfterLine);
-        currentAfterLine += 1;
-        continue;
-      }
-
-      if (rawLine.startsWith("-")) {
-        currentDeletedLines.push(currentBeforeLine);
-        currentBeforeLine += 1;
-        continue;
-      }
-
-      if (rawLine.startsWith(" ")) {
-        currentBeforeLine += 1;
-        currentAfterLine += 1;
-        continue;
-      }
-
-      if (rawLine.startsWith("\\")) {
-        continue;
-      }
-
-      currentBeforeLine = null;
-      currentAfterLine = null;
-      continue;
-    }
-
-    currentBeforeLine = Number(rawLine.match(/^@@ -(\d+)/)?.[1] ?? 0);
-    currentAfterLine = Number(hunkMatch[1]);
-  }
-
-  flushCurrent();
-  return Array.from(results.values());
-}
-
-function isSafePatchPath(value: string): boolean {
-  if (value.length === 0 || value.length > MAX_PATCH_PATH_LENGTH) {
-    return false;
-  }
-
-  return !/[\r\n]/.test(value) && !value.includes("\0");
-}
-
 function looksLikePath(value: string, keyName: string): boolean {
   const normalized = value.trim();
   if (normalized.length === 0) return false;
@@ -1231,13 +1083,6 @@ function looksLikePath(value: string, keyName: string): boolean {
   }
 
   return /[A-Za-z0-9_-]+\/[A-Za-z0-9_.-]+/.test(normalized);
-}
-
-export function normalizePathForMatching(rootDir: string, target: string): string {
-  const absolute = path.isAbsolute(target) ? target : path.resolve(rootDir, target);
-  const relative = path.relative(rootDir, absolute);
-  const withoutLeading = relative.startsWith(`..${path.sep}`) ? absolute : relative;
-  return withoutLeading.split(path.sep).join("/");
 }
 
 export function findMatchingRules(
@@ -2052,29 +1897,6 @@ function buildLcsMatrix(beforeLines: string[], afterLines: string[]): number[][]
   }
 
   return lcs;
-}
-
-function collapseLineNumbers(lineNumbers: number[]): LineRange[] {
-  if (lineNumbers.length === 0) return [];
-
-  const ranges: LineRange[] = [];
-  let start = lineNumbers[0]!;
-  let end = start;
-
-  for (let index = 1; index < lineNumbers.length; index += 1) {
-    const current = lineNumbers[index]!;
-    if (current === end + 1) {
-      end = current;
-      continue;
-    }
-
-    ranges.push({ startLine: start, endLine: end });
-    start = current;
-    end = current;
-  }
-
-  ranges.push({ startLine: start, endLine: end });
-  return ranges;
 }
 
 function parseAstGrepBatchMatches(output: string): Array<{

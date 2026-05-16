@@ -40,3 +40,28 @@ export function mergeLineRanges(
 
   return merged;
 }
+
+export function collapseLineNumbers(lineNumbers: readonly number[]): LineRangeLike[] {
+  if (lineNumbers.length === 0) {
+    return [];
+  }
+
+  const ranges: LineRangeLike[] = [];
+  let start = lineNumbers[0]!;
+  let end = start;
+
+  for (let index = 1; index < lineNumbers.length; index += 1) {
+    const current = lineNumbers[index]!;
+    if (current === end + 1) {
+      end = current;
+      continue;
+    }
+
+    ranges.push({ startLine: start, endLine: end });
+    start = current;
+    end = current;
+  }
+
+  ranges.push({ startLine: start, endLine: end });
+  return ranges;
+}
