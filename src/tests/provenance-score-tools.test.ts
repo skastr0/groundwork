@@ -167,6 +167,94 @@ describe("provenance score tools", () => {
     await fs.rm(tempRoot, { recursive: true, force: true });
   });
 
+  it("parses git history logs with renames, binary stats, and separator-bearing summaries", async () => {
+    const { parseHistoryLog } = await import(
+      "../provenance/tooling/score/history-loader.ts"
+    );
+    const commits = parseHistoryLog(
+      [
+        `1111111111111111111111111111111111111111\u001f2026-05-30T12:00:00Z\u001fAda\u001fada@example.com\u001fPart A\u001fPart B`,
+        "2\t3\tsrc/{old => new}/file.ts",
+        "-\t-\tsrc/assets/logo.png",
+        `2222222222222222222222222222222222222222\u001fnot-a-date\u001fGrace\u001fgrace@example.com\u001fSkipped`,
+        "5\t5\tsrc/skipped.ts",
+      ].join("\n"),
+    );
+
+    expect(commits).toHaveLength(1);
+    expect(commits[0]).toMatchObject({
+      commit: "1111111111111111111111111111111111111111",
+      summary: "Part A\u001fPart B",
+    });
+    expect(commits[0]?.changes).toEqual([
+      {
+        path: "src/new/file.ts",
+        additions: 2,
+        deletions: 3,
+        churn: 5,
+      },
+      {
+        path: "src/assets/logo.png",
+        additions: 0,
+        deletions: 0,
+        churn: 0,
+      },
+    ]);
+  });
+
+  it("aggregates history windows by directory with deterministic author and churn stats", async () => {
+    const { aggregateWindow } = await import("../provenance/tooling/score/aggregation.ts");
+    const aggregate = aggregateWindow({
+      anchorPath: "src",
+      groupBy: "directory",
+      directoryDepth: 1,
+      commits: [
+        {
+          commit: "1111111111111111111111111111111111111111",
+          authoredAt: "2026-05-30T12:00:00Z",
+          authoredAtMs: Date.parse("2026-05-30T12:00:00Z"),
+          authorName: "Ada",
+          authorEmail: "ada@example.com",
+          summary: "Update app",
+          changes: [
+            { path: "src/app/a.ts", additions: 4, deletions: 1, churn: 5 },
+            { path: "src/lib/b.ts", additions: 2, deletions: 0, churn: 2 },
+          ],
+        },
+        {
+          commit: "2222222222222222222222222222222222222222",
+          authoredAt: "2026-05-30T12:00:00Z",
+          authoredAtMs: Date.parse("2026-05-30T12:00:00Z"),
+          authorName: "Grace",
+          authorEmail: "grace@example.com",
+          summary: "Refine app",
+          changes: [{ path: "src/app/c.ts", additions: 1, deletions: 3, churn: 4 }],
+        },
+      ],
+    });
+
+    expect(aggregate).toMatchObject({
+      commits: 2,
+      touchedPaths: 2,
+      rawTouchedPaths: 3,
+      additions: 7,
+      deletions: 4,
+      churn: 11,
+      uniqueAuthors: 2,
+      lastTouchedAt: "2026-05-30T12:00:00Z",
+    });
+    expect(aggregate.pathStats.find((entry) => entry.path === "src/app")).toMatchObject({
+      commitCount: 2,
+      additions: 5,
+      deletions: 4,
+      churn: 9,
+    });
+    expect(aggregate.authorStats.map((entry) => entry.authorEmail).sort()).toEqual([
+      "ada@example.com",
+      "grace@example.com",
+    ]);
+  });
+
   it("reports highest churn and most-active hotspots across deterministic windows", async () => {
     const info = vi.spyOn(logger, "info");
     const shell = createShellStub([
