@@ -40,6 +40,13 @@ type LocalFilePathResolution = {
   };
 };
 
+type LocalFilePathTransition = {
+  key: keyof LocalFilePathResolution["entries"];
+  from: LocalFilePathKey;
+  to: LocalFilePathKey;
+  entries: readonly LocalDiffEntry[];
+};
+
 type LocalFileDiffEntries = {
   baseToHead: LocalDiffEntry[];
   headToIndex: LocalDiffEntry[];
@@ -92,23 +99,41 @@ function resolveFilePaths(options: {
   headToIndexEntries: readonly LocalDiffEntry[];
   indexToWorktreeEntries: readonly LocalDiffEntry[];
 }): LocalFilePathResolution {
-  const paths: LocalFilePathChain = {
-    base: options.requestedPath,
-    head: options.requestedPath,
-    index: options.requestedPath,
-    worktree: options.requestedPath,
+  const resolution = createInitialFilePathResolution(options.requestedPath);
+  const transitions = createFilePathTransitions(options);
+
+  for (let pass = 0; pass < 4; pass += 1) {
+    const changed = applyFilePathResolutionPass(resolution, transitions);
+    if (!changed) {
+      break;
+    }
+  }
+
+  return resolution;
+}
+
+function createInitialFilePathResolution(requestedPath: string): LocalFilePathResolution {
+  return {
+    paths: {
+      base: requestedPath,
+      head: requestedPath,
+      index: requestedPath,
+      worktree: requestedPath,
+    },
+    entries: {
+      baseToHead: null,
+      headToIndex: null,
+      indexToWorktree: null,
+    },
   };
-  const entries: LocalFilePathResolution["entries"] = {
-    baseToHead: null,
-    headToIndex: null,
-    indexToWorktree: null,
-  };
-  const transitions: Array<{
-    key: keyof LocalFilePathResolution["entries"];
-    from: LocalFilePathKey;
-    to: LocalFilePathKey;
-    entries: readonly LocalDiffEntry[];
-  }> = [
+}
+
+function createFilePathTransitions(options: {
+  baseToHeadEntries: readonly LocalDiffEntry[];
+  headToIndexEntries: readonly LocalDiffEntry[];
+  indexToWorktreeEntries: readonly LocalDiffEntry[];
+}): LocalFilePathTransition[] {
+  return [
     {
       key: "baseToHead",
       from: "base",
@@ -128,38 +153,53 @@ function resolveFilePaths(options: {
       entries: options.indexToWorktreeEntries,
     },
   ];
+}
 
-  for (let pass = 0; pass < 4; pass += 1) {
-    let changed = false;
+function applyFilePathResolutionPass(
+  resolution: LocalFilePathResolution,
+  transitions: readonly LocalFilePathTransition[],
+): boolean {
+  let changed = false;
 
-    for (const transition of transitions) {
-      const matchedEntry = findMatchingDiffEntry(transition.entries, [
-        paths[transition.from],
-        paths[transition.to],
-      ]);
-      if (!matchedEntry) continue;
-
-      entries[transition.key] = matchedEntry;
-      const { fromPath, toPath } = getDiffEntryPaths(matchedEntry);
-      if (paths[transition.from] !== fromPath) {
-        paths[transition.from] = fromPath;
-        changed = true;
-      }
-      if (paths[transition.to] !== toPath) {
-        paths[transition.to] = toPath;
-        changed = true;
-      }
-    }
-
-    if (!changed) {
-      break;
+  for (const transition of transitions) {
+    if (applyFilePathTransition(resolution, transition)) {
+      changed = true;
     }
   }
 
-  return {
-    paths,
-    entries,
-  };
+  return changed;
+}
+
+function applyFilePathTransition(
+  resolution: LocalFilePathResolution,
+  transition: LocalFilePathTransition,
+): boolean {
+  const matchedEntry = findMatchingDiffEntry(transition.entries, [
+    resolution.paths[transition.from],
+    resolution.paths[transition.to],
+  ]);
+  if (!matchedEntry) {
+    return false;
+  }
+
+  resolution.entries[transition.key] = matchedEntry;
+  const { fromPath, toPath } = getDiffEntryPaths(matchedEntry);
+  const fromChanged = updateResolvedPath(resolution.paths, transition.from, fromPath);
+  const toChanged = updateResolvedPath(resolution.paths, transition.to, toPath);
+  return fromChanged || toChanged;
+}
+
+function updateResolvedPath(
+  paths: LocalFilePathChain,
+  key: LocalFilePathKey,
+  nextPath: string,
+): boolean {
+  if (paths[key] === nextPath) {
+    return false;
+  }
+
+  paths[key] = nextPath;
+  return true;
 }
 
 function missingGitPathMetadata(): GitPathMetadata {
