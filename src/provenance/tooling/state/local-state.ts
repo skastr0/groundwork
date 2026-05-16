@@ -851,6 +851,163 @@ function toBaseState(ref: string | null, detection: LocalBaseDetection): LocalBa
   };
 }
 
+function makeBaseState(options: {
+  ref: string | null;
+  kind: LocalBaseDetectionKind;
+  label: string;
+  explicit: boolean;
+}): LocalBaseState {
+  const detection = { kind: options.kind };
+
+  return toBaseState(options.ref, {
+    kind: options.kind,
+    label: options.label,
+    explicit: options.explicit,
+    method: toBaseDetectionMethod(options.kind),
+    confidence: getBaseConfidence(options.ref, detection),
+  });
+}
+
+function getExplicitBaseLabel(candidate: string, trimmedBase: string): string {
+  if (candidate === trimmedBase) {
+    return "local explicit";
+  }
+
+  if (
+    candidate.startsWith("origin/") &&
+    !trimmedBase.startsWith("origin/") &&
+    !trimmedBase.startsWith("refs/remotes/")
+  ) {
+    return "local explicit (remote)";
+  }
+
+  return "local explicit (normalized)";
+}
+
+async function resolveExplicitBaseState(options: {
+  shell: Shell;
+  explicitBase?: string;
+}): Promise<LocalBaseState | null> {
+  const trimmedBase = options.explicitBase?.trim();
+  if (!trimmedBase) {
+    return null;
+  }
+
+  for (const candidate of getExplicitBaseCandidates(trimmedBase)) {
+    if (!(await refExists(options.shell, candidate))) continue;
+
+    return makeBaseState({
+      ref: candidate,
+      kind: "explicit",
+      label: getExplicitBaseLabel(candidate, trimmedBase),
+      explicit: true,
+    });
+  }
+
+  return makeBaseState({
+    ref: null,
+    kind: "explicit",
+    label: "local explicit",
+    explicit: true,
+  });
+}
+
+async function resolveRemoteHeadBaseState(shell: Shell): Promise<LocalBaseState | null> {
+  const symbolicHead = await readTextOrEmpty(shell, [
+    "git",
+    "symbolic-ref",
+    "refs/remotes/origin/HEAD",
+  ]);
+  const resolvedRemoteHead = symbolicHead ? symbolicHead.replace(/^refs\/remotes\//, "") : "";
+  if (!resolvedRemoteHead || !(await refExists(shell, resolvedRemoteHead))) {
+    return null;
+  }
+
+  return makeBaseState({
+    ref: resolvedRemoteHead,
+    kind: "remote_head_symbolic_ref",
+    label: "local remote HEAD (symbolic-ref)",
+    explicit: false,
+  });
+}
+
+async function resolveDefaultBranchBaseState(shell: Shell): Promise<LocalBaseState | null> {
+  for (const candidate of DEFAULT_BASE_BRANCHES) {
+    if (await refExists(shell, candidate)) {
+      return makeBaseState({
+        ref: candidate,
+        kind: "default_branch",
+        label: `local default branch (${candidate})`,
+        explicit: false,
+      });
+    }
+
+    const remoteCandidate = `origin/${candidate}`;
+    if (await refExists(shell, remoteCandidate)) {
+      return makeBaseState({
+        ref: remoteCandidate,
+        kind: "default_branch",
+        label: `local default branch (${remoteCandidate})`,
+        explicit: false,
+      });
+    }
+  }
+
+  return null;
+}
+
+async function resolveTrackingBranchBaseState(options: {
+  shell: Shell;
+  currentBranch: LocalCurrentBranchState;
+}): Promise<LocalBaseState | null> {
+  const upstream = options.currentBranch.upstream;
+  if (!upstream || !(await refExists(options.shell, upstream))) {
+    return null;
+  }
+
+  return makeBaseState({
+    ref: upstream,
+    kind: "tracking_branch",
+    label: "local tracking branch",
+    explicit: false,
+  });
+}
+
+async function resolveFirstRemoteBranchBaseState(options: {
+  shell: Shell;
+  currentBranch: LocalCurrentBranchState;
+}): Promise<LocalBaseState | null> {
+  const remoteBranches = await listRemoteBranches(options.shell);
+  const fallback = remoteBranches.find((remoteBranch) => {
+    if (remoteBranch === "origin/HEAD") return false;
+    if (!options.currentBranch.name) return true;
+    return (
+      remoteBranch !== options.currentBranch.name &&
+      remoteBranch !== `origin/${options.currentBranch.name}`
+    );
+  });
+
+  if (!fallback) {
+    return null;
+  }
+
+  return makeBaseState({
+    ref: fallback,
+    kind: "first_remote_branch",
+    label: "local first remote branch",
+    explicit: false,
+  });
+}
+
+function resolveNoBaseState(): LocalBaseState {
+  return makeBaseState({
+    ref: null,
+    kind: "none",
+    label: "local none",
+    explicit: false,
+  });
+}
+
 async function getHeadCommit(shell: Shell): Promise<string | null> {
   const commit = await readTextOrEmpty(shell, ["git", "rev-parse", "--verify", "HEAD"]);
   return commit || null;
@@ -1030,116 +1187,30 @@ export async function detectLocalBaseState(options: {
   explicitBase?: string;
   currentBranch?: LocalCurrentBranchState;
 }): Promise<LocalBaseState> {
-  const { shell, explicitBase } = options;
+  const { shell } = options;
   const currentBranch = options.currentBranch ?? (await getCurrentBranchState(shell));
-
-  if (explicitBase?.trim()) {
-    const trimmedBase = explicitBase.trim();
-    const candidates = getExplicitBaseCandidates(trimmedBase);
-
-    for (const candidate of candidates) {
-      if (!(await refExists(shell, candidate))) continue;
-
-      const label =
-        candidate === trimmedBase
-          ? "local explicit"
-          : candidate.startsWith("origin/") &&
-              !trimmedBase.startsWith("origin/") &&
-              !trimmedBase.startsWith("refs/remotes/")
-            ? "local explicit (remote)"
-            : "local explicit (normalized)";
-
-      return toBaseState(candidate, {
-        kind: "explicit",
-        label,
-        explicit: true,
-        method: toBaseDetectionMethod("explicit"),
-        confidence: getBaseConfidence(candidate, { kind: "explicit" }),
-      });
-    }
-
-    return toBaseState(null, {
-      kind: "explicit",
-      label: "local explicit",
-      explicit: true,
-      method: toBaseDetectionMethod("explicit"),
-      confidence: getBaseConfidence(null, { kind: "explicit" }),
-    });
-  }
-
-  const symbolicHead = await readTextOrEmpty(shell, [
-    "git",
-    "symbolic-ref",
-    "refs/remotes/origin/HEAD",
-  ]);
-  const resolvedRemoteHead = symbolicHead ? symbolicHead.replace(/^refs\/remotes\//, "") : "";
-  if (resolvedRemoteHead && (await refExists(shell, resolvedRemoteHead))) {
-    return toBaseState(resolvedRemoteHead, {
-      kind: "remote_head_symbolic_ref",
-      label: "local remote HEAD (symbolic-ref)",
-      explicit: false,
-      method: toBaseDetectionMethod("remote_head_symbolic_ref"),
-      confidence: getBaseConfidence(resolvedRemoteHead, { kind: "remote_head_symbolic_ref" }),
-    });
-  }
-
-  for (const candidate of DEFAULT_BASE_BRANCHES) {
-    if (await refExists(shell, candidate)) {
-      return toBaseState(candidate, {
-        kind: "default_branch",
-        label: `local default branch (${candidate})`,
-        explicit: false,
-        method: toBaseDetectionMethod("default_branch"),
-        confidence: getBaseConfidence(candidate, { kind: "default_branch" }),
-      });
-    }
-
-    const remoteCandidate = `origin/${candidate}`;
-    if (await refExists(shell, remoteCandidate)) {
-      return toBaseState(remoteCandidate, {
-        kind: "default_branch",
-        label: `local default branch (${remoteCandidate})`,
-        explicit: false,
-        method: toBaseDetectionMethod("default_branch"),
-        confidence: getBaseConfidence(remoteCandidate, { kind: "default_branch" }),
-      });
-    }
-  }
-
-  if (currentBranch.upstream && (await refExists(shell, currentBranch.upstream))) {
-    return toBaseState(currentBranch.upstream, {
-      kind: "tracking_branch",
-      label: "local tracking branch",
-      explicit: false,
-      method: toBaseDetectionMethod("tracking_branch"),
-      confidence: getBaseConfidence(currentBranch.upstream, { kind: "tracking_branch" }),
-    });
-  }
-
-  const remoteBranches = await listRemoteBranches(shell);
-  const fallback = remoteBranches.find((remoteBranch) => {
-    if (remoteBranch === "origin/HEAD") return false;
-    if (!currentBranch.name) return true;
-    return remoteBranch !== currentBranch.name && remoteBranch !== `origin/${currentBranch.name}`;
+  const explicitBase = await resolveExplicitBaseState({
+    shell,
+    explicitBase: options.explicitBase,
   });
+  if (explicitBase) return explicitBase;
 
-  if (fallback) {
-    return toBaseState(fallback, {
-      kind: "first_remote_branch",
-      label: "local first remote branch",
-      explicit: false,
-      method: toBaseDetectionMethod("first_remote_branch"),
-      confidence: getBaseConfidence(fallback, { kind: "first_remote_branch" }),
-    });
-  }
+  const remoteHeadBase = await resolveRemoteHeadBaseState(shell);
+  if (remoteHeadBase) return remoteHeadBase;
 
-  return toBaseState(null, {
-    kind: "none",
-    label: "local none",
-    explicit: false,
-    method: toBaseDetectionMethod("none"),
-    confidence: getBaseConfidence(null, { kind: "none" }),
+  const defaultBranchBase = await resolveDefaultBranchBaseState(shell);
+  if (defaultBranchBase) return defaultBranchBase;
+
+  const trackingBranchBase = await resolveTrackingBranchBaseState({ shell, currentBranch });
+  if (trackingBranchBase) return trackingBranchBase;
+
+  const firstRemoteBranchBase = await resolveFirstRemoteBranchBaseState({
+    shell,
+    currentBranch,
   });
+  if (firstRemoteBranchBase) return firstRemoteBranchBase;
+
+  return resolveNoBaseState();
 }
 
 export async function getIndexState(shell: Shell): Promise<LocalIndexState> {
