@@ -33,6 +33,9 @@ type WorktreeOverviewArgs = Omit<TreeExpandCoreArgs, "path"> & {
   mode?: ProvenanceMode;
 };
 
+type WorktreeOverviewData = ReturnType<typeof toWorktreeOverviewData>;
+type TreeExpandWarnings = ReturnType<typeof collectTreeExpandWarnings>;
+
 function toResponseJson(response: unknown): string {
   return JSON.stringify(response, null, 2);
 }
@@ -119,53 +122,79 @@ export async function executeWorktreeOverviewTool(
   });
 
   try {
-    const resolved = await resolveTreeExpandCore(runtimeOptions, {
-      path: ".",
-      base: args.base,
-      scope: args.scope ?? "working_tree",
-      limit: args.limit,
-      max_bytes: args.max_bytes,
-      max_depth: args.max_depth,
-    });
-    const data = toWorktreeOverviewData(resolved.data);
-    const warnings = collectTreeExpandWarnings(resolved.warnings, resolved.data);
-    const response = createProvenanceSuccess({
-      tool: GW_WORKTREE_OVERVIEW_TOOL,
-      mode: "local",
-      confidence: getLowestConfidence([
-        data.repo.branch.confidence,
-        data.summary.changedFiles > 0 ? "high" : "medium",
-      ]),
-      ambiguity: getHighestAmbiguity(warnings.map((warning) => warning.ambiguity ?? "low")),
-      bounds: data.bounds.focusAreas,
-      summary: buildWorktreeOverviewSummary(data),
-      warnings,
-      sources: buildWorktreeOverviewSources(data),
-      data,
-    });
-
-    logger.info("gw_worktree_overview end", {
-      tool: GW_WORKTREE_OVERVIEW_TOOL,
-      scope: data.scope.type,
-      changedFiles: data.summary.changedFiles,
-      focusAreas: data.summary.focusAreas,
-      staged: data.summary.checkout.staged,
-      unstaged: data.summary.checkout.unstaged,
-      untracked: data.summary.checkout.untracked,
-    });
-
+    const { data, warnings } = await resolveWorktreeOverview(runtimeOptions, args);
+    const response = createWorktreeOverviewSuccess(data, warnings);
+    logWorktreeOverviewEnd(data);
     return toResponseJson(response);
   } catch (error) {
-    const message = toErrorMessage(error);
-    logger.error("gw_worktree_overview failed", {
-      tool: GW_WORKTREE_OVERVIEW_TOOL,
-      error: message,
-    });
-    return createToolFailure({
-      tool: GW_WORKTREE_OVERVIEW_TOOL,
-      summary: "Failed to summarize the local worktree.",
-      code: "WORKTREE_OVERVIEW_FAILED",
-      message,
-    });
+    return createWorktreeOverviewFailure(error);
   }
+}
+
+async function resolveWorktreeOverview(
+  runtimeOptions: CreateStateToolsOptions,
+  args: WorktreeOverviewArgs,
+): Promise<{ data: WorktreeOverviewData; warnings: TreeExpandWarnings }> {
+  const resolved = await resolveTreeExpandCore(runtimeOptions, toWorktreeOverviewCoreArgs(args));
+  return {
+    data: toWorktreeOverviewData(resolved.data),
+    warnings: collectTreeExpandWarnings(resolved.warnings, resolved.data),
+  };
+}
+
+function toWorktreeOverviewCoreArgs(args: WorktreeOverviewArgs): TreeExpandCoreArgs {
+  return {
+    path: ".",
+    base: args.base,
+    scope: args.scope ?? "working_tree",
+    limit: args.limit,
+    max_bytes: args.max_bytes,
+    max_depth: args.max_depth,
+  };
+}
+
+function createWorktreeOverviewSuccess(
+  data: WorktreeOverviewData,
+  warnings: TreeExpandWarnings,
+) {
+  return createProvenanceSuccess({
+    tool: GW_WORKTREE_OVERVIEW_TOOL,
+    mode: "local",
+    confidence: getLowestConfidence([
+      data.repo.branch.confidence,
+      data.summary.changedFiles > 0 ? "high" : "medium",
+    ]),
+    ambiguity: getHighestAmbiguity(warnings.map((warning) => warning.ambiguity ?? "low")),
+    bounds: data.bounds.focusAreas,
+    summary: buildWorktreeOverviewSummary(data),
+    warnings,
+    sources: buildWorktreeOverviewSources(data),
+    data,
+  });
+}
+
+function logWorktreeOverviewEnd(data: WorktreeOverviewData): void {
+  logger.info("gw_worktree_overview end", {
+    tool: GW_WORKTREE_OVERVIEW_TOOL,
+    scope: data.scope.type,
+    changedFiles: data.summary.changedFiles,
+    focusAreas: data.summary.focusAreas,
+    staged: data.summary.checkout.staged,
+    unstaged: data.summary.checkout.unstaged,
+    untracked: data.summary.checkout.untracked,
+  });
+}
+
+function createWorktreeOverviewFailure(error: unknown): string {
+  const message = toErrorMessage(error);
+  logger.error("gw_worktree_overview failed", {
+    tool: GW_WORKTREE_OVERVIEW_TOOL,
+    error: message,
+  });
+  return createToolFailure({
+    tool: GW_WORKTREE_OVERVIEW_TOOL,
+    summary: "Failed to summarize the local worktree.",
+    code: "WORKTREE_OVERVIEW_FAILED",
+    message,
+  });
 }
