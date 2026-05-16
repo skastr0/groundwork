@@ -3,6 +3,7 @@ dist/
 .agents/traces/
 .groundwork/
 .pulsar/cache/
+.pulsar/time-series/
 
 .DS_Store
 *.log
