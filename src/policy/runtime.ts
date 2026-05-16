@@ -29,7 +29,6 @@ import {
   findMatchingRules,
   loadMergedPolicyConfig,
   resolveRuleScope,
-  ruleContentMatcherType,
   ruleMatchesPath,
   ruleMatchesTool,
   type GuardrailAction,
@@ -38,6 +37,7 @@ import {
   type GuardrailRule,
   type GuardrailSeverity,
 } from "./config.ts";
+import { ruleAppliesToPhase, type EvaluationPhase } from "./evaluation.ts";
 
 const SERVICE = "groundwork-policy";
 const MUTATING_TOOLS = new Set<string>(DEFAULT_EDIT_FOCUSED_TOOLS);
@@ -51,8 +51,6 @@ const SEVERITY_ORDER: Record<GuardrailSeverity, number> = {
   block: 2,
   terminate: 3,
 };
-
-type EvaluationPhase = "before" | "after";
 
 type ParsedPolicyCommand =
   | {
@@ -578,19 +576,6 @@ function isInjectOnlyAction(action: GuardrailAction): boolean {
   }
 
   return false;
-}
-
-function ruleAppliesToPhase(rule: GuardrailRule, phase: EvaluationPhase): boolean {
-  const matcherType = ruleContentMatcherType(rule);
-  if (resolveRuleScope(rule) === "changed_lines" && matcherType !== "none") {
-    return phase === "after";
-  }
-
-  if (phase === "before") {
-    return matcherType === "none" || matcherType === "ast_grep";
-  }
-
-  return matcherType === "semgrep";
 }
 
 async function filterPathsForRule(params: {

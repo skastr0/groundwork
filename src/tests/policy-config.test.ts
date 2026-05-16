@@ -19,6 +19,7 @@ import {
   runContentMatcher,
   ruleMatchesTool,
 } from "../policy/config.ts";
+import { ruleAppliesToPhase } from "../policy/evaluation.ts";
 
 const tempRoots: string[] = [];
 
@@ -979,6 +980,52 @@ describe("content matching", () => {
 
     expect(rule).toBeDefined();
     expect(resolveRuleScope(rule!)).toBe("full_file");
+  });
+
+  it("routes policy rules to the evaluation phase that can prove them", () => {
+    const config = parsePolicyConfig({
+      version: 1,
+      rules: [
+        {
+          id: "path-only",
+          match: ["plugin/**/*.ts"],
+          actions: [{ type: "inject_prompt", text: "path match" }],
+        },
+        {
+          id: "changed-lines-ast",
+          match: ["plugin/**/*.ts"],
+          content: [{ type: "ast_grep", pattern: "const $A = $B" }],
+          actions: [{ type: "inject_prompt", text: "changed ast" }],
+        },
+        {
+          id: "whole-file-ast",
+          match: ["plugin/**/*.ts"],
+          scope: "full_file",
+          content: [{ type: "ast_grep", pattern: "const $A = $B" }],
+          actions: [{ type: "inject_prompt", text: "whole file ast" }],
+        },
+        {
+          id: "changed-lines-semgrep",
+          match: ["plugin/**/*.ts"],
+          content: [{ type: "semgrep", configs: ["./rules"] }],
+          actions: [{ type: "inject_prompt", text: "changed semgrep" }],
+        },
+      ],
+    });
+
+    const [pathOnly, changedLinesAst, wholeFileAst, changedLinesSemgrep] = config.rules;
+
+    expect(ruleAppliesToPhase(pathOnly!, "before")).toBe(true);
+    expect(ruleAppliesToPhase(pathOnly!, "after")).toBe(false);
+
+    expect(ruleAppliesToPhase(changedLinesAst!, "before")).toBe(false);
+    expect(ruleAppliesToPhase(changedLinesAst!, "after")).toBe(true);
+
+    expect(ruleAppliesToPhase(wholeFileAst!, "before")).toBe(true);
+    expect(ruleAppliesToPhase(wholeFileAst!, "after")).toBe(false);
+
+    expect(ruleAppliesToPhase(changedLinesSemgrep!, "before")).toBe(false);
+    expect(ruleAppliesToPhase(changedLinesSemgrep!, "after")).toBe(true);
   });
 });
 

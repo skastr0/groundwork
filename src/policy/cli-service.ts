@@ -19,7 +19,6 @@ import {
   findMatchingRules,
   loadMergedPolicyConfig,
   resolveRuleScope,
-  ruleContentMatcherType,
   ruleMatchesPath,
   ruleMatchesTool,
   type GuardrailAction,
@@ -28,6 +27,7 @@ import {
   type GuardrailRule,
   type GuardrailSeverity,
 } from "./config.ts";
+import { ruleAppliesToPhase, type EvaluationPhase } from "./evaluation.ts";
 
 const SERVICE = "groundwork-policy";
 const POLICY_PENDING_OVERRIDE_LOCK_KEY = "policy-pending-override";
@@ -41,7 +41,6 @@ const SEVERITY_ORDER: Record<GuardrailSeverity, number> = {
   terminate: 3,
 };
 
-type EvaluationPhase = "before" | "after";
 type PolicyDecision = "allow" | "warn" | "block";
 
 export interface PolicyEvaluateToolCallInput {
@@ -647,19 +646,6 @@ function rememberAction(state: SessionArtifactState, key: string, action: string
 
 function setLock(state: SessionArtifactState, key: string, lock: FrameworkSessionLock): void {
   state.session.locks.active[key] = lock;
-}
-
-function ruleAppliesToPhase(rule: GuardrailRule, phase: EvaluationPhase): boolean {
-  const matcherType = ruleContentMatcherType(rule);
-  if (resolveRuleScope(rule) === "changed_lines" && matcherType !== "none") {
-    return phase === "after";
-  }
-
-  if (phase === "before") {
-    return matcherType === "none" || matcherType === "ast_grep";
-  }
-
-  return matcherType === "semgrep";
 }
 
 function resolveRuleSeverity(rule: GuardrailRule): GuardrailSeverity {
