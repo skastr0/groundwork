@@ -9,18 +9,11 @@ import type {
   SemgrepContentMatcher,
 } from "../config.ts";
 import { runAstGrepMatcherRegions } from "./ast-grep.ts";
-import {
-  runMatcherBatchRegionsForPlan,
-  runNativeMatcherBatchRegionsForSource,
-} from "./batches.ts";
+import { runNativeMatcherBatchRegionsForSource } from "./batches.ts";
+import { filterChangedLineTarget } from "./changed-lines.ts";
 import { runBoundedEffect } from "./concurrency.ts";
-import { isRegularFile, readFileText } from "./files.ts";
+import { isRegularFile } from "./files.ts";
 import { runSemgrepMatcherRegions } from "./semgrep.ts";
-import {
-  buildChangedLineSnippetPlan,
-  computeChangeDeltaRangesFromContents,
-  rangesOverlap,
-} from "./snippets.ts";
 import type { ContentMatchRegionRunner } from "./types.ts";
 
 export function resolveRuleScope(rule: GuardrailRule): GuardrailContentScope {
@@ -188,87 +181,17 @@ async function filterPathsByChangedLines(params: {
 
   const matchers = rule.content;
   const mode = rule.content_mode ?? "any";
-  const matched = await runBoundedEffect(targets, async (target) => {
-    const normalizedPath = target.normalizedPath;
-    const filePath = path.isAbsolute(normalizedPath)
-      ? normalizedPath
-      : path.resolve(rootDir, normalizedPath);
-    const afterContent = await readFileText(filePath);
-    const delta = computeChangeDeltaRangesFromContents(target.beforeContent ?? null, afterContent);
-    const changedLines =
-      target.changedLineRanges && target.changedLineRanges.length > 0
-        ? target.changedLineRanges
-        : delta.addedAfterLineRanges;
-    const deletedLines =
-      target.deletedLineRanges && target.deletedLineRanges.length > 0
-        ? target.deletedLineRanges
-        : delta.deletedBeforeLineRanges;
-    if (changedLines.length === 0 && deletedLines.length === 0) return null;
-
-    const afterSnippetPlan =
-      afterContent !== null && changedLines.length > 0
-        ? buildChangedLineSnippetPlan({
-            source: "after",
-            content: afterContent,
-            changedLines,
-          })
-        : null;
-    const beforeSnippetPlan =
-      target.beforeContent !== null && target.beforeContent !== undefined && deletedLines.length > 0
-        ? buildChangedLineSnippetPlan({
-            source: "before",
-            content: target.beforeContent,
-            changedLines: deletedLines,
-          })
-        : null;
-
-    const afterRegions =
-      afterSnippetPlan === null
-        ? matchers.map(() => [] as Array<(typeof changedLines)[number]>)
-        : await runMatcherBatchRegionsForPlan({
-            rootDir,
-            filePath,
-            matchers,
-            regionRunner,
-            nativeRegionRunner: runContentMatcherRegions,
-            snippetPlan: afterSnippetPlan,
-          });
-
-    const presentMatchers = matchers.flatMap((matcher, index) =>
-      (matcher.expect ?? "present") === "absent" ? [] : [{ matcher, index }],
-    );
-    const beforeRegions =
-      beforeSnippetPlan === null || presentMatchers.length === 0
-        ? []
-        : await runMatcherBatchRegionsForPlan({
-            rootDir,
-            filePath,
-            matchers: presentMatchers.map((entry) => entry.matcher),
-            regionRunner,
-            nativeRegionRunner: runContentMatcherRegions,
-            snippetPlan: beforeSnippetPlan,
-          });
-
-    const beforeByIndex = new Map<number, Array<(typeof changedLines)[number]>>();
-    for (const [offset, entry] of presentMatchers.entries()) {
-      beforeByIndex.set(entry.index, beforeRegions[offset] ?? []);
-    }
-
-    const checks = matchers.map((matcher, index) => {
-      const afterPresence = (afterRegions[index] ?? []).some((region) =>
-        rangesOverlap(region, changedLines),
-      );
-      const beforePresence =
-        (matcher.expect ?? "present") === "absent"
-          ? false
-          : (beforeByIndex.get(index) ?? []).some((region) => rangesOverlap(region, deletedLines));
-
-      return evaluateMatcherExpectation(matcher, afterPresence || beforePresence);
-    });
-
-    const isMatch = mode === "all" ? checks.every(Boolean) : checks.some(Boolean);
-    return isMatch ? normalizedPath : null;
-  });
+  const matched = await runBoundedEffect(targets, (target) =>
+    filterChangedLineTarget({
+      rootDir,
+      target,
+      matchers,
+      mode,
+      regionRunner,
+      nativeRegionRunner: runContentMatcherRegions,
+      evaluateMatcherExpectation,
+    }),
+  );
 
   return matched.filter((value): value is string => value !== null);
 }
