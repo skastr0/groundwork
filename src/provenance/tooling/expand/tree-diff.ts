@@ -23,6 +23,8 @@ import {
 } from "./tree-types.ts";
 import { isPathWithinAnchor } from "./tree-anchor.ts";
 
+type TreeDiffShell = CreateStateToolsOptions["shell"];
+
 function getMatchedPath(section: ParsedDiffSection, anchorPath: string): string | null {
   const canonicalPath = getCanonicalPath(section);
   if (isPathWithinAnchor(canonicalPath, anchorPath)) {
@@ -134,64 +136,94 @@ export async function loadScopedSections(options: {
   const pathSpec = options.anchorPath === "." ? "." : options.anchorPath;
 
   if (options.scope === "branch") {
-    if (!options.baseRef) {
-      return {
-        sections: [],
-        changeDetectionMethod: TREE_CHANGE_DETECTION_METHODS.branch,
-        warnings: [
-          {
-            code: "TREE_SCOPE_BASE_UNAVAILABLE",
-            message:
-              "Branch-scoped tree expansion requires a resolved base ref; changed-file summaries are unavailable.",
-            ambiguity: "medium",
-          },
-        ],
-      };
-    }
-
-    const diffText = await runProcessText({
+    return loadBranchScopedSections({
       shell: options.shell,
-      cmd: [
-        "git",
-        "diff",
-        "--find-renames",
-        "--unified=0",
-        `${options.baseRef}..HEAD`,
-        "--",
-        pathSpec,
-      ],
-      maxOutputBytes: TREE_DIFF_PARSE_MAX_OUTPUT_BYTES,
-      trim: false,
+      baseRef: options.baseRef,
+      pathSpec,
     });
-    return {
-      sections: parseUnifiedDiff(diffText),
-      changeDetectionMethod: TREE_CHANGE_DETECTION_METHODS.branch,
-      warnings: [],
-    };
   }
 
   if (options.scope === "staged") {
-    const diffText = await runProcessText({
-      shell: options.shell,
-      cmd: ["git", "diff", "--cached", "--find-renames", "--unified=0", "--", pathSpec],
-      maxOutputBytes: TREE_DIFF_PARSE_MAX_OUTPUT_BYTES,
-      trim: false,
-    });
-    return {
-      sections: parseUnifiedDiff(diffText),
-      changeDetectionMethod: TREE_CHANGE_DETECTION_METHODS.staged,
-      warnings: [],
-    };
+    return loadStagedScopedSections({ shell: options.shell, pathSpec });
   }
 
-  const diffText = await createWorkingTreeDiffText({
+  return loadWorkingTreeScopedSections({
     rootDir: options.rootDir,
     shell: options.shell,
     pathSpec,
   });
+}
+
+async function loadBranchScopedSections(options: {
+  shell: TreeDiffShell;
+  baseRef: string | null;
+  pathSpec: string;
+}): Promise<ScopedTreeSections> {
+  if (!options.baseRef) {
+    return {
+      sections: [],
+      changeDetectionMethod: TREE_CHANGE_DETECTION_METHODS.branch,
+      warnings: [
+        {
+          code: "TREE_SCOPE_BASE_UNAVAILABLE",
+          message:
+            "Branch-scoped tree expansion requires a resolved base ref; changed-file summaries are unavailable.",
+          ambiguity: "medium",
+        },
+      ],
+    };
+  }
+
+  const diffText = await runProcessText({
+    shell: options.shell,
+    cmd: [
+      "git",
+      "diff",
+      "--find-renames",
+      "--unified=0",
+      `${options.baseRef}..HEAD`,
+      "--",
+      options.pathSpec,
+    ],
+    maxOutputBytes: TREE_DIFF_PARSE_MAX_OUTPUT_BYTES,
+    trim: false,
+  });
+  return toScopedTreeSections(diffText, TREE_CHANGE_DETECTION_METHODS.branch);
+}
+
+async function loadStagedScopedSections(options: {
+  shell: TreeDiffShell;
+  pathSpec: string;
+}): Promise<ScopedTreeSections> {
+  const diffText = await runProcessText({
+    shell: options.shell,
+    cmd: ["git", "diff", "--cached", "--find-renames", "--unified=0", "--", options.pathSpec],
+    maxOutputBytes: TREE_DIFF_PARSE_MAX_OUTPUT_BYTES,
+    trim: false,
+  });
+  return toScopedTreeSections(diffText, TREE_CHANGE_DETECTION_METHODS.staged);
+}
+
+async function loadWorkingTreeScopedSections(options: {
+  rootDir: string;
+  shell: TreeDiffShell;
+  pathSpec: string;
+}): Promise<ScopedTreeSections> {
+  const diffText = await createWorkingTreeDiffText({
+    shell: options.shell,
+    rootDir: options.rootDir,
+    pathSpec: options.pathSpec,
+  });
+  return toScopedTreeSections(diffText, TREE_CHANGE_DETECTION_METHODS.working_tree);
+}
+
+function toScopedTreeSections(
+  diffText: string,
+  changeDetectionMethod: string,
+): ScopedTreeSections {
   return {
     sections: parseUnifiedDiff(diffText),
-    changeDetectionMethod: TREE_CHANGE_DETECTION_METHODS.working_tree,
+    changeDetectionMethod,
     warnings: [],
   };
 }
