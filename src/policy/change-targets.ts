@@ -2,7 +2,7 @@ import {
   cloneLineRanges,
   mergeLineRanges,
 } from "../kernel/line-ranges.ts";
-import type { GuardrailChangeTarget } from "./config.ts";
+import type { GuardrailChangeTarget } from "./config-types.ts";
 
 export { cloneLineRanges, mergeLineRanges } from "../kernel/line-ranges.ts";
 

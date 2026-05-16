@@ -1,6 +1,6 @@
 import { collapseLineNumbers } from "../kernel/line-ranges.ts";
 import { mergeChangeTarget } from "./change-targets.ts";
-import type { GuardrailChangeTarget } from "./config.ts";
+import type { GuardrailChangeTarget } from "./config-types.ts";
 import { normalizePathForMatching } from "./paths.ts";
 
 const MAX_PATCH_TEXT_BYTES = 5 * 1024 * 1024;

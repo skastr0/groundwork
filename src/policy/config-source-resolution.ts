@@ -1,6 +1,6 @@
 import { promises as fs, type Dirent } from "node:fs";
 import path from "node:path";
-import type { GuardrailRule } from "./config.ts";
+import type { GuardrailRule } from "./config-types.ts";
 import { globMatch, normalizeSlashes } from "./glob.ts";
 
 export const PROJECT_GROUNDWORK_CONFIG_FILE = "groundwork.toml";
