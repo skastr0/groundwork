@@ -9,9 +9,7 @@ import {
   resolveBoundedNumber,
 } from "../args.ts";
 import {
-  createProvenanceFailure,
   createProvenanceSuccess,
-  type ProvenanceAmbiguity,
   type ProvenanceConfidence,
   type ProvenanceEvidenceSource,
   type ProvenanceWarning,
@@ -25,7 +23,15 @@ import {
   type CreateStateToolsOptions,
   type LocalRepoFileStatus,
 } from "../state/index.ts";
-import { createUnsupportedModeFailure } from "../shared.ts";
+import {
+  createLocalToolFailure,
+  createUnsupportedModeFailure,
+  dedupeSources,
+  dedupeWarnings,
+  getHighestAmbiguity,
+  getLowestConfidence,
+  toErrorMessage,
+} from "../shared.ts";
 import { logger } from "../utils/logger.ts";
 import {
   ProvAuthorityDataSchema,
@@ -305,72 +311,6 @@ function toPercent(value: number): number {
   return round(clamp(value, 0, 1) * 100);
 }
 
-function getLowestConfidence(confidences: readonly ProvenanceConfidence[]): ProvenanceConfidence {
-  const priority: Record<ProvenanceConfidence, number> = {
-    unknown: 0,
-    low: 1,
-    medium: 2,
-    high: 3,
-  };
-
-  let lowest: ProvenanceConfidence = "high";
-  for (const confidence of confidences) {
-    if (priority[confidence] < priority[lowest]) {
-      lowest = confidence;
-    }
-  }
-  return lowest;
-}
-
-function getHighestAmbiguity(levels: readonly ProvenanceAmbiguity[]): ProvenanceAmbiguity {
-  const priority: Record<ProvenanceAmbiguity, number> = {
-    none: 0,
-    low: 1,
-    medium: 2,
-    high: 3,
-  };
-
-  let highest: ProvenanceAmbiguity = "none";
-  for (const level of levels) {
-    if (priority[level] > priority[highest]) {
-      highest = level;
-    }
-  }
-  return highest;
-}
-
-function dedupeWarnings(warnings: readonly ProvenanceWarning[]): ProvenanceWarning[] {
-  const seen = new Set<string>();
-  const output: ProvenanceWarning[] = [];
-
-  for (const warning of warnings) {
-    const key = `${warning.code}:${warning.message}`;
-    if (seen.has(key)) {
-      continue;
-    }
-    seen.add(key);
-    output.push(warning);
-  }
-
-  return output;
-}
-
-function dedupeSources(sources: readonly ProvenanceEvidenceSource[]): ProvenanceEvidenceSource[] {
-  const seen = new Set<string>();
-  const output: ProvenanceEvidenceSource[] = [];
-
-  for (const source of sources) {
-    const key = `${source.kind}:${source.id}:${source.path ?? ""}:${source.ref ?? ""}`;
-    if (seen.has(key)) {
-      continue;
-    }
-    seen.add(key);
-    output.push(source);
-  }
-
-  return output;
-}
-
 function dedupeSignals(signals: readonly ProvenanceSignal[]): ProvenanceSignal[] {
   const seen = new Set<string>();
   const output: ProvenanceSignal[] = [];
@@ -385,36 +325,6 @@ function dedupeSignals(signals: readonly ProvenanceSignal[]): ProvenanceSignal[]
   }
 
   return output;
-}
-
-function createToolFailure(
-  toolName:
-    | typeof GW_HOTSPOTS_TOOL
-    | typeof GW_AUTHORITY_TOOL
-    | typeof GW_STABILITY_REPORT_TOOL,
-  summary: string,
-  code: string,
-  message: string,
-): string {
-  return JSON.stringify(
-    createProvenanceFailure({
-      tool: toolName,
-      mode: "local",
-      confidence: "unknown",
-      ambiguity: "high",
-      summary,
-      error: {
-        code,
-        message,
-      },
-    }),
-    null,
-    2,
-  );
-}
-
-function toErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }
 
 function parseTimestamp(value: string | undefined): number | null {
@@ -2123,12 +2033,12 @@ function createHotspotsFailure(args: HotspotsToolInput, error: unknown): string 
     path: args.path ?? ".",
     error: message,
   });
-  return createToolFailure(
-    GW_HOTSPOTS_TOOL,
-    `Failed to resolve hotspots for '${args.path ?? "."}'.`,
-    "HOTSPOTS_UNAVAILABLE",
+  return createLocalToolFailure({
+    tool: GW_HOTSPOTS_TOOL,
+    summary: `Failed to resolve hotspots for '${args.path ?? "."}'.`,
+    code: "HOTSPOTS_UNAVAILABLE",
     message,
-  );
+  });
 }
 
 function createAuthorityTool(runtimeOptions: CreateStateToolsOptions): ToolDefinition {
@@ -2245,12 +2155,12 @@ function createAuthorityFailure(args: AuthorityToolInput, error: unknown): strin
     path: args.path ?? ".",
     error: message,
   });
-  return createToolFailure(
-    GW_AUTHORITY_TOOL,
-    `Failed to resolve authority for '${args.path ?? "."}'.`,
-    "AUTHORITY_UNAVAILABLE",
+  return createLocalToolFailure({
+    tool: GW_AUTHORITY_TOOL,
+    summary: `Failed to resolve authority for '${args.path ?? "."}'.`,
+    code: "AUTHORITY_UNAVAILABLE",
     message,
-  );
+  });
 }
 
 function createStabilityReportTool(runtimeOptions: CreateStateToolsOptions): ToolDefinition {
@@ -2385,10 +2295,10 @@ function createStabilityReportFailure(args: StabilityReportToolInput, error: unk
     path: args.path ?? ".",
     error: message,
   });
-  return createToolFailure(
-    GW_STABILITY_REPORT_TOOL,
-    `Failed to build a stability report for '${args.path ?? "."}'.`,
-    "STABILITY_REPORT_UNAVAILABLE",
+  return createLocalToolFailure({
+    tool: GW_STABILITY_REPORT_TOOL,
+    summary: `Failed to build a stability report for '${args.path ?? "."}'.`,
+    code: "STABILITY_REPORT_UNAVAILABLE",
     message,
-  );
+  });
 }

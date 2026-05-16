@@ -1,11 +1,12 @@
-import {
-  createProvenanceFailure,
-  type ProvenanceConfidence,
-  type ProvenanceWarning,
-} from "../contracts.ts";
+import { type ProvenanceConfidence, type ProvenanceWarning } from "../contracts.ts";
 import { logger } from "../utils/logger.ts";
 import type { ProvDiffExpandData } from "./schemas.ts";
-import { createUnsupportedModeFailure, dedupeWarnings, getLowestConfidence } from "./shared.ts";
+import {
+  createLocalToolFailure,
+  createUnsupportedModeFailure,
+  dedupeWarnings,
+  getLowestConfidence,
+} from "./shared.ts";
 import {
   GW_COMMIT_EXPAND_TOOL,
   GW_COMMIT_MATERIALIZE_TOOL,
@@ -27,21 +28,7 @@ export function createToolFailure(options: {
   code: string;
   message: string;
 }): string {
-  return JSON.stringify(
-    createProvenanceFailure({
-      tool: options.tool,
-      mode: "local",
-      confidence: "unknown",
-      ambiguity: "high",
-      summary: options.summary,
-      error: {
-        code: options.code,
-        message: options.message,
-      },
-    }),
-    null,
-    2,
-  );
+  return createLocalToolFailure(options);
 }
 
 export function resolveLocalMode(

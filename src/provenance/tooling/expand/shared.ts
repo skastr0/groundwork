@@ -1,35 +1,21 @@
 import { DEFAULT_PROVENANCE_BYTE_LIMIT, resolveBoundedNumber } from "../args.ts";
-import {
-  type ProvenanceAmbiguity,
-  type ProvenanceBounds,
-  type ProvenanceConfidence,
-  type ProvenanceWarning,
-} from "../contracts.ts";
-export { createUnsupportedModeFailure } from "../shared.ts";
+import { type ProvenanceBounds } from "../contracts.ts";
+export {
+  createLocalToolFailure,
+  createUnsupportedModeFailure,
+  dedupeSources,
+  dedupeWarnings,
+  getHighestAmbiguity,
+  getHighestConfidence,
+  getLowestConfidence,
+  toErrorMessage,
+} from "../shared.ts";
 import type { PatchText } from "./schemas.ts";
 
 const ISO_TIMESTAMP_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/;
 
-const CONFIDENCE_PRIORITY: Record<ProvenanceConfidence, number> = {
-  unknown: 0,
-  low: 1,
-  medium: 2,
-  high: 3,
-};
-
-const AMBIGUITY_PRIORITY: Record<ProvenanceAmbiguity, number> = {
-  none: 0,
-  low: 1,
-  medium: 2,
-  high: 3,
-};
-
 /** Git's empty tree SHA used to diff root commits against no parent tree. */
 export const EMPTY_TREE_HASH = "4b825dc642cb6eb9a060e54bf8d69288fbee4904";
-
-export function toErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
 
 export function toNormalizedPath(value: string): string {
   return value.replace(/\\/g, "/").replace(/^\.\//, "");
@@ -125,46 +111,4 @@ export function createEmptyPatchText(requested: number | undefined): PatchText {
     },
     byteCount: 0,
   };
-}
-
-export function getLowestConfidence(
-  confidences: readonly ProvenanceConfidence[],
-): ProvenanceConfidence {
-  let lowest: ProvenanceConfidence = "high";
-
-  for (const confidence of confidences) {
-    if (CONFIDENCE_PRIORITY[confidence] < CONFIDENCE_PRIORITY[lowest]) {
-      lowest = confidence;
-    }
-  }
-
-  return lowest;
-}
-
-export function getHighestAmbiguity(levels: readonly ProvenanceAmbiguity[]): ProvenanceAmbiguity {
-  let highest: ProvenanceAmbiguity = "none";
-
-  for (const level of levels) {
-    if (AMBIGUITY_PRIORITY[level] > AMBIGUITY_PRIORITY[highest]) {
-      highest = level;
-    }
-  }
-
-  return highest;
-}
-
-export function dedupeWarnings(warnings: readonly ProvenanceWarning[]): ProvenanceWarning[] {
-  const seen = new Set<string>();
-  const output: ProvenanceWarning[] = [];
-
-  for (const warning of warnings) {
-    const key = `${warning.code}:${warning.message}`;
-    if (seen.has(key)) {
-      continue;
-    }
-    seen.add(key);
-    output.push(warning);
-  }
-
-  return output;
 }

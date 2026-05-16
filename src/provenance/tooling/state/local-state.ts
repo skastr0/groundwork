@@ -5,6 +5,7 @@ import {
   type ProcessCommand,
 } from "../../../../shared/effect-runtime.ts";
 import type { ProvenanceAmbiguity, ProvenanceConfidence } from "../contracts.ts";
+import { getHighestAmbiguity, getHighestConfidence, getLowestConfidence } from "../shared.ts";
 
 export type Shell = PluginInput["$"];
 
@@ -239,20 +240,6 @@ const STATUS_PRIORITY: Record<LocalRepoFileStatusKind, number> = {
   renamed: 5,
 };
 
-const AMBIGUITY_PRIORITY: Record<ProvenanceAmbiguity, number> = {
-  none: 0,
-  low: 1,
-  medium: 2,
-  high: 3,
-};
-
-const CONFIDENCE_PRIORITY: Record<ProvenanceConfidence, number> = {
-  unknown: 0,
-  low: 1,
-  medium: 2,
-  high: 3,
-};
-
 const BRANCH_DETECTION_METHOD = "git branch --show-current + git config branch.* + git branch -r";
 const HEAD_DETECTION_METHOD = "git rev-parse --verify HEAD";
 const INDEX_DETECTION_METHOD = "git status --porcelain";
@@ -323,30 +310,6 @@ function getBaseConfidence(
     case "none":
       return "unknown";
   }
-}
-
-function getHighestConfidence(confidences: readonly ProvenanceConfidence[]): ProvenanceConfidence {
-  let highest: ProvenanceConfidence = "unknown";
-
-  for (const confidence of confidences) {
-    if (CONFIDENCE_PRIORITY[confidence] > CONFIDENCE_PRIORITY[highest]) {
-      highest = confidence;
-    }
-  }
-
-  return highest;
-}
-
-function getLowestConfidence(confidences: readonly ProvenanceConfidence[]): ProvenanceConfidence {
-  let lowest: ProvenanceConfidence = "high";
-
-  for (const confidence of confidences) {
-    if (CONFIDENCE_PRIORITY[confidence] < CONFIDENCE_PRIORITY[lowest]) {
-      lowest = confidence;
-    }
-  }
-
-  return lowest;
 }
 
 async function readTextOrEmpty(
@@ -1061,18 +1024,6 @@ function getLocalRepoConfidence(state: {
   return sectionFloor;
 }
 
-function getHighestAmbiguity(issues: readonly LocalRepoAmbiguityIssue[]): ProvenanceAmbiguity {
-  let highest: ProvenanceAmbiguity = "none";
-
-  for (const issue of issues) {
-    if (AMBIGUITY_PRIORITY[issue.level] > AMBIGUITY_PRIORITY[highest]) {
-      highest = issue.level;
-    }
-  }
-
-  return highest;
-}
-
 function buildAmbiguityState(state: {
   currentBranch: LocalCurrentBranchState;
   base: LocalBaseState;
@@ -1122,7 +1073,7 @@ function buildAmbiguityState(state: {
   }
 
   return {
-    level: getHighestAmbiguity(issues),
+    level: getHighestAmbiguity(issues.map((issue) => issue.level)),
     issues,
   };
 }

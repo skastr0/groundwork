@@ -22,14 +22,12 @@ import {
   type ProvenanceContentLayer,
 } from "../args.ts";
 import {
-  createProvenanceFailure,
   createProvenanceResultSchema,
   createProvenanceSuccess,
   ProvenanceBoundsSchema,
   ProvenanceConfidenceSchema,
   type ProvenanceAmbiguity,
   type ProvenanceBounds,
-  type ProvenanceConfidence,
   type ProvenanceEvidenceSource,
   type ProvenanceWarning,
 } from "../contracts.ts";
@@ -49,7 +47,14 @@ import {
   type LocalFileState,
   type LocalRepoAmbiguityState,
 } from "../state/index.ts";
-import { createUnsupportedModeFailure } from "../shared.ts";
+import {
+  createLocalToolFailure,
+  createUnsupportedModeFailure,
+  dedupeWarnings,
+  getHighestAmbiguity,
+  getLowestConfidence,
+  toErrorMessage,
+} from "../shared.ts";
 import { logger } from "../utils/logger.ts";
 
 const GW_READ_TOOL = "gw_read" as const;
@@ -60,20 +65,6 @@ const BLOCK_WINDOW_SOURCE_VALUES = ["focus", "radius", "explicit"] as const;
 const DIFF_CONTEXT_RELATION_VALUES = ["overlap", "before", "after"] as const;
 const LOCAL_DIFF_CONTEXT_KEY_VALUES = ["head_to_index", "index_to_worktree"] as const;
 const LOCAL_DIFF_PERSPECTIVE_VALUES = ["from", "to"] as const;
-
-const CONFIDENCE_PRIORITY: Record<ProvenanceConfidence, number> = {
-  unknown: 0,
-  low: 1,
-  medium: 2,
-  high: 3,
-};
-
-const AMBIGUITY_PRIORITY: Record<ProvenanceAmbiguity, number> = {
-  none: 0,
-  low: 1,
-  medium: 2,
-  high: 3,
-};
 
 const ProvReadContentSchema = z.object({
   layer: z.enum(["base", "head", "index", "worktree"]),
@@ -182,34 +173,6 @@ export type ProvReadData = z.infer<typeof ProvReadDataSchema>;
 export type ProvReadResult = z.infer<typeof ProvReadResultSchema>;
 export type ProvBlockReadData = z.infer<typeof ProvBlockReadDataSchema>;
 export type ProvBlockReadResult = z.infer<typeof ProvBlockReadResultSchema>;
-
-function toErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
-function getLowestConfidence(confidences: readonly ProvenanceConfidence[]): ProvenanceConfidence {
-  let lowest: ProvenanceConfidence = "high";
-
-  for (const confidence of confidences) {
-    if (CONFIDENCE_PRIORITY[confidence] < CONFIDENCE_PRIORITY[lowest]) {
-      lowest = confidence;
-    }
-  }
-
-  return lowest;
-}
-
-function getHighestAmbiguity(levels: readonly ProvenanceAmbiguity[]): ProvenanceAmbiguity {
-  let highest: ProvenanceAmbiguity = "none";
-
-  for (const level of levels) {
-    if (AMBIGUITY_PRIORITY[level] > AMBIGUITY_PRIORITY[highest]) {
-      highest = level;
-    }
-  }
-
-  return highest;
-}
 
 function getHighestAmbiguityFromWarnings(
   warnings: readonly ProvenanceWarning[],
@@ -369,21 +332,7 @@ function createBlockValidationFailure(options: {
   code: string;
   message: string;
 }): string {
-  return JSON.stringify(
-    createProvenanceFailure({
-      tool: options.tool,
-      mode: "local",
-      confidence: "unknown",
-      ambiguity: "high",
-      summary: options.summary,
-      error: {
-        code: options.code,
-        message: options.message,
-      },
-    }),
-    null,
-    2,
-  );
+  return createLocalToolFailure(options);
 }
 
 function resolveRequestedWindow(options: {
@@ -759,23 +708,6 @@ function createContentWarning(content: ProvReadData["content"]): ProvenanceWarni
   return warnings;
 }
 
-function dedupeWarnings(warnings: readonly ProvenanceWarning[]): ProvenanceWarning[] {
-  const seen = new Set<string>();
-  const deduped: ProvenanceWarning[] = [];
-
-  for (const warning of warnings) {
-    const key = `${warning.code}:${warning.message}`;
-    if (seen.has(key)) {
-      continue;
-    }
-
-    seen.add(key);
-    deduped.push(warning);
-  }
-
-  return deduped;
-}
-
 function buildReadSummary(data: ProvReadData): string {
   const branchLabel = data.repo.branch.name ?? "detached HEAD";
   const baseLabel = data.repo.base.ref ?? "base unresolved";
@@ -1031,21 +963,12 @@ function createReadToolFailure(request: ReadToolRequest, error: unknown): string
     error: errorMessage,
   });
 
-  return JSON.stringify(
-    createProvenanceFailure({
-      tool: GW_READ_TOOL,
-      mode: "local",
-      confidence: "unknown",
-      ambiguity: "high",
-      summary: `Failed to read provenance for '${request.normalizedPath}'.`,
-      error: {
-        code: "GW_READ_UNAVAILABLE",
-        message: errorMessage,
-      },
-    }),
-    null,
-    2,
-  );
+  return createLocalToolFailure({
+    tool: GW_READ_TOOL,
+    summary: `Failed to read provenance for '${request.normalizedPath}'.`,
+    code: "GW_READ_UNAVAILABLE",
+    message: errorMessage,
+  });
 }
 
 function createPathNormalizationFailure(options: {
@@ -1054,21 +977,12 @@ function createPathNormalizationFailure(options: {
   code: string;
   error: unknown;
 }): string {
-  return JSON.stringify(
-    createProvenanceFailure({
-      tool: options.tool,
-      mode: "local",
-      confidence: "unknown",
-      ambiguity: "high",
-      summary: `Failed to normalize path '${options.requestedPath}'.`,
-      error: {
-        code: options.code,
-        message: toErrorMessage(options.error),
-      },
-    }),
-    null,
-    2,
-  );
+  return createLocalToolFailure({
+    tool: options.tool,
+    summary: `Failed to normalize path '${options.requestedPath}'.`,
+    code: options.code,
+    message: toErrorMessage(options.error),
+  });
 }
 
 async function loadQueryToolState(
@@ -1321,21 +1235,12 @@ function createBlockReadFailure(params: {
     error: errorMessage,
   });
 
-  return JSON.stringify(
-    createProvenanceFailure({
-      tool: GW_BLOCK_READ_TOOL,
-      mode: "local",
-      confidence: "unknown",
-      ambiguity: "high",
-      summary: `Failed to read block provenance for '${params.normalizedPath}:${params.input.start_line}-${params.input.end_line}'.`,
-      error: {
-        code: "GW_BLOCK_READ_UNAVAILABLE",
-        message: errorMessage,
-      },
-    }),
-    null,
-    2,
-  );
+  return createLocalToolFailure({
+    tool: GW_BLOCK_READ_TOOL,
+    summary: `Failed to read block provenance for '${params.normalizedPath}:${params.input.start_line}-${params.input.end_line}'.`,
+    code: "GW_BLOCK_READ_UNAVAILABLE",
+    message: errorMessage,
+  });
 }
 
 function logBlockReadStart(
