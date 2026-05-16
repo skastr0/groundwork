@@ -95,6 +95,26 @@ describe("evaluateBashCommand", () => {
     expect(result.violation?.ruleId).toBe("rm.recursive-force");
   });
 
+  it("does not split command separators inside quotes", () => {
+    const result = evaluateBashCommand("echo 'rm -rf ./dist && git reset --hard'", config);
+    expect(result.violation).toBeNull();
+  });
+
+  it("does not split escaped separators", () => {
+    const result = evaluateBashCommand("echo ok \\; rm -rf ./dist", config);
+    expect(result.violation).toBeNull();
+  });
+
+  it("detects destructive command after a pipe segment", () => {
+    const result = evaluateBashCommand("echo ok | rm -rf ./dist", config);
+    expect(result.violation?.ruleId).toBe("rm.recursive-force");
+  });
+
+  it("detects destructive command after a newline segment", () => {
+    const result = evaluateBashCommand("echo ok\nrm -rf ./dist", config);
+    expect(result.violation?.ruleId).toBe("rm.recursive-force");
+  });
+
   it("detects destructive command through xargs wrapper", () => {
     const result = evaluateBashCommand("xargs rm -rf ./cache", config);
     expect(result.violation?.ruleId).toBe("rm.recursive-force");

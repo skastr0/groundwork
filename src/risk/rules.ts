@@ -1,3 +1,5 @@
+import { splitCommandSegments } from "./command-segments.ts";
+
 export type GuardMode = "block" | "warn" | "off";
 
 export type GuardConfig = {
@@ -431,76 +433,6 @@ function isCheckoutDiscard(args: string[]): boolean {
   return false;
 }
 
-function splitCommandSegments(raw: string): string[] {
-  const segments: string[] = [];
-  let current = "";
-  let quote: "single" | "double" | null = null;
-  let escaped = false;
-
-  for (let i = 0; i < raw.length; i += 1) {
-    const char = raw[i] ?? "";
-    const next = raw[i + 1] ?? "";
-
-    if (escaped) {
-      current += char;
-      escaped = false;
-      continue;
-    }
-
-    if (char === "\\" && quote !== "single") {
-      current += char;
-      escaped = true;
-      continue;
-    }
-
-    if (!quote) {
-      if (char === "'") {
-        quote = "single";
-        current += char;
-        continue;
-      }
-
-      if (char === '"') {
-        quote = "double";
-        current += char;
-        continue;
-      }
-
-      if (char === ";" || char === "\n") {
-        pushSegment(segments, current);
-        current = "";
-        continue;
-      }
-
-      if ((char === "&" || char === "|") && next === char) {
-        pushSegment(segments, current);
-        current = "";
-        i += 1;
-        continue;
-      }
-
-      if (char === "|" || char === "&") {
-        pushSegment(segments, current);
-        current = "";
-        continue;
-      }
-    } else if (quote === "single" && char === "'") {
-      quote = null;
-      current += char;
-      continue;
-    } else if (quote === "double" && char === '"') {
-      quote = null;
-      current += char;
-      continue;
-    }
-
-    current += char;
-  }
-
-  pushSegment(segments, current);
-  return segments;
-}
-
 function tokenize(raw: string): string[] {
   const tokens: string[] = [];
   let current = "";
@@ -823,13 +755,6 @@ function normalizePathTarget(target: string): string {
   const collapsed = target.trim().replace(/\\/g, "/");
   const withoutTrailingSlash = collapsed.replace(/\/+$/, "");
   return withoutTrailingSlash.length > 0 ? withoutTrailingSlash : collapsed;
-}
-
-function pushSegment(segments: string[], segment: string): void {
-  const trimmed = segment.trim();
-  if (trimmed.length > 0) {
-    segments.push(trimmed);
-  }
 }
 
 function parseBoolean(raw: string | undefined, fallback: boolean): boolean {
