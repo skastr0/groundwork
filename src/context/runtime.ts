@@ -21,6 +21,7 @@ import {
   type FrameworkToolTarget,
   type SessionKernelStore,
 } from "../kernel/index.ts";
+import { logFrameworkEvent } from "../logger/index.ts";
 import {
   discoverFrameworkContextFiles,
   type FrameworkDiscoveredContextFile,
@@ -77,12 +78,18 @@ export async function createFrameworkContextLayer(
   const rootDir = path.resolve(options.worktree ?? options.directory);
   const sessionStore = options.sessionStore ?? createSessionKernelStore();
 
-  await log(options.client, "info", "Framework context runtime initialized", {
-    directory,
-    rootDir,
-    max_items: FRAMEWORK_CONTEXT_INJECTION_MAX_ITEMS,
-    max_bytes: FRAMEWORK_CONTEXT_INJECTION_MAX_BYTES,
-  });
+  await logFrameworkEvent(
+    options.client,
+    SERVICE,
+    "info",
+    "Framework context runtime initialized",
+    {
+      directory,
+      rootDir,
+      max_items: FRAMEWORK_CONTEXT_INJECTION_MAX_ITEMS,
+      max_bytes: FRAMEWORK_CONTEXT_INJECTION_MAX_BYTES,
+    },
+  );
 
   return {
     active: true,
@@ -201,13 +208,19 @@ async function injectContextReminders(options: {
   let { state } = options;
   const promptContext = await resolveContextPromptContext(runtime.client, state, sessionID);
   if (!promptContext) {
-    await log(runtime.client, "warn", "Skipping context injection because prompt context is unavailable", {
-      sessionID,
-      callID,
-      tool,
-      target_count: options.targetCount,
-      context_paths: unseenFiles.map((file) => file.path),
-    });
+    await logFrameworkEvent(
+      runtime.client,
+      SERVICE,
+      "warn",
+      "Skipping context injection because prompt context is unavailable",
+      {
+        sessionID,
+        callID,
+        tool,
+        target_count: options.targetCount,
+        context_paths: unseenFiles.map((file) => file.path),
+      },
+    );
     return;
   }
 
@@ -254,7 +267,7 @@ async function injectContextReminders(options: {
   }
   runtime.sessionStore.set(state);
 
-  await log(runtime.client, "info", "Injected context reminders", {
+  await logFrameworkEvent(runtime.client, SERVICE, "info", "Injected context reminders", {
     sessionID,
     callID,
     tool,
@@ -412,24 +425,4 @@ function wrapContextReminder(reminders: readonly string[]): string {
   }
 
   return `${CONTEXT_REMINDER_PREFIX}${body}${CONTEXT_REMINDER_SUFFIX}`;
-}
-
-async function log(
-  client: FrameworkContextRuntimeClient,
-  level: "debug" | "info" | "warn" | "error",
-  message: string,
-  extra?: Record<string, unknown>,
-): Promise<void> {
-  try {
-    await client.app.log({
-      body: {
-        service: SERVICE,
-        level,
-        message,
-        extra,
-      },
-    });
-  } catch {
-    // ignore logging failures
-  }
 }

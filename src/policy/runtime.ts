@@ -22,6 +22,7 @@ import {
   type FrameworkToolTarget,
   type SessionKernelStore,
 } from "../kernel/index.ts";
+import { logFrameworkEvent } from "../logger/index.ts";
 import {
   DEFAULT_EDIT_FOCUSED_TOOLS,
   extractChangeTargets,
@@ -118,24 +119,36 @@ export async function createFrameworkPolicyLayer(
   );
   const sessionStore = options.sessionStore ?? createSessionKernelStore();
 
-  await log(options.client, "info", "Framework policy runtime initialized", {
-    rootDir,
-    project_config_path: projectPath,
-    global_config_path: globalPath,
-    project_config_paths: projectPaths,
-    global_config_paths: globalPaths,
-    config_sources: sourceCount,
-    rules: config?.rules.length ?? 0,
-    enabled: Boolean(config),
-  });
-
-  if (!config) {
-    await log(options.client, "info", "No policy config found; framework policy layer idle", {
+  await logFrameworkEvent(
+    options.client,
+    SERVICE,
+    "info",
+    "Framework policy runtime initialized",
+    {
+      rootDir,
       project_config_path: projectPath,
       global_config_path: globalPath,
       project_config_paths: projectPaths,
       global_config_paths: globalPaths,
-    });
+      config_sources: sourceCount,
+      rules: config?.rules.length ?? 0,
+      enabled: Boolean(config),
+    },
+  );
+
+  if (!config) {
+    await logFrameworkEvent(
+      options.client,
+      SERVICE,
+      "info",
+      "No policy config found; framework policy layer idle",
+      {
+        project_config_path: projectPath,
+        global_config_path: globalPath,
+        project_config_paths: projectPaths,
+        global_config_paths: globalPaths,
+      },
+    );
   }
 
   return {
@@ -204,11 +217,17 @@ async function applyPolicyCommand(
     const hadLock = Boolean(getPendingHumanOverrideLock(state));
     clearPendingHumanOverrideLock(state);
 
-    await log(runtime.client, hadLock ? "warn" : "info", "Policy override accepted", {
-      sessionID,
-      reason: command.reason,
-      had_lock: hadLock,
-    });
+    await logFrameworkEvent(
+      runtime.client,
+      SERVICE,
+      hadLock ? "warn" : "info",
+      "Policy override accepted",
+      {
+        sessionID,
+        reason: command.reason,
+        had_lock: hadLock,
+      },
+    );
 
     await injectPolicyPrompt(
       runtime.client,
@@ -224,7 +243,7 @@ async function applyPolicyCommand(
     runtimeState.confirmedSkills.add(normalizeSkillName(skill));
   }
 
-  await log(runtime.client, "info", "Policy skill confirmation accepted", {
+  await logFrameworkEvent(runtime.client, SERVICE, "info", "Policy skill confirmation accepted", {
     sessionID,
     skills: command.skills,
   });
@@ -519,7 +538,7 @@ async function evaluateRulesForPhase(params: {
 
     const ruleSeverity = resolveRuleSeverity(rule);
 
-    await log(client, "debug", "Policy rule matched", {
+    await logFrameworkEvent(client, SERVICE, "debug", "Policy rule matched", {
       phase,
       tool,
       callID,
@@ -748,7 +767,7 @@ async function executeInjectPromptAction(
   }
 
   await injectPolicyPrompt(client, state, runtimeState, sessionID, action.text);
-  await log(client, "info", "Injected policy guidance", {
+  await logFrameworkEvent(client, SERVICE, "info", "Injected policy guidance", {
     tool,
     sessionID,
     rule_id: rule.id,
@@ -901,7 +920,7 @@ async function enforceViolation(params: {
     forceTerminate = false,
   } = params;
 
-  await log(client, severityToLogLevel(severity), "Policy violation", {
+  await logFrameworkEvent(client, SERVICE, severityToLogLevel(severity), "Policy violation", {
     phase,
     tool,
     callID,
@@ -1023,9 +1042,15 @@ async function injectPolicyPrompt(
 ): Promise<void> {
   const promptContext = await resolvePolicyPromptContext(client, state, runtimeState, sessionID);
   if (!promptContext) {
-    await log(client, "warn", "Skipping policy prompt injection - missing session prompt context", {
-      sessionID,
-    });
+    await logFrameworkEvent(
+      client,
+      SERVICE,
+      "warn",
+      "Skipping policy prompt injection - missing session prompt context",
+      {
+        sessionID,
+      },
+    );
     return;
   }
 
@@ -1128,24 +1153,4 @@ function severityToLogLevel(severity: GuardrailSeverity): "info" | "warn" | "err
 
 function createContentMatchCacheKey(ruleId: string, normalizedPath: string): string {
   return `${ruleId}::${normalizedPath}`;
-}
-
-async function log(
-  client: FrameworkPolicyRuntimeClient,
-  level: "debug" | "info" | "warn" | "error",
-  message: string,
-  extra?: Record<string, unknown>,
-): Promise<void> {
-  try {
-    await client.app.log({
-      body: {
-        service: SERVICE,
-        level,
-        message,
-        extra,
-      },
-    });
-  } catch {
-    // ignore logging failures
-  }
 }

@@ -6,6 +6,7 @@ import {
   type GroundworkLayerHooks,
   type GroundworkLayerRegistration,
 } from "../layer/index.ts";
+import { logFrameworkEvent } from "../logger/index.ts";
 
 const SERVICE = "groundwork-risk";
 
@@ -27,7 +28,7 @@ export async function createFrameworkRiskLayer(
 ): Promise<GroundworkLayerRegistration> {
   const config = configFromEnv(options.env);
 
-  await log(options.client, "info", "Plugin initialized", {
+  await logFrameworkEvent(options.client, SERVICE, "info", "Plugin initialized", {
     mode: config.mode,
     includeExtendedRules: config.includeExtendedRules,
     allowTempRecursiveForceRm: config.allowTempRecursiveForceRm,
@@ -60,7 +61,7 @@ export function createRiskToolBeforeHook(params: {
     const decision = evaluateRiskCommand({ command, config });
     if (!decision.violation) return;
 
-    await log(client, "warn", "Blocked potentially destructive command", {
+    await logFrameworkEvent(client, SERVICE, "warn", "Blocked potentially destructive command", {
       mode: config.mode,
       callID,
       sessionID,
@@ -79,25 +80,6 @@ export function createRiskToolBeforeHook(params: {
   };
 }
 
-async function log(
-  client: FrameworkRiskClient,
-  level: "debug" | "info" | "warn" | "error",
-  message: string,
-  extra?: Record<string, unknown>,
-): Promise<void> {
-  try {
-    await client.app.log({
-      body: {
-        service: SERVICE,
-        level,
-        message,
-        extra,
-      },
-    });
-  } catch {
-    // ignore logging failures
-  }
-}
 
 function extractCommand(args: unknown): string | null {
   if (!args || typeof args !== "object") return null;
