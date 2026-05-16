@@ -1,3 +1,5 @@
+import { cloneLineRanges } from "./line-ranges.ts";
+
 export type FrameworkJsonPrimitive = string | number | boolean | null;
 export type FrameworkJsonArray = FrameworkJsonValue[];
 export type FrameworkJsonValue = FrameworkJsonPrimitive | FrameworkJsonObject | FrameworkJsonArray;
@@ -272,15 +274,6 @@ function cloneBudgetState(budgets: FrameworkBudgetState | undefined): FrameworkB
   }
 
   return { ledgers };
-}
-
-function cloneLineRanges(
-  ranges: FrameworkLineRange[] | undefined,
-): FrameworkLineRange[] | undefined {
-  return ranges?.map((range) => ({
-    startLine: range.startLine,
-    endLine: range.endLine,
-  }));
 }
 
 function cloneToolTargetSource(

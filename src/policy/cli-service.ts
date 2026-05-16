@@ -27,6 +27,11 @@ import {
   type GuardrailRule,
   type GuardrailSeverity,
 } from "./config.ts";
+import {
+  cloneLineRanges,
+  collectPatchPayloads,
+  mergeChangeTarget,
+} from "./change-targets.ts";
 import { ruleAppliesToPhase, type EvaluationPhase } from "./evaluation.ts";
 
 const SERVICE = "groundwork-policy";
@@ -574,21 +579,21 @@ function materializeGuardrailTargets(
   for (const target of targets) {
     const normalizedPath = target.normalizedPath ?? target.afterPath ?? target.beforePath;
     if (!normalizedPath) continue;
-    merged.set(normalizedPath, {
+    mergeChangeTarget(merged, {
       normalizedPath,
       beforeContent:
         typeof target.metadata?.beforeContent === "string" || target.metadata?.beforeContent === null
           ? target.metadata.beforeContent
           : undefined,
-      changedLineRanges: target.changedLineRanges?.map((range) => ({ ...range })),
-      deletedLineRanges: target.deletedLineRanges?.map((range) => ({ ...range })),
+      changedLineRanges: cloneLineRanges(target.changedLineRanges),
+      deletedLineRanges: cloneLineRanges(target.deletedLineRanges),
     });
   }
 
   for (const patchText of collectPatchPayloads(args)) {
     for (const patchTarget of extractChangeTargets(rootDir, { patchText })) {
       if (merged.has(patchTarget.normalizedPath)) {
-        merged.set(patchTarget.normalizedPath, patchTarget);
+        mergeChangeTarget(merged, patchTarget);
       }
     }
   }
@@ -613,8 +618,8 @@ async function snapshotTargets(
       }
       return {
         ...target,
-        changedLineRanges: target.changedLineRanges?.map((range) => ({ ...range })),
-        deletedLineRanges: target.deletedLineRanges?.map((range) => ({ ...range })),
+        changedLineRanges: cloneLineRanges(target.changedLineRanges),
+        deletedLineRanges: cloneLineRanges(target.deletedLineRanges),
         metadata,
       };
     }),
@@ -670,16 +675,6 @@ function severityToLogLevel(severity: GuardrailSeverity): "info" | "warn" | "err
   if (severity === "advisory") return "info";
   if (severity === "warn") return "warn";
   return "error";
-}
-
-function collectPatchPayloads(value: unknown, keyName?: string): string[] {
-  if (typeof value === "string") {
-    const normalizedKey = keyName?.toLowerCase();
-    return normalizedKey === "patch" || normalizedKey === "patchtext" ? [value] : [];
-  }
-  if (Array.isArray(value)) return value.flatMap((entry) => collectPatchPayloads(entry, keyName));
-  if (!value || typeof value !== "object") return [];
-  return Object.entries(value).flatMap(([key, child]) => collectPatchPayloads(child, key));
 }
 
 function toJsonObject(value: unknown): FrameworkJsonObject | undefined {

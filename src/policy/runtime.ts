@@ -37,6 +37,11 @@ import {
   type GuardrailRule,
   type GuardrailSeverity,
 } from "./config.ts";
+import {
+  cloneLineRanges,
+  collectPatchPayloads,
+  mergeChangeTarget,
+} from "./change-targets.ts";
 import { ruleAppliesToPhase, type EvaluationPhase } from "./evaluation.ts";
 
 const SERVICE = "groundwork-policy";
@@ -951,7 +956,7 @@ function materializeGuardrailTargets(
       continue;
     }
 
-    mergeGuardrailTarget(merged, {
+    mergeChangeTarget(merged, {
       normalizedPath,
       beforeContent: readTargetBeforeContent(target),
       changedLineRanges: cloneLineRanges(target.changedLineRanges),
@@ -965,7 +970,7 @@ function materializeGuardrailTargets(
         continue;
       }
 
-      mergeGuardrailTarget(merged, patchTarget);
+      mergeChangeTarget(merged, patchTarget);
     }
   }
 
@@ -975,82 +980,6 @@ function materializeGuardrailTargets(
 function readTargetBeforeContent(target: FrameworkToolTarget): string | null | undefined {
   const beforeContent = target.metadata && target.metadata.beforeContent;
   return typeof beforeContent === "string" || beforeContent === null ? beforeContent : undefined;
-}
-
-function cloneLineRanges(
-  ranges: FrameworkToolTarget["changedLineRanges"] | FrameworkToolTarget["deletedLineRanges"],
-): GuardrailChangeTarget["changedLineRanges"] | GuardrailChangeTarget["deletedLineRanges"] {
-  return ranges?.map((range) => ({
-    startLine: range.startLine,
-    endLine: range.endLine,
-  }));
-}
-
-function mergeGuardrailTarget(
-  out: Map<string, GuardrailChangeTarget>,
-  incoming: GuardrailChangeTarget,
-): void {
-  const existing = out.get(incoming.normalizedPath);
-  if (!existing) {
-    out.set(incoming.normalizedPath, {
-      normalizedPath: incoming.normalizedPath,
-      beforeContent: incoming.beforeContent,
-      changedLineRanges: cloneLineRanges(incoming.changedLineRanges),
-      deletedLineRanges: cloneLineRanges(incoming.deletedLineRanges),
-    });
-    return;
-  }
-
-  out.set(incoming.normalizedPath, {
-    normalizedPath: incoming.normalizedPath,
-    beforeContent: existing.beforeContent ?? incoming.beforeContent,
-    changedLineRanges: mergeLineRanges(existing.changedLineRanges, incoming.changedLineRanges),
-    deletedLineRanges: mergeLineRanges(existing.deletedLineRanges, incoming.deletedLineRanges),
-  });
-}
-
-function mergeLineRanges(
-  left: GuardrailChangeTarget["changedLineRanges"],
-  right: GuardrailChangeTarget["changedLineRanges"],
-): GuardrailChangeTarget["changedLineRanges"] {
-  const combined = [...(left ?? []), ...(right ?? [])]
-    .map((range) => ({ ...range }))
-    .sort((a, b) => a.startLine - b.startLine || a.endLine - b.endLine);
-  if (combined.length === 0) {
-    return undefined;
-  }
-
-  const merged = [combined[0]!];
-  for (const current of combined.slice(1)) {
-    const previous = merged[merged.length - 1]!;
-    if (current.startLine <= previous.endLine + 1) {
-      previous.endLine = Math.max(previous.endLine, current.endLine);
-      continue;
-    }
-
-    merged.push(current);
-  }
-
-  return merged;
-}
-
-function collectPatchPayloads(value: unknown, keyName?: string): string[] {
-  if (typeof value === "string") {
-    const normalizedKey = keyName?.toLowerCase();
-    return normalizedKey === "patch" || normalizedKey === "patchtext" ? [value] : [];
-  }
-
-  if (Array.isArray(value)) {
-    return value.flatMap((entry) => collectPatchPayloads(entry, keyName));
-  }
-
-  if (!isRecord(value)) {
-    return [];
-  }
-
-  return Object.entries(value).flatMap(([childKey, childValue]) =>
-    collectPatchPayloads(childValue, childKey),
-  );
 }
 
 async function snapshotFrameworkTargets(

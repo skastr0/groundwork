@@ -3,6 +3,11 @@ import { existsSync, promises as fs, readdirSync, type Dirent } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { parse as parseToml } from "@iarna/toml";
+import {
+  isPatchTextKey,
+  mergeChangeTarget,
+  mergeLineRanges,
+} from "./change-targets.ts";
 
 export type GuardrailSeverity = "advisory" | "warn" | "block" | "terminate";
 export type GuardrailMatcherExpectation = "present" | "absent";
@@ -155,7 +160,6 @@ const GUARDRAIL_SEVERITY = new Set<GuardrailSeverity>(["advisory", "warn", "bloc
 const MATCHER_EXPECTATION = new Set<GuardrailMatcherExpectation>(["present", "absent"]);
 const SKILL_ENFORCEMENT_MODE = new Set<GuardrailSkillEnforcementMode>(["prompt", "block"]);
 const CONTENT_SCOPE = new Set<GuardrailContentScope>(["changed_lines", "full_file"]);
-const PATCH_TEXT_KEYS = new Set(["patchtext", "patch_text", "patch"]);
 const MAX_PATCH_TEXT_BYTES = 5 * 1024 * 1024;
 const MAX_PATCH_HEADER_PATHS = 4096;
 const MAX_PATCH_PATH_LENGTH = 4096;
@@ -1000,7 +1004,7 @@ export function extractChangeTargets(rootDir: string, args: unknown): GuardrailC
 function collectPaths(value: unknown, out: Set<string>, keyPath: string[]): void {
   if (typeof value === "string") {
     const key = keyPath[keyPath.length - 1]?.toLowerCase() ?? "";
-    if (PATCH_TEXT_KEYS.has(key)) {
+    if (isPatchTextKey(key)) {
       for (const patchPath of extractPathsFromPatchText(value)) {
         out.add(patchPath);
       }
@@ -1035,7 +1039,7 @@ function collectChangeTargets(
 ): void {
   if (typeof value === "string") {
     const key = keyPath[keyPath.length - 1]?.toLowerCase() ?? "";
-    if (PATCH_TEXT_KEYS.has(key)) {
+    if (isPatchTextKey(key)) {
       for (const target of extractTargetsFromPatchText(rootDir, value)) {
         mergeChangeTarget(out, target);
       }
@@ -1062,57 +1066,6 @@ function collectChangeTargets(
   for (const [key, entry] of Object.entries(value)) {
     collectChangeTargets(rootDir, entry, out, [...keyPath, key]);
   }
-}
-
-function mergeChangeTarget(
-  out: Map<string, GuardrailChangeTarget>,
-  incoming: GuardrailChangeTarget,
-): void {
-  const existing = out.get(incoming.normalizedPath);
-  if (!existing) {
-    out.set(incoming.normalizedPath, {
-      normalizedPath: incoming.normalizedPath,
-      beforeContent: incoming.beforeContent,
-      changedLineRanges: cloneLineRanges(incoming.changedLineRanges),
-      deletedLineRanges: cloneLineRanges(incoming.deletedLineRanges),
-    });
-    return;
-  }
-
-  out.set(incoming.normalizedPath, {
-    normalizedPath: incoming.normalizedPath,
-    beforeContent: existing.beforeContent ?? incoming.beforeContent,
-    changedLineRanges: mergeLineRanges(existing.changedLineRanges, incoming.changedLineRanges),
-    deletedLineRanges: mergeLineRanges(existing.deletedLineRanges, incoming.deletedLineRanges),
-  });
-}
-
-function cloneLineRanges(ranges: LineRange[] | undefined): LineRange[] | undefined {
-  return ranges?.map((range) => ({ ...range }));
-}
-
-function mergeLineRanges(
-  left: LineRange[] | undefined,
-  right: LineRange[] | undefined,
-): LineRange[] | undefined {
-  const combined = [...(left ?? []), ...(right ?? [])]
-    .map((range) => ({ ...range }))
-    .sort((a, b) => a.startLine - b.startLine || a.endLine - b.endLine);
-
-  if (combined.length === 0) return undefined;
-
-  const merged: LineRange[] = [combined[0]!];
-  for (const current of combined.slice(1)) {
-    const last = merged[merged.length - 1]!;
-    if (current.startLine <= last.endLine + 1) {
-      last.endLine = Math.max(last.endLine, current.endLine);
-      continue;
-    }
-
-    merged.push(current);
-  }
-
-  return merged;
 }
 
 function extractPathsFromPatchText(patchText: string): string[] {

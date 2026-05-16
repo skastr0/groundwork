@@ -3,6 +3,12 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  cloneLineRanges,
+  collectPatchPayloads,
+  mergeChangeTarget,
+  mergeLineRanges,
+} from "../policy/change-targets.ts";
+import {
   extractCandidatePaths,
   extractChangeTargets,
   filterPathsByRuleContent,
@@ -18,6 +24,7 @@ import {
   resolveProjectPolicyConfigPaths,
   runContentMatcher,
   ruleMatchesTool,
+  type GuardrailChangeTarget,
 } from "../policy/config.ts";
 import { ruleAppliesToPhase } from "../policy/evaluation.ts";
 
@@ -324,6 +331,84 @@ describe("path matching", () => {
         deletedLineRanges: [{ startLine: 1, endLine: 1 }],
       },
     ]);
+  });
+
+  it("merges guardrail change targets without sharing range references", () => {
+    const targets = new Map<string, GuardrailChangeTarget>();
+    const firstChangedRanges = [
+      { startLine: 1, endLine: 2 },
+      { startLine: 8, endLine: 8 },
+    ];
+    const secondChangedRanges = [
+      { startLine: 3, endLine: 3 },
+      { startLine: 7, endLine: 7 },
+    ];
+
+    mergeChangeTarget(targets, {
+      normalizedPath: "src/main.ts",
+      beforeContent: "before",
+      changedLineRanges: firstChangedRanges,
+      deletedLineRanges: [{ startLine: 10, endLine: 10 }],
+    });
+    mergeChangeTarget(targets, {
+      normalizedPath: "src/second.ts",
+      changedLineRanges: [{ startLine: 20, endLine: 20 }],
+    });
+    mergeChangeTarget(targets, {
+      normalizedPath: "src/main.ts",
+      beforeContent: "replacement",
+      changedLineRanges: secondChangedRanges,
+      deletedLineRanges: [{ startLine: 11, endLine: 12 }],
+    });
+
+    firstChangedRanges[0]!.startLine = 99;
+    secondChangedRanges[0]!.endLine = 99;
+
+    expect([...targets.keys()]).toEqual(["src/main.ts", "src/second.ts"]);
+    expect(targets.get("src/main.ts")).toEqual({
+      normalizedPath: "src/main.ts",
+      beforeContent: "before",
+      changedLineRanges: [
+        { startLine: 1, endLine: 3 },
+        { startLine: 7, endLine: 8 },
+      ],
+      deletedLineRanges: [{ startLine: 10, endLine: 12 }],
+    });
+  });
+
+  it("clones and merges line ranges with undefined empty results", () => {
+    const ranges = [{ startLine: 4, endLine: 5 }];
+    const cloned = cloneLineRanges(ranges);
+
+    expect(cloned).toEqual(ranges);
+    expect(cloned).not.toBe(ranges);
+    expect(cloned?.[0]).not.toBe(ranges[0]);
+    expect(mergeLineRanges(undefined, undefined)).toBeUndefined();
+    expect(
+      mergeLineRanges(
+        [
+          { startLine: 10, endLine: 12 },
+          { startLine: 2, endLine: 3 },
+        ],
+        [{ startLine: 4, endLine: 8 }],
+      ),
+    ).toEqual([
+      { startLine: 2, endLine: 8 },
+      { startLine: 10, endLine: 12 },
+    ]);
+  });
+
+  it("collects patch payloads from all policy patch key aliases", () => {
+    expect(
+      collectPatchPayloads({
+        patchText: "camel",
+        patch_text: "snake",
+        nested: {
+          patch: ["array-one", "array-two"],
+          body: "ignored",
+        },
+      }),
+    ).toEqual(["camel", "snake", "array-one", "array-two"]);
   });
 
   it("ignores malformed patch headers", () => {
