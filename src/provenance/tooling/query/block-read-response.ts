@@ -25,20 +25,48 @@ import {
   type ReadToolState,
 } from "./runtime.ts";
 
-export function serializeBlockReadSuccess(params: {
+type BlockReadLineageResolution = Awaited<ReturnType<typeof resolveLocalSpanLineage>>;
+type BlockReadDiffContext = Awaited<ReturnType<typeof buildLocalDiffContext>>;
+type BlockReadWarnings = ReturnType<typeof buildBlockReadWarnings>;
+
+interface BlockReadSuccessParams {
   input: BlockReadToolInput;
   normalizedPath: string;
   repoState: ReadToolState["repoState"];
   fileState: LocalFileState;
   content: ProvBlockReadData["content"];
-  lineageResolution: Awaited<ReturnType<typeof resolveLocalSpanLineage>>;
-  diff: Awaited<ReturnType<typeof buildLocalDiffContext>>;
-}): string {
-  const { input, normalizedPath, repoState, fileState, content, lineageResolution, diff } = params;
+  lineageResolution: BlockReadLineageResolution;
+  diff: BlockReadDiffContext;
+}
+
+export function serializeBlockReadSuccess(params: BlockReadSuccessParams): string {
+  const { normalizedPath, repoState, fileState, content, lineageResolution, diff } = params;
+  const data = buildBlockReadData(params);
+  const warnings = buildBlockReadWarnings({
+    repoState,
+    fileState,
+    content,
+    lineageResolution,
+    diff,
+  });
+  const response = createBlockReadSuccessResponse({
+    repoState,
+    fileState,
+    content,
+    lineageResolution,
+    data,
+    warnings,
+  });
+  logBlockReadEnd({ response, normalizedPath, data, content, diff });
+  return JSON.stringify(response, null, 2);
+}
+
+function buildBlockReadData(params: BlockReadSuccessParams): ProvBlockReadData {
+  const { input, fileState, content, lineageResolution, diff } = params;
   const data: ProvBlockReadData = {
     requestedPath: input.path.trim(),
     resolvedPath: fileState.resolvedPath,
-    repo: toProvRepoStateData(repoState, input.limit),
+    repo: toProvRepoStateData(params.repoState, input.limit),
     file: toProvFileStateData(fileState),
     content,
     lineage: {
@@ -52,14 +80,36 @@ export function serializeBlockReadSuccess(params: {
     },
     diff,
   };
-  const warnings = dedupeWarnings([
+  return data;
+}
+
+function buildBlockReadWarnings(params: {
+  repoState: ReadToolState["repoState"];
+  fileState: LocalFileState;
+  content: ProvBlockReadData["content"];
+  lineageResolution: BlockReadLineageResolution;
+  diff: BlockReadDiffContext;
+}) {
+  const { repoState, fileState, content, lineageResolution, diff } = params;
+  return dedupeWarnings([
     ...toAmbiguityWarnings(repoState.ambiguity),
     ...toAmbiguityWarnings(fileState.ambiguity),
     ...createBlockContentWarnings(content),
     ...lineageResolution.warnings,
     ...createDiffWarnings(diff),
   ]);
-  const response = createProvenanceSuccess({
+}
+
+function createBlockReadSuccessResponse(params: {
+  repoState: ReadToolState["repoState"];
+  fileState: LocalFileState;
+  content: ProvBlockReadData["content"];
+  lineageResolution: BlockReadLineageResolution;
+  data: ProvBlockReadData;
+  warnings: BlockReadWarnings;
+}) {
+  const { repoState, fileState, content, lineageResolution, data, warnings } = params;
+  return createProvenanceSuccess({
     tool: GW_BLOCK_READ_TOOL,
     mode: "local",
     confidence: getLowestConfidence([
@@ -79,7 +129,16 @@ export function serializeBlockReadSuccess(params: {
     sources: [buildBlockContentSource(content), ...lineageResolution.sources],
     data,
   });
+}
 
+function logBlockReadEnd(params: {
+  response: ReturnType<typeof createBlockReadSuccessResponse>;
+  normalizedPath: string;
+  data: ProvBlockReadData;
+  content: ProvBlockReadData["content"];
+  diff: BlockReadDiffContext;
+}): void {
+  const { response, normalizedPath, data, content, diff } = params;
   logger.info("gw_block_read end", {
     tool: GW_BLOCK_READ_TOOL,
     confidence: response.meta.confidence,
@@ -93,6 +152,4 @@ export function serializeBlockReadSuccess(params: {
     lineageItems: data.lineage.data.lineage.length,
     diffComparisons: diff.comparisons.length,
   });
-
-  return JSON.stringify(response, null, 2);
 }
