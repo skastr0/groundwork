@@ -611,13 +611,120 @@ function createFileStateTool(runtimeOptions: CreateStateToolsOptions): ToolDefin
   });
 }
 
+type FileStateToolArgs = {
+  path: string;
+  base?: string;
+  mode?: string;
+};
+
+type NormalizedFileStatePathResult =
+  | {
+      ok: true;
+      path: string;
+    }
+  | {
+      ok: false;
+      response: string;
+    };
+
+function createFileStateFailure({
+  summary,
+  code,
+  message,
+}: {
+  summary: string;
+  code: string;
+  message: string;
+}): string {
+  return JSON.stringify(
+    createProvenanceFailure({
+      tool: GW_FILE_STATE_TOOL,
+      mode: "local",
+      confidence: "unknown",
+      ambiguity: "high",
+      summary,
+      error: {
+        code,
+        message,
+      },
+    }),
+    null,
+    2,
+  );
+}
+
+function resolveFileStatePath(
+  args: FileStateToolArgs,
+  rootDir?: string,
+): NormalizedFileStatePathResult {
+  try {
+    return {
+      ok: true,
+      path: normalizeRequestedPath(args.path, rootDir),
+    };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    logger.error("gw_file_state invalid path", {
+      tool: GW_FILE_STATE_TOOL,
+      path: args.path,
+      error: errorMessage,
+    });
+
+    return {
+      ok: false,
+      response: createFileStateFailure({
+        summary: `Failed to normalize path '${args.path}'.`,
+        code: "FILE_STATE_PATH_INVALID",
+        message: errorMessage,
+      }),
+    };
+  }
+}
+
+async function resolveFileState(
+  runtimeOptions: CreateStateToolsOptions,
+  args: FileStateToolArgs,
+  normalizedPath: string,
+): Promise<LocalFileState> {
+  return resolveLocalFileState({
+    shell: runtimeOptions.shell,
+    requestedPath: normalizedPath,
+    explicitBase: args.base,
+  });
+}
+
+function createFileStateResponse(state: LocalFileState): {
+  data: ProvFileStateData;
+  response: ReturnType<typeof createProvenanceSuccess<ProvFileStateData>>;
+} {
+  const data = toProvFileStateData(state);
+  const response = createProvenanceSuccess({
+    tool: GW_FILE_STATE_TOOL,
+    mode: "local",
+    confidence: state.confidence,
+    ambiguity: state.ambiguity.level,
+    summary: createFileStateSummary(data),
+    warnings: toFileStateWarnings(state),
+    sources: toFileStateSources(data),
+    data,
+  });
+
+  return { data, response };
+}
+
+function createFileStateUnavailableFailure(normalizedPath: string, error: unknown): string {
+  const errorMessage = error instanceof Error ? error.message : String(error);
+
+  return createFileStateFailure({
+    summary: `Failed to resolve file state for '${normalizedPath}'.`,
+    code: "FILE_STATE_UNAVAILABLE",
+    message: errorMessage,
+  });
+}
+
 async function executeFileStateTool(
   runtimeOptions: CreateStateToolsOptions,
-  args: {
-    path: string;
-    base?: string;
-    mode?: string;
-  },
+  args: FileStateToolArgs,
 ): Promise<string> {
   const resolvedMode = args.mode ?? "local";
 
@@ -629,58 +736,21 @@ async function executeFileStateTool(
     return createUnsupportedModeFailure(GW_FILE_STATE_TOOL, resolvedMode);
   }
 
-  let normalizedPath: string;
-  try {
-    normalizedPath = normalizeRequestedPath(args.path, runtimeOptions.rootDir);
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    logger.error("gw_file_state invalid path", {
-      tool: GW_FILE_STATE_TOOL,
-      path: args.path,
-      error: errorMessage,
-    });
-
-    return JSON.stringify(
-      createProvenanceFailure({
-        tool: GW_FILE_STATE_TOOL,
-        mode: "local",
-        confidence: "unknown",
-        ambiguity: "high",
-        summary: `Failed to normalize path '${args.path}'.`,
-        error: {
-          code: "FILE_STATE_PATH_INVALID",
-          message: errorMessage,
-        },
-      }),
-      null,
-      2,
-    );
+  const normalizedPath = resolveFileStatePath(args, runtimeOptions.rootDir);
+  if (!normalizedPath.ok) {
+    return normalizedPath.response;
   }
 
   logger.info("gw_file_state start", {
     tool: GW_FILE_STATE_TOOL,
     mode: resolvedMode,
     base: args.base,
-    path: normalizedPath,
+    path: normalizedPath.path,
   });
 
   try {
-    const state = await resolveLocalFileState({
-      shell: runtimeOptions.shell,
-      requestedPath: normalizedPath,
-      explicitBase: args.base,
-    });
-    const data = toProvFileStateData(state);
-    const response = createProvenanceSuccess({
-      tool: GW_FILE_STATE_TOOL,
-      mode: "local",
-      confidence: state.confidence,
-      ambiguity: state.ambiguity.level,
-      summary: createFileStateSummary(data),
-      warnings: toFileStateWarnings(state),
-      sources: toFileStateSources(data),
-      data,
-    });
+    const state = await resolveFileState(runtimeOptions, args, normalizedPath.path);
+    const { data, response } = createFileStateResponse(state);
 
     logger.info("gw_file_state end", {
       tool: GW_FILE_STATE_TOOL,
@@ -701,24 +771,10 @@ async function executeFileStateTool(
       tool: GW_FILE_STATE_TOOL,
       mode: resolvedMode,
       base: args.base,
-      path: normalizedPath,
+      path: normalizedPath.path,
       error: errorMessage,
     });
 
-    return JSON.stringify(
-      createProvenanceFailure({
-        tool: GW_FILE_STATE_TOOL,
-        mode: "local",
-        confidence: "unknown",
-        ambiguity: "high",
-        summary: `Failed to resolve file state for '${normalizedPath}'.`,
-        error: {
-          code: "FILE_STATE_UNAVAILABLE",
-          message: errorMessage,
-        },
-      }),
-      null,
-      2,
-    );
+    return createFileStateUnavailableFailure(normalizedPath.path, error);
   }
 }
