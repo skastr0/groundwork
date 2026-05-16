@@ -22,6 +22,19 @@ export type ProcessRunnerCarrier = {
   [PROCESS_RUNNER]: ProcessRunner;
 };
 
+type SpawnProcessTextOptions = {
+  cmd: ProcessCommand;
+  timeoutMs: number;
+  maxOutputBytes: number;
+  cwd?: string;
+};
+
+type ProcessTextSpawnContext = SpawnProcessTextOptions & {
+  command: string;
+  controller: AbortController;
+  didTimeOut: () => boolean;
+};
+
 const toErrorMessage = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);
 
@@ -270,12 +283,7 @@ function readNodeStreamText(options: {
   });
 }
 
-async function spawnProcessText(options: {
-  cmd: ProcessCommand;
-  timeoutMs: number;
-  maxOutputBytes: number;
-  cwd?: string;
-}): Promise<string> {
+async function spawnProcessText(options: SpawnProcessTextOptions): Promise<string> {
   const command = formatProcessCommand(options.cmd);
   const controller = new AbortController();
   let timedOut = false;
@@ -283,92 +291,19 @@ async function spawnProcessText(options: {
     timedOut = true;
     controller.abort();
   }, options.timeoutMs);
+  const context: ProcessTextSpawnContext = {
+    ...options,
+    command,
+    controller,
+    didTimeOut: () => timedOut,
+  };
 
   try {
     if (typeof Bun !== "undefined" && typeof Bun.spawn === "function") {
-      const subprocess = Bun.spawn({
-        cmd: [...options.cmd],
-        cwd: options.cwd,
-        stdin: "ignore",
-        stdout: "pipe",
-        stderr: "pipe",
-        signal: controller.signal,
-        killSignal: "SIGKILL",
-      });
-
-      const [stdout, stderr, exitCode] = await Promise.all([
-        readWebStreamText({
-          stream: subprocess.stdout,
-          command,
-          streamKind: "stdout",
-          maxOutputBytes: options.maxOutputBytes,
-          controller,
-        }),
-        readWebStreamText({
-          stream: subprocess.stderr,
-          command,
-          streamKind: "stderr",
-          maxOutputBytes: options.maxOutputBytes,
-          controller,
-        }),
-        subprocess.exited,
-      ]);
-
-      if (timedOut) {
-        throw new CommandTimedOutError(command, options.timeoutMs);
-      }
-
-      if (exitCode !== 0) {
-        const detail = stderr.trim() || `exit code ${exitCode}`;
-        throw new Error(detail);
-      }
-
-      return stdout;
+      return await spawnBunProcessText(context);
     }
 
-    const subprocess = spawnChildProcess(options.cmd[0], options.cmd.slice(1), {
-      cwd: options.cwd,
-      stdio: ["ignore", "pipe", "pipe"],
-      signal: controller.signal,
-      killSignal: "SIGKILL",
-    });
-
-    const exitCodePromise = new Promise<number | null>((resolve, reject) => {
-      subprocess.on("error", (error: Error) => {
-        reject(timedOut ? new CommandTimedOutError(command, options.timeoutMs) : error);
-      });
-      subprocess.on("close", (code) => {
-        resolve(code);
-      });
-    });
-
-    const [stdout, stderr, exitCode] = await Promise.all([
-      readNodeStreamText({
-        stream: subprocess.stdout,
-        command,
-        streamKind: "stdout",
-        maxOutputBytes: options.maxOutputBytes,
-        controller,
-      }),
-      readNodeStreamText({
-        stream: subprocess.stderr,
-        command,
-        streamKind: "stderr",
-        maxOutputBytes: options.maxOutputBytes,
-        controller,
-      }),
-      exitCodePromise,
-    ]);
-
-    if (timedOut) {
-      throw new CommandTimedOutError(command, options.timeoutMs);
-    }
-
-    if (exitCode !== 0) {
-      throw new Error(stderr.trim() || `exit code ${exitCode ?? "null"}`);
-    }
-
-    return stdout;
+    return await spawnNodeProcessText(context);
   } catch (error) {
     if (timedOut) {
       throw new CommandTimedOutError(command, options.timeoutMs);
@@ -377,6 +312,100 @@ async function spawnProcessText(options: {
     throw error;
   } finally {
     clearTimeout(timer);
+  }
+}
+
+async function spawnBunProcessText(options: ProcessTextSpawnContext): Promise<string> {
+  const subprocess = Bun.spawn({
+    cmd: [...options.cmd],
+    cwd: options.cwd,
+    stdin: "ignore",
+    stdout: "pipe",
+    stderr: "pipe",
+    signal: options.controller.signal,
+    killSignal: "SIGKILL",
+  });
+
+  const [stdout, stderr, exitCode] = await Promise.all([
+    readWebStreamText({
+      stream: subprocess.stdout,
+      command: options.command,
+      streamKind: "stdout",
+      maxOutputBytes: options.maxOutputBytes,
+      controller: options.controller,
+    }),
+    readWebStreamText({
+      stream: subprocess.stderr,
+      command: options.command,
+      streamKind: "stderr",
+      maxOutputBytes: options.maxOutputBytes,
+      controller: options.controller,
+    }),
+    subprocess.exited,
+  ]);
+
+  assertProcessCompleted(options);
+  assertSuccessfulExit(exitCode, stderr, "null");
+  return stdout;
+}
+
+async function spawnNodeProcessText(options: ProcessTextSpawnContext): Promise<string> {
+  const subprocess = spawnChildProcess(options.cmd[0], options.cmd.slice(1), {
+    cwd: options.cwd,
+    stdio: ["ignore", "pipe", "pipe"],
+    signal: options.controller.signal,
+    killSignal: "SIGKILL",
+  });
+
+  const exitCodePromise = new Promise<number | null>((resolve, reject) => {
+    subprocess.on("error", (error: Error) => {
+      reject(
+        options.didTimeOut()
+          ? new CommandTimedOutError(options.command, options.timeoutMs)
+          : error,
+      );
+    });
+    subprocess.on("close", (code) => {
+      resolve(code);
+    });
+  });
+
+  const [stdout, stderr, exitCode] = await Promise.all([
+    readNodeStreamText({
+      stream: subprocess.stdout,
+      command: options.command,
+      streamKind: "stdout",
+      maxOutputBytes: options.maxOutputBytes,
+      controller: options.controller,
+    }),
+    readNodeStreamText({
+      stream: subprocess.stderr,
+      command: options.command,
+      streamKind: "stderr",
+      maxOutputBytes: options.maxOutputBytes,
+      controller: options.controller,
+    }),
+    exitCodePromise,
+  ]);
+
+  assertProcessCompleted(options);
+  assertSuccessfulExit(exitCode, stderr, "null");
+  return stdout;
+}
+
+function assertProcessCompleted(options: ProcessTextSpawnContext): void {
+  if (options.didTimeOut()) {
+    throw new CommandTimedOutError(options.command, options.timeoutMs);
+  }
+}
+
+function assertSuccessfulExit(
+  exitCode: number | null,
+  stderr: string,
+  nullExitLabel: string,
+): void {
+  if (exitCode !== 0) {
+    throw new Error(stderr.trim() || `exit code ${exitCode ?? nullExitLabel}`);
   }
 }
 
