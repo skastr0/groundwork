@@ -55,6 +55,17 @@ type BoundedContextReminder = {
   text: string;
 };
 
+type InjectContextReminderOptions = {
+  runtime: ContextLayerRuntime;
+  state: FrameworkSessionKernelState;
+  sessionID: string;
+  callID: string;
+  tool: string;
+  targetCount: number;
+  discoveredFiles: FrameworkDiscoveredContextFile[];
+  unseenFiles: FrameworkDiscoveredContextFile[];
+};
+
 export interface CreateFrameworkContextLayerOptions {
   client: FrameworkContextRuntimeClient;
   directory: string;
@@ -194,50 +205,63 @@ async function handleContextToolAfter(
   });
 }
 
-async function injectContextReminders(options: {
-  runtime: ContextLayerRuntime;
-  state: FrameworkSessionKernelState;
-  sessionID: string;
-  callID: string;
-  tool: string;
-  targetCount: number;
-  discoveredFiles: FrameworkDiscoveredContextFile[];
-  unseenFiles: FrameworkDiscoveredContextFile[];
-}): Promise<void> {
-  const { runtime, sessionID, callID, tool, discoveredFiles, unseenFiles } = options;
+async function injectContextReminders(options: InjectContextReminderOptions): Promise<void> {
+  const { runtime, sessionID, unseenFiles } = options;
   let { state } = options;
   const promptContext = await resolveContextPromptContext(runtime.client, state, sessionID);
   if (!promptContext) {
-    await logFrameworkEvent(
-      runtime.client,
-      SERVICE,
-      "warn",
-      "Skipping context injection because prompt context is unavailable",
-      {
-        sessionID,
-        callID,
-        tool,
-        target_count: options.targetCount,
-        context_paths: unseenFiles.map((file) => file.path),
-      },
-    );
+    await logSkippedContextInjection(options);
     return;
   }
 
-  state.promptContext ??= promptContext;
-  state = runtime.sessionStore.set(state);
-
+  state = cacheContextPromptContext(runtime, state, promptContext);
   const now = new Date().toISOString();
   const reminders = buildBoundedContextReminders(state, unseenFiles, now);
-  if (reminders.length === 0) {
-    return;
-  }
-
   const text = wrapContextReminder(reminders.map((reminder) => reminder.text));
-  if (!text) {
+  if (reminders.length === 0 || !text) {
     return;
   }
 
+  await sendContextReminderPrompt(runtime, sessionID, promptContext, text);
+  rememberInjectedContextFiles(runtime, state, reminders, now);
+  await logInjectedContextReminders(options, reminders, text);
+}
+
+async function logSkippedContextInjection(
+  options: InjectContextReminderOptions,
+): Promise<void> {
+  const { runtime, sessionID, callID, tool, unseenFiles } = options;
+
+  await logFrameworkEvent(
+    runtime.client,
+    SERVICE,
+    "warn",
+    "Skipping context injection because prompt context is unavailable",
+    {
+      sessionID,
+      callID,
+      tool,
+      target_count: options.targetCount,
+      context_paths: unseenFiles.map((file) => file.path),
+    },
+  );
+}
+
+function cacheContextPromptContext(
+  runtime: ContextLayerRuntime,
+  state: FrameworkSessionKernelState,
+  promptContext: FrameworkPromptContext,
+): FrameworkSessionKernelState {
+  state.promptContext ??= promptContext;
+  return runtime.sessionStore.set(state);
+}
+
+async function sendContextReminderPrompt(
+  runtime: ContextLayerRuntime,
+  sessionID: string,
+  promptContext: FrameworkPromptContext,
+  text: string,
+): Promise<void> {
   await runtime.client.session.prompt({
     path: { id: sessionID },
     body: {
@@ -252,7 +276,14 @@ async function injectContextReminders(options: {
       ],
     },
   });
+}
 
+function rememberInjectedContextFiles(
+  runtime: ContextLayerRuntime,
+  state: FrameworkSessionKernelState,
+  reminders: readonly BoundedContextReminder[],
+  now: string,
+): void {
   for (const reminder of reminders) {
     rememberFrameworkAction(state, {
       now,
@@ -266,6 +297,14 @@ async function injectContextReminders(options: {
     });
   }
   runtime.sessionStore.set(state);
+}
+
+async function logInjectedContextReminders(
+  options: InjectContextReminderOptions,
+  reminders: readonly BoundedContextReminder[],
+  text: string,
+): Promise<void> {
+  const { runtime, sessionID, callID, tool, discoveredFiles } = options;
 
   await logFrameworkEvent(runtime.client, SERVICE, "info", "Injected context reminders", {
     sessionID,
