@@ -1,0 +1,5457 @@
+{
+  "schema_version": 1,
+  "extracted_at_sha": "cb3cff4098a0e35d954897a15ac0c9ba2ed37ca8",
+  "confirmed_at": "2026-05-16T08:50:58.044Z",
+  "terms": [
+    {
+      "canonical": "ambient",
+      "aliases": [],
+      "frequency": 90,
+      "provenance": [
+        {
+          "package": ".",
+          "file": "src/provenance/classifier.ts",
+          "line": 261,
+          "identifier": "applyFrameworkAmbientBudget",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/classifier.ts",
+          "line": 87,
+          "identifier": "ApplyFrameworkAmbientBudgetOptions",
+          "identifier_kind": "interface"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/classifier.ts",
+          "line": 253,
+          "identifier": "classifyFrameworkAmbientTool",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/classifier.ts",
+          "line": 231,
+          "identifier": "FRAMEWORK_AMBIENT_BUDGET_LEDGER_KEYS",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/classifier.ts",
+          "line": 21,
+          "identifier": "FRAMEWORK_AMBIENT_CAPTURE_STRATEGY_VALUES",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/classifier.ts",
+          "line": 8,
+          "identifier": "FRAMEWORK_AMBIENT_PROVENANCE_TOOL_VALUES",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/classifier.ts",
+          "line": 32,
+          "identifier": "FRAMEWORK_AMBIENT_QUERY_STRATEGY_VALUES",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/classifier.ts",
+          "line": 78,
+          "identifier": "FrameworkAmbientBudgetApplicationResult",
+          "identifier_kind": "type"
+        }
+      ]
+    },
+    {
+      "canonical": "artifact",
+      "aliases": [],
+      "frequency": 27,
+      "provenance": [
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/expand/diff-anchor.ts",
+          "line": 26,
+          "identifier": "looksLikeDiffArtifact",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/expand/diff-response.ts",
+          "line": 13,
+          "identifier": "ArtifactAnchorResolution",
+          "identifier_kind": "type"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/expand/diff-response.ts",
+          "line": 66,
+          "identifier": "resolveDiffArtifactExpand",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/session/artifacts.ts",
+          "line": 347,
+          "identifier": "createEmptySessionArtifactState",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/session/artifacts.ts",
+          "line": 106,
+          "identifier": "getSessionArtifact",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/session/artifacts.ts",
+          "line": 102,
+          "identifier": "resolveArtifactRoot",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/session/artifacts.ts",
+          "line": 13,
+          "identifier": "SESSION_ARTIFACT_SCHEMA_VERSION",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/session/artifacts.ts",
+          "line": 18,
+          "identifier": "SessionArtifactRootInputSchema",
+          "identifier_kind": "const"
+        }
+      ]
+    },
+    {
+      "canonical": "authority",
+      "aliases": [],
+      "frequency": 20,
+      "provenance": [
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/score/schemas.ts",
+          "line": 194,
+          "identifier": "AuthorityAuthor",
+          "identifier_kind": "type"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/score/schemas.ts",
+          "line": 107,
+          "identifier": "AuthorityAuthorSchema",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/score/schemas.ts",
+          "line": 196,
+          "identifier": "AuthorityTotals",
+          "identifier_kind": "type"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/score/schemas.ts",
+          "line": 98,
+          "identifier": "AuthorityTotalsSchema",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/score/schemas.ts",
+          "line": 119,
+          "identifier": "ProvAuthorityDataSchema",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/score/schemas.ts",
+          "line": 135,
+          "identifier": "ProvAuthorityResultSchema",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/score/schemas.ts",
+          "line": 194,
+          "identifier": "AuthorityAuthor",
+          "identifier_kind": "exported-symbol"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/score/schemas.ts",
+          "line": 196,
+          "identifier": "AuthorityTotals",
+          "identifier_kind": "exported-symbol"
+        }
+      ]
+    },
+    {
+      "canonical": "budget",
+      "aliases": [],
+      "frequency": 90,
+      "provenance": [
+        {
+          "package": ".",
+          "file": "src/kernel/helpers.ts",
+          "line": 36,
+          "identifier": "ApplyFrameworkBudgetOptions",
+          "identifier_kind": "interface"
+        },
+        {
+          "package": ".",
+          "file": "src/kernel/helpers.ts",
+          "line": 384,
+          "identifier": "applyFrameworkCollectionBudget",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/kernel/helpers.ts",
+          "line": 478,
+          "identifier": "applyFrameworkEvidenceBudget",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/kernel/helpers.ts",
+          "line": 466,
+          "identifier": "applyFrameworkPromptBudget",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/kernel/helpers.ts",
+          "line": 233,
+          "identifier": "collectTextWithinByteBudget",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/kernel/helpers.ts",
+          "line": 123,
+          "identifier": "createBudgetMetadata",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/kernel/helpers.ts",
+          "line": 10,
+          "identifier": "FRAMEWORK_KERNEL_BUDGET_LEDGER_KEYS",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/kernel/helpers.ts",
+          "line": 22,
+          "identifier": "FrameworkBudgetBound",
+          "identifier_kind": "interface"
+        }
+      ]
+    },
+    {
+      "canonical": "cache",
+      "aliases": [],
+      "frequency": 42,
+      "provenance": [
+        {
+          "package": ".",
+          "file": "src/kernel/helpers.ts",
+          "line": 279,
+          "identifier": "clearFrameworkCacheEntry",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/kernel/helpers.ts",
+          "line": 88,
+          "identifier": "ensureCacheBucket",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/kernel/helpers.ts",
+          "line": 17,
+          "identifier": "FRAMEWORK_KERNEL_DEDUPE_CACHE_BUCKETS",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/kernel/helpers.ts",
+          "line": 247,
+          "identifier": "getFrameworkCacheEntry",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/kernel/helpers.ts",
+          "line": 256,
+          "identifier": "setFrameworkCacheEntry",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/kernel/state.ts",
+          "line": 239,
+          "identifier": "cloneCacheState",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/kernel/state.ts",
+          "line": 47,
+          "identifier": "FrameworkCacheBucket",
+          "identifier_kind": "interface"
+        },
+        {
+          "package": ".",
+          "file": "src/kernel/state.ts",
+          "line": 40,
+          "identifier": "FrameworkCacheEntry",
+          "identifier_kind": "interface"
+        }
+      ]
+    },
+    {
+      "canonical": "cli",
+      "aliases": [],
+      "frequency": 15,
+      "provenance": [
+        {
+          "package": ".",
+          "file": "src/cli.ts",
+          "line": 20,
+          "identifier": "cli",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/discovery.ts",
+          "line": 3,
+          "identifier": "CLI_NAME",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/discovery.ts",
+          "line": 4,
+          "identifier": "CLI_VERSION",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/protocol.ts",
+          "line": 6,
+          "identifier": "CliInputError",
+          "identifier_kind": "class"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/schemas.ts",
+          "line": 8,
+          "identifier": "DIRECT_PROVENANCE_CLI_COMMAND_NAMES",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/policy/config.ts",
+          "line": 2267,
+          "identifier": "runMatcherCliAgainstSource",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/cli-service.ts",
+          "line": 10,
+          "identifier": "CliToolContext",
+          "identifier_kind": "type"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/cli-service.ts",
+          "line": 67,
+          "identifier": "createCliToolContext",
+          "identifier_kind": "function"
+        }
+      ]
+    },
+    {
+      "canonical": "codex",
+      "aliases": [],
+      "frequency": 31,
+      "provenance": [
+        {
+          "package": ".",
+          "file": "src/cli.ts",
+          "line": 189,
+          "identifier": "validateCodexCommand",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/codex.ts",
+          "line": 349,
+          "identifier": "codexHooksConfig",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/codex.ts",
+          "line": 31,
+          "identifier": "CodexInstallProjectInput",
+          "identifier_kind": "type"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/codex.ts",
+          "line": 15,
+          "identifier": "CodexInstallProjectInputSchema",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/codex.ts",
+          "line": 32,
+          "identifier": "CodexInstallUserInput",
+          "identifier_kind": "type"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/codex.ts",
+          "line": 23,
+          "identifier": "CodexInstallUserInputSchema",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/codex.ts",
+          "line": 425,
+          "identifier": "codexLimitations",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/codex.ts",
+          "line": 454,
+          "identifier": "ensureCodexHooksFeature",
+          "identifier_kind": "function"
+        }
+      ]
+    },
+    {
+      "canonical": "command",
+      "aliases": [],
+      "frequency": 107,
+      "provenance": [
+        {
+          "package": ".",
+          "file": "src/cli.ts",
+          "line": 44,
+          "identifier": "CommandShapeFailure",
+          "identifier_kind": "interface"
+        },
+        {
+          "package": ".",
+          "file": "src/cli.ts",
+          "line": 189,
+          "identifier": "validateCodexCommand",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/cli.ts",
+          "line": 54,
+          "identifier": "validateCommandShape",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/cli.ts",
+          "line": 213,
+          "identifier": "validateDiscoveryCommand",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/cli.ts",
+          "line": 239,
+          "identifier": "validateInputCommand",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/codex.ts",
+          "line": 556,
+          "identifier": "commandFromHookPayload",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/codex.ts",
+          "line": 401,
+          "identifier": "defaultHookCommand",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/codex.ts",
+          "line": 607,
+          "identifier": "ParsedPolicyPromptCommand",
+          "identifier_kind": "type"
+        }
+      ]
+    },
+    {
+      "canonical": "context",
+      "aliases": [],
+      "frequency": 189,
+      "provenance": [
+        {
+          "package": ".",
+          "file": "src/cli/codex.ts",
+          "line": 597,
+          "identifier": "renderContextReminderMessage",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/codex.ts",
+          "line": 418,
+          "identifier": "sessionStartContext",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/commands.ts",
+          "line": 197,
+          "identifier": "contextCommand",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/commands.ts",
+          "line": 157,
+          "identifier": "contextDiscoverCommand",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/commands.ts",
+          "line": 188,
+          "identifier": "contextTouchedPathsCommand",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/schemas.ts",
+          "line": 433,
+          "identifier": "ContextDiscoverInput",
+          "identifier_kind": "type"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/schemas.ts",
+          "line": 205,
+          "identifier": "ContextDiscoverInputSchema",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/schemas.ts",
+          "line": 434,
+          "identifier": "ContextTouchedPathsInput",
+          "identifier_kind": "type"
+        }
+      ]
+    },
+    {
+      "canonical": "contract",
+      "aliases": [],
+      "frequency": 11,
+      "provenance": [
+        {
+          "package": ".",
+          "file": "src/cli/schemas.ts",
+          "line": 273,
+          "identifier": "CodexInstallProjectInputSchemaContract",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/schemas.ts",
+          "line": 289,
+          "identifier": "CodexInstallUserInputSchemaContract",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/schemas.ts",
+          "line": 400,
+          "identifier": "SessionCleanupInputSchemaContract",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/schemas.ts",
+          "line": 310,
+          "identifier": "SessionGetInputSchemaContract",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/schemas.ts",
+          "line": 342,
+          "identifier": "SessionOverrideInputSchemaContract",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/schemas.ts",
+          "line": 379,
+          "identifier": "SessionPutPendingToolInputSchemaContract",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/schemas.ts",
+          "line": 360,
+          "identifier": "SessionRememberActionInputSchemaContract",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/schemas.ts",
+          "line": 416,
+          "identifier": "SessionRenderCompactionInputSchemaContract",
+          "identifier_kind": "const"
+        }
+      ]
+    },
+    {
+      "canonical": "dedupe",
+      "aliases": [],
+      "frequency": 42,
+      "provenance": [
+        {
+          "package": ".",
+          "file": "src/context/runtime.ts",
+          "line": 35,
+          "identifier": "CONTEXT_DEDUPE_ACTION",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/context/runtime.ts",
+          "line": 34,
+          "identifier": "CONTEXT_DEDUPE_SOURCE",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/kernel/helpers.ts",
+          "line": 318,
+          "identifier": "createFrameworkActionDedupeKey",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/kernel/helpers.ts",
+          "line": 55,
+          "identifier": "CreateFrameworkActionDedupeKeyOptions",
+          "identifier_kind": "interface"
+        },
+        {
+          "package": ".",
+          "file": "src/kernel/helpers.ts",
+          "line": 300,
+          "identifier": "createFrameworkDedupeKey",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/kernel/helpers.ts",
+          "line": 308,
+          "identifier": "createFrameworkSyntheticInjectionDedupeKey",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/kernel/helpers.ts",
+          "line": 17,
+          "identifier": "FRAMEWORK_KERNEL_DEDUPE_CACHE_BUCKETS",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/kernel/helpers.ts",
+          "line": 66,
+          "identifier": "FrameworkDedupeHit",
+          "identifier_kind": "interface"
+        }
+      ]
+    },
+    {
+      "canonical": "diff",
+      "aliases": [],
+      "frequency": 87,
+      "provenance": [
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/diff.ts",
+          "line": 21,
+          "identifier": "diffLines",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/diff.ts",
+          "line": 6,
+          "identifier": "DiffOp",
+          "identifier_kind": "type"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/expand/change-summaries.ts",
+          "line": 54,
+          "identifier": "toDiffChangeSummary",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/expand/commit-expand.ts",
+          "line": 14,
+          "identifier": "COMMIT_DIFF_PARSE_MAX_OUTPUT_BYTES",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/expand/diff-anchor.ts",
+          "line": 6,
+          "identifier": "DiffAnchorResolution",
+          "identifier_kind": "type"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/expand/diff-anchor.ts",
+          "line": 26,
+          "identifier": "looksLikeDiffArtifact",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/expand/diff-anchor.ts",
+          "line": 35,
+          "identifier": "resolveDiffAnchor",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/expand/diff-parser.ts",
+          "line": 22,
+          "identifier": "ParsedDiffSection",
+          "identifier_kind": "type"
+        }
+      ]
+    },
+    {
+      "canonical": "enforcement",
+      "aliases": [],
+      "frequency": 17,
+      "provenance": [
+        {
+          "package": ".",
+          "file": "src/layer/dispatcher.ts",
+          "line": 119,
+          "identifier": "FrameworkEnforcementError",
+          "identifier_kind": "class"
+        },
+        {
+          "package": ".",
+          "file": "src/layer/dispatcher.ts",
+          "line": 131,
+          "identifier": "isFrameworkEnforcementError",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/policy/config.ts",
+          "line": 9,
+          "identifier": "GuardrailSkillEnforcementMode",
+          "identifier_kind": "type"
+        },
+        {
+          "package": ".",
+          "file": "src/policy/config.ts",
+          "line": 970,
+          "identifier": "parseSkillEnforcementMode",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/policy/config.ts",
+          "line": 156,
+          "identifier": "SKILL_ENFORCEMENT_MODE",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/layer/dispatcher.ts",
+          "line": 119,
+          "identifier": "FrameworkEnforcementError",
+          "identifier_kind": "exported-symbol"
+        },
+        {
+          "package": ".",
+          "file": "src/layer/dispatcher.ts",
+          "line": 131,
+          "identifier": "isFrameworkEnforcementError",
+          "identifier_kind": "exported-symbol"
+        },
+        {
+          "package": ".",
+          "file": "src/policy/config.ts",
+          "line": 9,
+          "identifier": "GuardrailSkillEnforcementMode",
+          "identifier_kind": "exported-symbol"
+        }
+      ]
+    },
+    {
+      "canonical": "evidence",
+      "aliases": [],
+      "frequency": 11,
+      "provenance": [
+        {
+          "package": ".",
+          "file": "src/kernel/helpers.ts",
+          "line": 478,
+          "identifier": "applyFrameworkEvidenceBudget",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/contracts.ts",
+          "line": 37,
+          "identifier": "ProvenanceEvidenceSource",
+          "identifier_kind": "type"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/contracts.ts",
+          "line": 29,
+          "identifier": "ProvenanceEvidenceSourceSchema",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/kernel/helpers.ts",
+          "line": 478,
+          "identifier": "applyFrameworkEvidenceBudget",
+          "identifier_kind": "exported-symbol"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/contracts.ts",
+          "line": 37,
+          "identifier": "ProvenanceEvidenceSource",
+          "identifier_kind": "exported-symbol"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/contracts.ts",
+          "line": 29,
+          "identifier": "ProvenanceEvidenceSourceSchema",
+          "identifier_kind": "exported-symbol"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/lineage/index.ts",
+          "line": 34,
+          "identifier": "CONTRIBUTOR_EVIDENCE_KIND_VALUES",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/lineage/index.ts",
+          "line": 412,
+          "identifier": "toCommitEvidenceSources",
+          "identifier_kind": "function"
+        }
+      ]
+    },
+    {
+      "canonical": "file",
+      "aliases": [
+        "files"
+      ],
+      "frequency": 190,
+      "provenance": [
+        {
+          "package": ".",
+          "file": "src/cli/codex.ts",
+          "line": 434,
+          "identifier": "fileCheck",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/codex.ts",
+          "line": 514,
+          "identifier": "fileExists",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/codex.ts",
+          "line": 443,
+          "identifier": "writeFileIfAllowed",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/commands.ts",
+          "line": 307,
+          "identifier": "provenanceFileStateCommand",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/schemas.ts",
+          "line": 436,
+          "identifier": "ProvenanceFileStateInput",
+          "identifier_kind": "type"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/schemas.ts",
+          "line": 229,
+          "identifier": "ProvenanceFileStateInputSchema",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/context/cli-service.ts",
+          "line": 87,
+          "identifier": "collectDiscoveredContextFiles",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/context/cli-service.ts",
+          "line": 204,
+          "identifier": "toContextFileSummary",
+          "identifier_kind": "function"
+        }
+      ]
+    },
+    {
+      "canonical": "framework",
+      "aliases": [],
+      "frequency": 537,
+      "provenance": [
+        {
+          "package": ".",
+          "file": "src/context/discovery.ts",
+          "line": 43,
+          "identifier": "discoverFrameworkContextFiles",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/context/discovery.ts",
+          "line": 17,
+          "identifier": "DiscoverFrameworkContextFilesOptions",
+          "identifier_kind": "interface"
+        },
+        {
+          "package": ".",
+          "file": "src/context/discovery.ts",
+          "line": 4,
+          "identifier": "FRAMEWORK_CONTEXT_RULE_FILES",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/context/discovery.ts",
+          "line": 9,
+          "identifier": "FrameworkContextRuleFileName",
+          "identifier_kind": "type"
+        },
+        {
+          "package": ".",
+          "file": "src/context/discovery.ts",
+          "line": 11,
+          "identifier": "FrameworkDiscoveredContextFile",
+          "identifier_kind": "interface"
+        },
+        {
+          "package": ".",
+          "file": "src/context/runtime.ts",
+          "line": 72,
+          "identifier": "createFrameworkContextLayer",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/context/runtime.ts",
+          "line": 56,
+          "identifier": "CreateFrameworkContextLayerOptions",
+          "identifier_kind": "interface"
+        },
+        {
+          "package": ".",
+          "file": "src/context/runtime.ts",
+          "line": 38,
+          "identifier": "FRAMEWORK_CONTEXT_INJECTION_MAX_BYTES",
+          "identifier_kind": "const"
+        }
+      ]
+    },
+    {
+      "canonical": "git",
+      "aliases": [],
+      "frequency": 16,
+      "provenance": [
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/expand/diff-parser.ts",
+          "line": 45,
+          "identifier": "parseDiffGitHeader",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/state/local-state.ts",
+          "line": 196,
+          "identifier": "GitPathMetadata",
+          "identifier_kind": "type"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/state/local-state.ts",
+          "line": 1256,
+          "identifier": "missingGitPathMetadata",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/state/local-state.ts",
+          "line": 672,
+          "identifier": "parseGitTreeMetadata",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/state/local-state.ts",
+          "line": 706,
+          "identifier": "readGitTreeMetadata",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/risk/rules.ts",
+          "line": 168,
+          "identifier": "evaluateGit",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "review/pr-comments.ts",
+          "line": 70,
+          "identifier": "GitHubIssueComment",
+          "identifier_kind": "interface"
+        },
+        {
+          "package": ".",
+          "file": "review/pr-comments.ts",
+          "line": 47,
+          "identifier": "GitHubReview",
+          "identifier_kind": "interface"
+        }
+      ]
+    },
+    {
+      "canonical": "groundwork",
+      "aliases": [
+        "gw"
+      ],
+      "frequency": 130,
+      "provenance": [
+        {
+          "package": ".",
+          "file": "src/layer/dispatcher.ts",
+          "line": 155,
+          "identifier": "createGroundworkHookDispatcher",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/layer/dispatcher.ts",
+          "line": 4,
+          "identifier": "GROUNDWORK_HOOK_SURFACE",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/layer/dispatcher.ts",
+          "line": 14,
+          "identifier": "GROUNDWORK_LAYER_ORDER",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/layer/dispatcher.ts",
+          "line": 40,
+          "identifier": "GroundworkDispatcher",
+          "identifier_kind": "interface"
+        },
+        {
+          "package": ".",
+          "file": "src/layer/dispatcher.ts",
+          "line": 21,
+          "identifier": "GroundworkHookName",
+          "identifier_kind": "type"
+        },
+        {
+          "package": ".",
+          "file": "src/layer/dispatcher.ts",
+          "line": 51,
+          "identifier": "GroundworkLayerHooks",
+          "identifier_kind": "interface"
+        },
+        {
+          "package": ".",
+          "file": "src/layer/dispatcher.ts",
+          "line": 61,
+          "identifier": "GroundworkLayerRegistration",
+          "identifier_kind": "interface"
+        },
+        {
+          "package": ".",
+          "file": "src/layer/dispatcher.ts",
+          "line": 67,
+          "identifier": "GroundworkLayerRegistry",
+          "identifier_kind": "type"
+        }
+      ]
+    },
+    {
+      "canonical": "guard",
+      "aliases": [],
+      "frequency": 36,
+      "provenance": [
+        {
+          "package": ".",
+          "file": "src/risk/rules.ts",
+          "line": 27,
+          "identifier": "DEFAULT_GUARD_CONFIG",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/risk/rules.ts",
+          "line": 3,
+          "identifier": "GuardConfig",
+          "identifier_kind": "type"
+        },
+        {
+          "package": ".",
+          "file": "src/risk/rules.ts",
+          "line": 18,
+          "identifier": "GuardDecision",
+          "identifier_kind": "type"
+        },
+        {
+          "package": ".",
+          "file": "src/risk/rules.ts",
+          "line": 1,
+          "identifier": "GuardMode",
+          "identifier_kind": "type"
+        },
+        {
+          "package": ".",
+          "file": "src/risk/rules.ts",
+          "line": 9,
+          "identifier": "GuardSeverity",
+          "identifier_kind": "type"
+        },
+        {
+          "package": ".",
+          "file": "src/risk/rules.ts",
+          "line": 11,
+          "identifier": "GuardViolation",
+          "identifier_kind": "type"
+        },
+        {
+          "package": ".",
+          "file": "src/risk/rules.ts",
+          "line": 27,
+          "identifier": "DEFAULT_GUARD_CONFIG",
+          "identifier_kind": "exported-symbol"
+        },
+        {
+          "package": ".",
+          "file": "src/risk/rules.ts",
+          "line": 3,
+          "identifier": "GuardConfig",
+          "identifier_kind": "exported-symbol"
+        }
+      ]
+    },
+    {
+      "canonical": "guardrail",
+      "aliases": [],
+      "frequency": 47,
+      "provenance": [
+        {
+          "package": ".",
+          "file": "src/policy/cli-service.ts",
+          "line": 569,
+          "identifier": "materializeGuardrailTargets",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/policy/config.ts",
+          "line": 154,
+          "identifier": "GUARDRAIL_SEVERITY",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/policy/config.ts",
+          "line": 12,
+          "identifier": "GuardrailAction",
+          "identifier_kind": "type"
+        },
+        {
+          "package": ".",
+          "file": "src/policy/config.ts",
+          "line": 94,
+          "identifier": "GuardrailChangeTarget",
+          "identifier_kind": "type"
+        },
+        {
+          "package": ".",
+          "file": "src/policy/config.ts",
+          "line": 61,
+          "identifier": "GuardrailContentMatcher",
+          "identifier_kind": "type"
+        },
+        {
+          "package": ".",
+          "file": "src/policy/config.ts",
+          "line": 10,
+          "identifier": "GuardrailContentScope",
+          "identifier_kind": "type"
+        },
+        {
+          "package": ".",
+          "file": "src/policy/config.ts",
+          "line": 8,
+          "identifier": "GuardrailMatcherExpectation",
+          "identifier_kind": "type"
+        },
+        {
+          "package": ".",
+          "file": "src/policy/config.ts",
+          "line": 101,
+          "identifier": "GuardrailMatcherSnippet",
+          "identifier_kind": "type"
+        }
+      ]
+    },
+    {
+      "canonical": "guidance",
+      "aliases": [],
+      "frequency": 16,
+      "provenance": [
+        {
+          "package": ".",
+          "file": "src/provenance/runtime.ts",
+          "line": 52,
+          "identifier": "FRAMEWORK_SYSTEM_TRANSFORM_GUIDANCE",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/runtime.ts",
+          "line": 37,
+          "identifier": "FRAMEWORK_TOOL_DEFINITION_GUIDANCE_BY_QUERY_STRATEGY",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/runtime.ts",
+          "line": 133,
+          "identifier": "renderFrameworkSystemTransformGuidance",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/runtime.ts",
+          "line": 159,
+          "identifier": "renderFrameworkToolDefinitionGuidance",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/runtime.ts",
+          "line": 52,
+          "identifier": "FRAMEWORK_SYSTEM_TRANSFORM_GUIDANCE",
+          "identifier_kind": "exported-symbol"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/runtime.ts",
+          "line": 133,
+          "identifier": "renderFrameworkSystemTransformGuidance",
+          "identifier_kind": "exported-symbol"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/runtime.ts",
+          "line": 159,
+          "identifier": "renderFrameworkToolDefinitionGuidance",
+          "identifier_kind": "exported-symbol"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/index.ts",
+          "line": 52,
+          "identifier": "FRAMEWORK_SYSTEM_TRANSFORM_GUIDANCE",
+          "identifier_kind": "exported-symbol"
+        }
+      ]
+    },
+    {
+      "canonical": "history",
+      "aliases": [],
+      "frequency": 64,
+      "provenance": [
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/expand/tree-tools.ts",
+          "line": 66,
+          "identifier": "TREE_HISTORY_PARSE_MAX_OUTPUT_BYTES",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/score/schemas.ts",
+          "line": 193,
+          "identifier": "HistorySummary",
+          "identifier_kind": "type"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/score/schemas.ts",
+          "line": 48,
+          "identifier": "HistorySummarySchema",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/tests/provenance-lineage-tools.test.ts",
+          "line": 239,
+          "identifier": "createSpanHistoryTool",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/tests/provenance-score-tools.test.ts",
+          "line": 140,
+          "identifier": "createFileHistoryLog",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/tests/provenance-score-tools.test.ts",
+          "line": 108,
+          "identifier": "createHistoryResponses",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/tests/provenance-score-tools.test.ts",
+          "line": 128,
+          "identifier": "createSrcHistoryLog",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/score/schemas.ts",
+          "line": 193,
+          "identifier": "HistorySummary",
+          "identifier_kind": "exported-symbol"
+        }
+      ]
+    },
+    {
+      "canonical": "hook",
+      "aliases": [
+        "hooks"
+      ],
+      "frequency": 91,
+      "provenance": [
+        {
+          "package": ".",
+          "file": "src/cli/codex.ts",
+          "line": 349,
+          "identifier": "codexHooksConfig",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/codex.ts",
+          "line": 603,
+          "identifier": "combineHookMessages",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/codex.ts",
+          "line": 556,
+          "identifier": "commandFromHookPayload",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/codex.ts",
+          "line": 544,
+          "identifier": "cwdFromHookPayload",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/codex.ts",
+          "line": 401,
+          "identifier": "defaultHookCommand",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/codex.ts",
+          "line": 454,
+          "identifier": "ensureCodexHooksFeature",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/codex.ts",
+          "line": 482,
+          "identifier": "patchCodexHooksFeature",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/codex.ts",
+          "line": 531,
+          "identifier": "readHookPayload",
+          "identifier_kind": "function"
+        }
+      ]
+    },
+    {
+      "canonical": "hotspot",
+      "aliases": [
+        "hotspots"
+      ],
+      "frequency": 34,
+      "provenance": [
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/score/schemas.ts",
+          "line": 59,
+          "identifier": "HotspotAnchorSchema",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/score/schemas.ts",
+          "line": 191,
+          "identifier": "HotspotItem",
+          "identifier_kind": "type"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/score/schemas.ts",
+          "line": 66,
+          "identifier": "HotspotItemSchema",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/score/schemas.ts",
+          "line": 192,
+          "identifier": "HotspotWindow",
+          "identifier_kind": "type"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/score/schemas.ts",
+          "line": 78,
+          "identifier": "HotspotWindowSchema",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/score/schemas.ts",
+          "line": 89,
+          "identifier": "ProvHotspotsDataSchema",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/score/schemas.ts",
+          "line": 96,
+          "identifier": "ProvHotspotsResultSchema",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/score/schemas.ts",
+          "line": 191,
+          "identifier": "HotspotItem",
+          "identifier_kind": "exported-symbol"
+        }
+      ]
+    },
+    {
+      "canonical": "injection",
+      "aliases": [],
+      "frequency": 25,
+      "provenance": [
+        {
+          "package": ".",
+          "file": "src/context/runtime.ts",
+          "line": 38,
+          "identifier": "FRAMEWORK_CONTEXT_INJECTION_MAX_BYTES",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/context/runtime.ts",
+          "line": 37,
+          "identifier": "FRAMEWORK_CONTEXT_INJECTION_MAX_ITEMS",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/kernel/helpers.ts",
+          "line": 308,
+          "identifier": "createFrameworkSyntheticInjectionDedupeKey",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/kernel/helpers.ts",
+          "line": 328,
+          "identifier": "rememberFrameworkSyntheticInjection",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/kernel/helpers.ts",
+          "line": 47,
+          "identifier": "RememberFrameworkSyntheticInjectionOptions",
+          "identifier_kind": "interface"
+        },
+        {
+          "package": ".",
+          "file": "src/context/runtime.ts",
+          "line": 38,
+          "identifier": "FRAMEWORK_CONTEXT_INJECTION_MAX_BYTES",
+          "identifier_kind": "exported-symbol"
+        },
+        {
+          "package": ".",
+          "file": "src/context/runtime.ts",
+          "line": 37,
+          "identifier": "FRAMEWORK_CONTEXT_INJECTION_MAX_ITEMS",
+          "identifier_kind": "exported-symbol"
+        },
+        {
+          "package": ".",
+          "file": "src/kernel/helpers.ts",
+          "line": 308,
+          "identifier": "createFrameworkSyntheticInjectionDedupeKey",
+          "identifier_kind": "exported-symbol"
+        }
+      ]
+    },
+    {
+      "canonical": "install",
+      "aliases": [],
+      "frequency": 18,
+      "provenance": [
+        {
+          "package": ".",
+          "file": "src/cli/codex.ts",
+          "line": 31,
+          "identifier": "CodexInstallProjectInput",
+          "identifier_kind": "type"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/codex.ts",
+          "line": 15,
+          "identifier": "CodexInstallProjectInputSchema",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/codex.ts",
+          "line": 32,
+          "identifier": "CodexInstallUserInput",
+          "identifier_kind": "type"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/codex.ts",
+          "line": 23,
+          "identifier": "CodexInstallUserInputSchema",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/codex.ts",
+          "line": 106,
+          "identifier": "installCodexProject",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/codex.ts",
+          "line": 133,
+          "identifier": "installCodexUser",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/commands.ts",
+          "line": 258,
+          "identifier": "codexInstallProjectCommand",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/commands.ts",
+          "line": 270,
+          "identifier": "codexInstallUserCommand",
+          "identifier_kind": "const"
+        }
+      ]
+    },
+    {
+      "canonical": "json",
+      "aliases": [],
+      "frequency": 45,
+      "provenance": [
+        {
+          "package": ".",
+          "file": "src/cli/codex.ts",
+          "line": 540,
+          "identifier": "writeHookJson",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/protocol.ts",
+          "line": 45,
+          "identifier": "decodeJsonInput",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/protocol.ts",
+          "line": 76,
+          "identifier": "executeJsonCommand",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/protocol.ts",
+          "line": 4,
+          "identifier": "JsonObject",
+          "identifier_kind": "type"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/protocol.ts",
+          "line": 33,
+          "identifier": "readJsonInput",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/kernel/helpers.ts",
+          "line": 76,
+          "identifier": "cloneJsonObject",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/kernel/helpers.ts",
+          "line": 72,
+          "identifier": "cloneJsonValue",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/kernel/prompt-context.ts",
+          "line": 43,
+          "identifier": "isJsonObject",
+          "identifier_kind": "function"
+        }
+      ]
+    },
+    {
+      "canonical": "kernel",
+      "aliases": [],
+      "frequency": 46,
+      "provenance": [
+        {
+          "package": ".",
+          "file": "src/kernel/helpers.ts",
+          "line": 10,
+          "identifier": "FRAMEWORK_KERNEL_BUDGET_LEDGER_KEYS",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/kernel/helpers.ts",
+          "line": 17,
+          "identifier": "FRAMEWORK_KERNEL_DEDUPE_CACHE_BUCKETS",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/kernel/state.ts",
+          "line": 425,
+          "identifier": "cleanupSessionKernelState",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/kernel/state.ts",
+          "line": 432,
+          "identifier": "cleanupSessionKernelStates",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/kernel/state.ts",
+          "line": 348,
+          "identifier": "createSessionKernelState",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/kernel/state.ts",
+          "line": 141,
+          "identifier": "CreateSessionKernelStateOptions",
+          "identifier_kind": "interface"
+        },
+        {
+          "package": ".",
+          "file": "src/kernel/state.ts",
+          "line": 367,
+          "identifier": "createSessionKernelStore",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/kernel/state.ts",
+          "line": 129,
+          "identifier": "FrameworkSessionKernelState",
+          "identifier_kind": "interface"
+        }
+      ]
+    },
+    {
+      "canonical": "layer",
+      "aliases": [
+        "layers"
+      ],
+      "frequency": 118,
+      "provenance": [
+        {
+          "package": ".",
+          "file": "src/context/runtime.ts",
+          "line": 64,
+          "identifier": "ContextLayerRuntime",
+          "identifier_kind": "type"
+        },
+        {
+          "package": ".",
+          "file": "src/context/runtime.ts",
+          "line": 98,
+          "identifier": "createContextLayerHooks",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/context/runtime.ts",
+          "line": 72,
+          "identifier": "createFrameworkContextLayer",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/context/runtime.ts",
+          "line": 56,
+          "identifier": "CreateFrameworkContextLayerOptions",
+          "identifier_kind": "interface"
+        },
+        {
+          "package": ".",
+          "file": "src/layer/dispatcher.ts",
+          "line": 78,
+          "identifier": "EMPTY_LAYER_HOOKS",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/layer/dispatcher.ts",
+          "line": 14,
+          "identifier": "GROUNDWORK_LAYER_ORDER",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/layer/dispatcher.ts",
+          "line": 51,
+          "identifier": "GroundworkLayerHooks",
+          "identifier_kind": "interface"
+        },
+        {
+          "package": ".",
+          "file": "src/layer/dispatcher.ts",
+          "line": 61,
+          "identifier": "GroundworkLayerRegistration",
+          "identifier_kind": "interface"
+        }
+      ]
+    },
+    {
+      "canonical": "ledger",
+      "aliases": [],
+      "frequency": 16,
+      "provenance": [
+        {
+          "package": ".",
+          "file": "src/kernel/helpers.ts",
+          "line": 10,
+          "identifier": "FRAMEWORK_KERNEL_BUDGET_LEDGER_KEYS",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/kernel/helpers.ts",
+          "line": 102,
+          "identifier": "updateBudgetLedger",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/kernel/state.ts",
+          "line": 57,
+          "identifier": "FrameworkBudgetLedger",
+          "identifier_kind": "interface"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/classifier.ts",
+          "line": 231,
+          "identifier": "FRAMEWORK_AMBIENT_BUDGET_LEDGER_KEYS",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/kernel/helpers.ts",
+          "line": 10,
+          "identifier": "FRAMEWORK_KERNEL_BUDGET_LEDGER_KEYS",
+          "identifier_kind": "exported-symbol"
+        },
+        {
+          "package": ".",
+          "file": "src/kernel/state.ts",
+          "line": 57,
+          "identifier": "FrameworkBudgetLedger",
+          "identifier_kind": "exported-symbol"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/classifier.ts",
+          "line": 231,
+          "identifier": "FRAMEWORK_AMBIENT_BUDGET_LEDGER_KEYS",
+          "identifier_kind": "exported-symbol"
+        },
+        {
+          "package": ".",
+          "file": "src/kernel/index.ts",
+          "line": 10,
+          "identifier": "FRAMEWORK_KERNEL_BUDGET_LEDGER_KEYS",
+          "identifier_kind": "exported-symbol"
+        }
+      ]
+    },
+    {
+      "canonical": "lineage",
+      "aliases": [],
+      "frequency": 14,
+      "provenance": [
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/lineage/index.ts",
+          "line": 300,
+          "identifier": "createLineageEntries",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/lineage/index.ts",
+          "line": 529,
+          "identifier": "createLineageTools",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/lineage/index.ts",
+          "line": 32,
+          "identifier": "LINEAGE_ENTRY_KIND_VALUES",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/lineage/index.ts",
+          "line": 78,
+          "identifier": "LineageEntry",
+          "identifier_kind": "type"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/lineage/index.ts",
+          "line": 467,
+          "identifier": "LocalSpanLineageResolution",
+          "identifier_kind": "interface"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/lineage/index.ts",
+          "line": 477,
+          "identifier": "resolveLocalSpanLineage",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/lineage/index.ts",
+          "line": 457,
+          "identifier": "ResolveLocalSpanLineageOptions",
+          "identifier_kind": "interface"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/lineage/index.ts",
+          "line": 129,
+          "identifier": "SpanHistoryLineageEntrySchema",
+          "identifier_kind": "const"
+        }
+      ]
+    },
+    {
+      "canonical": "lock",
+      "aliases": [],
+      "frequency": 31,
+      "provenance": [
+        {
+          "package": ".",
+          "file": "src/kernel/state.ts",
+          "line": 221,
+          "identifier": "cloneLockState",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/kernel/state.ts",
+          "line": 24,
+          "identifier": "FrameworkLockScope",
+          "identifier_kind": "type"
+        },
+        {
+          "package": ".",
+          "file": "src/kernel/state.ts",
+          "line": 36,
+          "identifier": "FrameworkLockState",
+          "identifier_kind": "interface"
+        },
+        {
+          "package": ".",
+          "file": "src/kernel/state.ts",
+          "line": 26,
+          "identifier": "FrameworkSessionLock",
+          "identifier_kind": "interface"
+        },
+        {
+          "package": ".",
+          "file": "src/policy/cli-service.ts",
+          "line": 33,
+          "identifier": "POLICY_PENDING_OVERRIDE_LOCK_KEY",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/policy/cli-service.ts",
+          "line": 34,
+          "identifier": "POLICY_TERMINATION_LOCK_KEY",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/policy/cli-service.ts",
+          "line": 648,
+          "identifier": "setLock",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/policy/runtime.ts",
+          "line": 416,
+          "identifier": "clearPendingHumanOverrideLock",
+          "identifier_kind": "function"
+        }
+      ]
+    },
+    {
+      "canonical": "logger",
+      "aliases": [],
+      "frequency": 18,
+      "provenance": [
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/utils/logger.ts",
+          "line": 6,
+          "identifier": "initLogger",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/utils/logger.ts",
+          "line": 31,
+          "identifier": "logger",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "review/utils/logger.ts",
+          "line": 53,
+          "identifier": "createRequestLogger",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "review/utils/logger.ts",
+          "line": 9,
+          "identifier": "initLogger",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "review/utils/logger.ts",
+          "line": 38,
+          "identifier": "logger",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/utils/logger.ts",
+          "line": 6,
+          "identifier": "initLogger",
+          "identifier_kind": "exported-symbol"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/utils/logger.ts",
+          "line": 31,
+          "identifier": "logger",
+          "identifier_kind": "exported-symbol"
+        },
+        {
+          "package": ".",
+          "file": "review/utils/logger.ts",
+          "line": 53,
+          "identifier": "createRequestLogger",
+          "identifier_kind": "exported-symbol"
+        }
+      ]
+    },
+    {
+      "canonical": "matcher",
+      "aliases": [],
+      "frequency": 53,
+      "provenance": [
+        {
+          "package": ".",
+          "file": "src/policy/config.ts",
+          "line": 723,
+          "identifier": "assertSingleContentMatcherType",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/policy/config.ts",
+          "line": 42,
+          "identifier": "AstGrepContentMatcher",
+          "identifier_kind": "type"
+        },
+        {
+          "package": ".",
+          "file": "src/policy/config.ts",
+          "line": 1398,
+          "identifier": "evaluateMatcherExpectation",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/policy/config.ts",
+          "line": 61,
+          "identifier": "GuardrailContentMatcher",
+          "identifier_kind": "type"
+        },
+        {
+          "package": ".",
+          "file": "src/policy/config.ts",
+          "line": 8,
+          "identifier": "GuardrailMatcherExpectation",
+          "identifier_kind": "type"
+        },
+        {
+          "package": ".",
+          "file": "src/policy/config.ts",
+          "line": 101,
+          "identifier": "GuardrailMatcherSnippet",
+          "identifier_kind": "type"
+        },
+        {
+          "package": ".",
+          "file": "src/policy/config.ts",
+          "line": 167,
+          "identifier": "MATCHER_CONCURRENCY",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/policy/config.ts",
+          "line": 155,
+          "identifier": "MATCHER_EXPECTATION",
+          "identifier_kind": "const"
+        }
+      ]
+    },
+    {
+      "canonical": "materialize",
+      "aliases": [],
+      "frequency": 44,
+      "provenance": [
+        {
+          "package": ".",
+          "file": "src/layer/dispatcher.ts",
+          "line": 85,
+          "identifier": "materializeGroundworkLayers",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/policy/cli-service.ts",
+          "line": 569,
+          "identifier": "materializeGuardrailTargets",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/policy/config.ts",
+          "line": 1770,
+          "identifier": "materializeChangeTargets",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/policy/runtime.ts",
+          "line": 955,
+          "identifier": "materializeGuardrailTargets",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/expand/commit-expand.ts",
+          "line": 167,
+          "identifier": "buildCommitMaterializeSummary",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/expand/commit-expand.ts",
+          "line": 98,
+          "identifier": "materializeCommit",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/expand/commit-tools.ts",
+          "line": 46,
+          "identifier": "buildCommitMaterializeResponse",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/expand/commit-tools.ts",
+          "line": 101,
+          "identifier": "createCommitMaterializeTool",
+          "identifier_kind": "function"
+        }
+      ]
+    },
+    {
+      "canonical": "metadata",
+      "aliases": [],
+      "frequency": 23,
+      "provenance": [
+        {
+          "package": ".",
+          "file": "src/kernel/helpers.ts",
+          "line": 123,
+          "identifier": "createBudgetMetadata",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/policy/runtime.ts",
+          "line": 43,
+          "identifier": "POLICY_RUNTIME_METADATA_KEY",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/runtime.ts",
+          "line": 30,
+          "identifier": "FRAMEWORK_POLICY_RUNTIME_METADATA_KEY",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/runtime.ts",
+          "line": 312,
+          "identifier": "readPolicyRuntimeMetadata",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/expand/commit-expand.ts",
+          "line": 16,
+          "identifier": "resolveCommitMetadata",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/expand/diff-parser.ts",
+          "line": 82,
+          "identifier": "applyMetadataDirective",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/expand/pr-tools.ts",
+          "line": 94,
+          "identifier": "GhPrMetadata",
+          "identifier_kind": "type"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/expand/pr-tools.ts",
+          "line": 128,
+          "identifier": "RemoteMetadataResolution",
+          "identifier_kind": "type"
+        }
+      ]
+    },
+    {
+      "canonical": "mode",
+      "aliases": [],
+      "frequency": 39,
+      "provenance": [
+        {
+          "package": ".",
+          "file": "src/cli/schemas.ts",
+          "line": 25,
+          "identifier": "OptionalHybridModeProperty",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/schemas.ts",
+          "line": 24,
+          "identifier": "OptionalLocalModeProperty",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/policy/config.ts",
+          "line": 9,
+          "identifier": "GuardrailSkillEnforcementMode",
+          "identifier_kind": "type"
+        },
+        {
+          "package": ".",
+          "file": "src/policy/config.ts",
+          "line": 870,
+          "identifier": "parseContentMode",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/policy/config.ts",
+          "line": 970,
+          "identifier": "parseSkillEnforcementMode",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/policy/config.ts",
+          "line": 156,
+          "identifier": "SKILL_ENFORCEMENT_MODE",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/args.ts",
+          "line": 143,
+          "identifier": "provenanceModeArg",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/contracts.ts",
+          "line": 7,
+          "identifier": "PROVENANCE_MODE_VALUES",
+          "identifier_kind": "const"
+        }
+      ]
+    },
+    {
+      "canonical": "override",
+      "aliases": [],
+      "frequency": 28,
+      "provenance": [
+        {
+          "package": ".",
+          "file": "src/cli/commands.ts",
+          "line": 226,
+          "identifier": "policyOverrideCommand",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/commands.ts",
+          "line": 377,
+          "identifier": "sessionOverrideCommand",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/schemas.ts",
+          "line": 440,
+          "identifier": "PolicyOverrideInput",
+          "identifier_kind": "type"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/schemas.ts",
+          "line": 263,
+          "identifier": "PolicyOverrideInputSchema",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/schemas.ts",
+          "line": 342,
+          "identifier": "SessionOverrideInputSchemaContract",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/policy/cli-service.ts",
+          "line": 239,
+          "identifier": "acceptPolicyOverride",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/policy/cli-service.ts",
+          "line": 435,
+          "identifier": "handleRequireHumanOverrideAction",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/policy/cli-service.ts",
+          "line": 33,
+          "identifier": "POLICY_PENDING_OVERRIDE_LOCK_KEY",
+          "identifier_kind": "const"
+        }
+      ]
+    },
+    {
+      "canonical": "patch",
+      "aliases": [],
+      "frequency": 48,
+      "provenance": [
+        {
+          "package": ".",
+          "file": "src/cli/codex.ts",
+          "line": 482,
+          "identifier": "patchCodexHooksFeature",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/kernel/state.ts",
+          "line": 77,
+          "identifier": "FrameworkToolTargetPatchAction",
+          "identifier_kind": "type"
+        },
+        {
+          "package": ".",
+          "file": "src/kernel/tool-targets.ts",
+          "line": 155,
+          "identifier": "buildPatchSource",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/kernel/tool-targets.ts",
+          "line": 196,
+          "identifier": "buildPatchTarget",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/kernel/tool-targets.ts",
+          "line": 33,
+          "identifier": "MAX_PATCH_PATH_LENGTH",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/kernel/tool-targets.ts",
+          "line": 13,
+          "identifier": "ParsedPatchTarget",
+          "identifier_kind": "type"
+        },
+        {
+          "package": ".",
+          "file": "src/kernel/tool-targets.ts",
+          "line": 89,
+          "identifier": "parsePatchTargets",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/kernel/tool-targets.ts",
+          "line": 32,
+          "identifier": "PATCH_KEYS",
+          "identifier_kind": "const"
+        }
+      ]
+    },
+    {
+      "canonical": "path",
+      "aliases": [
+        "paths"
+      ],
+      "frequency": 128,
+      "provenance": [
+        {
+          "package": ".",
+          "file": "src/cli/commands.ts",
+          "line": 188,
+          "identifier": "contextTouchedPathsCommand",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/schemas.ts",
+          "line": 434,
+          "identifier": "ContextTouchedPathsInput",
+          "identifier_kind": "type"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/schemas.ts",
+          "line": 213,
+          "identifier": "ContextTouchedPathsInputSchema",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/schemas.ts",
+          "line": 26,
+          "identifier": "PathProperty",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/context/cli-service.ts",
+          "line": 14,
+          "identifier": "ContextTouchedPathsInput",
+          "identifier_kind": "interface"
+        },
+        {
+          "package": ".",
+          "file": "src/context/cli-service.ts",
+          "line": 24,
+          "identifier": "evaluateContextTouchedPaths",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/context/cli-service.ts",
+          "line": 200,
+          "identifier": "normalizeSlashPath",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/context/cli-service.ts",
+          "line": 186,
+          "identifier": "normalizeTouchedPath",
+          "identifier_kind": "function"
+        }
+      ]
+    },
+    {
+      "canonical": "plugin",
+      "aliases": [],
+      "frequency": 12,
+      "provenance": [
+        {
+          "package": ".",
+          "file": "src/policy/config.ts",
+          "line": 2457,
+          "identifier": "policyPluginCandidates",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/policy/config.ts",
+          "line": 2416,
+          "identifier": "resolvePolicyPluginPath",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/policy/config.ts",
+          "line": 2520,
+          "identifier": "resolvePolicyPluginPathReference",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/policy/config.ts",
+          "line": 2490,
+          "identifier": "resolvePolicyPluginPathReferences",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/policy/config.ts",
+          "line": 2400,
+          "identifier": "resolvePolicyPluginPaths",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/tests/context-runtime.test.ts",
+          "line": 322,
+          "identifier": "createContextPluginHarness",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/tests/index.test.ts",
+          "line": 206,
+          "identifier": "createFrameworkPluginHarness",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/tests/single-home.test.ts",
+          "line": 6,
+          "identifier": "pluginRoot",
+          "identifier_kind": "const"
+        }
+      ]
+    },
+    {
+      "canonical": "policy",
+      "aliases": [],
+      "frequency": 157,
+      "provenance": [
+        {
+          "package": ".",
+          "file": "src/cli/codex.ts",
+          "line": 568,
+          "identifier": "isPolicyBlock",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/codex.ts",
+          "line": 572,
+          "identifier": "isPolicyWarn",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/codex.ts",
+          "line": 562,
+          "identifier": "normalizePolicyToolName",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/codex.ts",
+          "line": 607,
+          "identifier": "ParsedPolicyPromptCommand",
+          "identifier_kind": "type"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/codex.ts",
+          "line": 611,
+          "identifier": "parsePolicyPromptCommands",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/codex.ts",
+          "line": 582,
+          "identifier": "renderPolicyDecisionReason",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/commands.ts",
+          "line": 244,
+          "identifier": "policyCommand",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/commands.ts",
+          "line": 202,
+          "identifier": "policyEvaluateToolCallCommand",
+          "identifier_kind": "const"
+        }
+      ]
+    },
+    {
+      "canonical": "prompt",
+      "aliases": [],
+      "frequency": 51,
+      "provenance": [
+        {
+          "package": ".",
+          "file": "src/cli/codex.ts",
+          "line": 607,
+          "identifier": "ParsedPolicyPromptCommand",
+          "identifier_kind": "type"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/codex.ts",
+          "line": 611,
+          "identifier": "parsePolicyPromptCommands",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/codex.ts",
+          "line": 178,
+          "identifier": "runUserPromptSubmitHook",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/context/runtime.ts",
+          "line": 30,
+          "identifier": "CONTEXT_PROMPT_CONTEXT_LIMIT",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/context/runtime.ts",
+          "line": 434,
+          "identifier": "normalizePromptTools",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/context/runtime.ts",
+          "line": 327,
+          "identifier": "resolveContextPromptContext",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/context/runtime.ts",
+          "line": 416,
+          "identifier": "toSessionPromptContext",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/kernel/helpers.ts",
+          "line": 466,
+          "identifier": "applyFrameworkPromptBudget",
+          "identifier_kind": "function"
+        }
+      ]
+    },
+    {
+      "canonical": "provenance",
+      "aliases": [
+        "prov"
+      ],
+      "frequency": 306,
+      "provenance": [
+        {
+          "package": ".",
+          "file": "src/cli/commands.ts",
+          "line": 349,
+          "identifier": "provenanceCommand",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/commands.ts",
+          "line": 307,
+          "identifier": "provenanceFileStateCommand",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/commands.ts",
+          "line": 332,
+          "identifier": "provenanceRegistryCommands",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/commands.ts",
+          "line": 293,
+          "identifier": "provenanceRepoStateCommand",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/commands.ts",
+          "line": 323,
+          "identifier": "provenanceRunCommand",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/schemas.ts",
+          "line": 8,
+          "identifier": "DIRECT_PROVENANCE_CLI_COMMAND_NAMES",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/schemas.ts",
+          "line": 32,
+          "identifier": "DirectProvenanceCommandSchemaSpecs",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/schemas.ts",
+          "line": 436,
+          "identifier": "ProvenanceFileStateInput",
+          "identifier_kind": "type"
+        }
+      ]
+    },
+    {
+      "canonical": "query",
+      "aliases": [],
+      "frequency": 25,
+      "provenance": [
+        {
+          "package": ".",
+          "file": "src/provenance/classifier.ts",
+          "line": 32,
+          "identifier": "FRAMEWORK_AMBIENT_QUERY_STRATEGY_VALUES",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/classifier.ts",
+          "line": 55,
+          "identifier": "FrameworkAmbientQueryStrategy",
+          "identifier_kind": "interface"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/classifier.ts",
+          "line": 40,
+          "identifier": "FrameworkAmbientQueryStrategyName",
+          "identifier_kind": "type"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/classifier.ts",
+          "line": 118,
+          "identifier": "QUERY_BUDGETS",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/runtime.ts",
+          "line": 37,
+          "identifier": "FRAMEWORK_TOOL_DEFINITION_GUIDANCE_BY_QUERY_STRATEGY",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/tests/provenance-query-tools.test.ts",
+          "line": 26,
+          "identifier": "QUERY_TOOL_PATH",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/tests/provenance-tree-tools.test.ts",
+          "line": 29,
+          "identifier": "QUERY_FILE",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "review/pr-comments.ts",
+          "line": 14,
+          "identifier": "REVIEW_THREAD_STATES_QUERY",
+          "identifier_kind": "const"
+        }
+      ]
+    },
+    {
+      "canonical": "range",
+      "aliases": [
+        "ranges"
+      ],
+      "frequency": 30,
+      "provenance": [
+        {
+          "package": ".",
+          "file": "src/kernel/state.ts",
+          "line": 277,
+          "identifier": "cloneLineRanges",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/kernel/state.ts",
+          "line": 70,
+          "identifier": "FrameworkLineRange",
+          "identifier_kind": "interface"
+        },
+        {
+          "package": ".",
+          "file": "src/policy/cli-service.ts",
+          "line": 739,
+          "identifier": "isLineRange",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/policy/config.ts",
+          "line": 108,
+          "identifier": "ChangeDeltaRanges",
+          "identifier_kind": "type"
+        },
+        {
+          "package": ".",
+          "file": "src/policy/config.ts",
+          "line": 1090,
+          "identifier": "cloneLineRanges",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/policy/config.ts",
+          "line": 2044,
+          "identifier": "computeChangeDeltaRanges",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/policy/config.ts",
+          "line": 2008,
+          "identifier": "computeChangeDeltaRangesFromContents",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/policy/config.ts",
+          "line": 1985,
+          "identifier": "expandLineRange",
+          "identifier_kind": "function"
+        }
+      ]
+    },
+    {
+      "canonical": "region",
+      "aliases": [
+        "regions"
+      ],
+      "frequency": 12,
+      "provenance": [
+        {
+          "package": ".",
+          "file": "src/policy/config.ts",
+          "line": 2252,
+          "identifier": "mapSnippetRegions",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/policy/config.ts",
+          "line": 1538,
+          "identifier": "runAstGrepMatcherBatchRegions",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/policy/config.ts",
+          "line": 1434,
+          "identifier": "runAstGrepMatcherRegions",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/policy/config.ts",
+          "line": 1412,
+          "identifier": "runContentMatcherRegions",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/policy/config.ts",
+          "line": 1880,
+          "identifier": "runCustomMatcherBatchRegionsForSnippetPlan",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/policy/config.ts",
+          "line": 1909,
+          "identifier": "runCustomMatcherBatchRegionsForSource",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/policy/config.ts",
+          "line": 1785,
+          "identifier": "runMatcherBatchRegionsForPlan",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/policy/config.ts",
+          "line": 1827,
+          "identifier": "runMatcherBatchRegionsForSource",
+          "identifier_kind": "function"
+        }
+      ]
+    },
+    {
+      "canonical": "remember",
+      "aliases": [],
+      "frequency": 33,
+      "provenance": [
+        {
+          "package": ".",
+          "file": "src/cli/commands.ts",
+          "line": 386,
+          "identifier": "sessionRememberActionCommand",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/schemas.ts",
+          "line": 360,
+          "identifier": "SessionRememberActionInputSchemaContract",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/kernel/helpers.ts",
+          "line": 345,
+          "identifier": "rememberFrameworkAction",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/kernel/helpers.ts",
+          "line": 61,
+          "identifier": "RememberFrameworkActionOptions",
+          "identifier_kind": "interface"
+        },
+        {
+          "package": ".",
+          "file": "src/kernel/helpers.ts",
+          "line": 201,
+          "identifier": "rememberFrameworkDedupeKey",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/kernel/helpers.ts",
+          "line": 328,
+          "identifier": "rememberFrameworkSyntheticInjection",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/kernel/helpers.ts",
+          "line": 47,
+          "identifier": "RememberFrameworkSyntheticInjectionOptions",
+          "identifier_kind": "interface"
+        },
+        {
+          "package": ".",
+          "file": "src/policy/cli-service.ts",
+          "line": 635,
+          "identifier": "rememberAction",
+          "identifier_kind": "function"
+        }
+      ]
+    },
+    {
+      "canonical": "reminder",
+      "aliases": [],
+      "frequency": 10,
+      "provenance": [
+        {
+          "package": ".",
+          "file": "src/cli/codex.ts",
+          "line": 597,
+          "identifier": "renderContextReminderMessage",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/context/cli-service.ts",
+          "line": 111,
+          "identifier": "buildReminderText",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/context/runtime.ts",
+          "line": 51,
+          "identifier": "BoundedContextReminder",
+          "identifier_kind": "type"
+        },
+        {
+          "package": ".",
+          "file": "src/context/runtime.ts",
+          "line": 40,
+          "identifier": "CONTEXT_REMINDER_CONTENT_MAX_BYTES",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/context/runtime.ts",
+          "line": 31,
+          "identifier": "CONTEXT_REMINDER_PREFIX",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/context/runtime.ts",
+          "line": 33,
+          "identifier": "CONTEXT_REMINDER_SEPARATOR",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/context/runtime.ts",
+          "line": 32,
+          "identifier": "CONTEXT_REMINDER_SUFFIX",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/context/runtime.ts",
+          "line": 384,
+          "identifier": "createContextReminderText",
+          "identifier_kind": "function"
+        }
+      ]
+    },
+    {
+      "canonical": "remote",
+      "aliases": [],
+      "frequency": 38,
+      "provenance": [
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/expand/pr-tools.ts",
+          "line": 693,
+          "identifier": "createAvailableRemoteContext",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/expand/pr-tools.ts",
+          "line": 542,
+          "identifier": "createRemoteLookupDisabledContext",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/expand/pr-tools.ts",
+          "line": 674,
+          "identifier": "createUnavailableRemoteContext",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/expand/pr-tools.ts",
+          "line": 483,
+          "identifier": "inferRemoteConfidence",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/expand/pr-tools.ts",
+          "line": 237,
+          "identifier": "normalizeRemoteStatus",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/expand/pr-tools.ts",
+          "line": 65,
+          "identifier": "PR_REMOTE_PARSE_MAX_OUTPUT_BYTES",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/expand/pr-tools.ts",
+          "line": 128,
+          "identifier": "RemoteMetadataResolution",
+          "identifier_kind": "type"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/expand/pr-tools.ts",
+          "line": 116,
+          "identifier": "RemotePrNumberResolution",
+          "identifier_kind": "type"
+        }
+      ]
+    },
+    {
+      "canonical": "report",
+      "aliases": [],
+      "frequency": 20,
+      "provenance": [
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/score/schemas.ts",
+          "line": 142,
+          "identifier": "ProvStabilityReportDataSchema",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/score/schemas.ts",
+          "line": 184,
+          "identifier": "ProvStabilityReportResultSchema",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/score/schemas.ts",
+          "line": 142,
+          "identifier": "ProvStabilityReportDataSchema",
+          "identifier_kind": "exported-symbol"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/score/schemas.ts",
+          "line": 184,
+          "identifier": "ProvStabilityReportResultSchema",
+          "identifier_kind": "exported-symbol"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/score/index.ts",
+          "line": 1857,
+          "identifier": "buildStabilityReportData",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/score/index.ts",
+          "line": 2289,
+          "identifier": "createStabilityReportFailure",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/score/index.ts",
+          "line": 2265,
+          "identifier": "createStabilityReportSources",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/score/index.ts",
+          "line": 2221,
+          "identifier": "createStabilityReportSuccess",
+          "identifier_kind": "function"
+        }
+      ]
+    },
+    {
+      "canonical": "resolution",
+      "aliases": [],
+      "frequency": 14,
+      "provenance": [
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/expand/diff-anchor.ts",
+          "line": 6,
+          "identifier": "DiffAnchorResolution",
+          "identifier_kind": "type"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/expand/diff-response.ts",
+          "line": 13,
+          "identifier": "ArtifactAnchorResolution",
+          "identifier_kind": "type"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/expand/file-anchor.ts",
+          "line": 44,
+          "identifier": "FileAnchorResolution",
+          "identifier_kind": "type"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/expand/pr-tools.ts",
+          "line": 128,
+          "identifier": "RemoteMetadataResolution",
+          "identifier_kind": "type"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/expand/pr-tools.ts",
+          "line": 116,
+          "identifier": "RemotePrNumberResolution",
+          "identifier_kind": "type"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/state/local-state.ts",
+          "line": 206,
+          "identifier": "LocalFilePathResolution",
+          "identifier_kind": "type"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/expand/diff-anchor.ts",
+          "line": 6,
+          "identifier": "DiffAnchorResolution",
+          "identifier_kind": "exported-symbol"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/expand/diff-expand.ts",
+          "line": 13,
+          "identifier": "ArtifactAnchorResolution",
+          "identifier_kind": "exported-symbol"
+        }
+      ]
+    },
+    {
+      "canonical": "review",
+      "aliases": [],
+      "frequency": 41,
+      "provenance": [
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/expand/pr-tools.ts",
+          "line": 421,
+          "identifier": "buildReviewStateCounts",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/expand/pr-tools.ts",
+          "line": 62,
+          "identifier": "MAX_REVIEW_BODY_BYTES",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/expand/pr-tools.ts",
+          "line": 433,
+          "identifier": "resolveRemoteReviewContext",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/expand/pr-tools.ts",
+          "line": 285,
+          "identifier": "reviewItemByteSize",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/expand/pr-tools.ts",
+          "line": 289,
+          "identifier": "toReviewContextItem",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/expand/schemas.ts",
+          "line": 455,
+          "identifier": "PrRemoteReviewContext",
+          "identifier_kind": "type"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/expand/schemas.ts",
+          "line": 333,
+          "identifier": "PrRemoteReviewContextSchema",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/expand/schemas.ts",
+          "line": 453,
+          "identifier": "PrReviewContextItem",
+          "identifier_kind": "type"
+        }
+      ]
+    },
+    {
+      "canonical": "risk",
+      "aliases": [],
+      "frequency": 38,
+      "provenance": [
+        {
+          "package": ".",
+          "file": "src/cli/commands.ts",
+          "line": 152,
+          "identifier": "riskCommand",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/commands.ts",
+          "line": 137,
+          "identifier": "riskEvaluateCommandCommand",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/schemas.ts",
+          "line": 432,
+          "identifier": "RiskEvaluateCommandInput",
+          "identifier_kind": "type"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/schemas.ts",
+          "line": 193,
+          "identifier": "RiskEvaluateCommandInputSchema",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/risk/runtime.ts",
+          "line": 25,
+          "identifier": "createFrameworkRiskLayer",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/risk/runtime.ts",
+          "line": 20,
+          "identifier": "CreateFrameworkRiskLayerOptions",
+          "identifier_kind": "interface"
+        },
+        {
+          "package": ".",
+          "file": "src/risk/runtime.ts",
+          "line": 47,
+          "identifier": "createRiskToolBeforeHook",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/risk/runtime.ts",
+          "line": 12,
+          "identifier": "FrameworkRiskClient",
+          "identifier_kind": "interface"
+        }
+      ]
+    },
+    {
+      "canonical": "rule",
+      "aliases": [],
+      "frequency": 38,
+      "provenance": [
+        {
+          "package": ".",
+          "file": "src/context/discovery.ts",
+          "line": 4,
+          "identifier": "FRAMEWORK_CONTEXT_RULE_FILES",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/context/discovery.ts",
+          "line": 9,
+          "identifier": "FrameworkContextRuleFileName",
+          "identifier_kind": "type"
+        },
+        {
+          "package": ".",
+          "file": "src/policy/cli-service.ts",
+          "line": 553,
+          "identifier": "filterPathsForRule",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/policy/cli-service.ts",
+          "line": 712,
+          "identifier": "readRuleId",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/policy/cli-service.ts",
+          "line": 665,
+          "identifier": "resolveRuleSeverity",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/policy/cli-service.ts",
+          "line": 652,
+          "identifier": "ruleAppliesToPhase",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/policy/config.ts",
+          "line": 750,
+          "identifier": "assertUniqueRuleIds",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/policy/config.ts",
+          "line": 1625,
+          "identifier": "astGrepBatchRuleId",
+          "identifier_kind": "function"
+        }
+      ]
+    },
+    {
+      "canonical": "runner",
+      "aliases": [],
+      "frequency": 12,
+      "provenance": [
+        {
+          "package": ".",
+          "file": "src/policy/config.ts",
+          "line": 129,
+          "identifier": "ContentMatchRegionRunner",
+          "identifier_kind": "type"
+        },
+        {
+          "package": ".",
+          "file": "src/policy/config.ts",
+          "line": 83,
+          "identifier": "ContentMatchRunner",
+          "identifier_kind": "type"
+        },
+        {
+          "package": ".",
+          "file": "shared/effect-runtime.ts",
+          "line": 700,
+          "identifier": "attachProcessRunner",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "shared/effect-runtime.ts",
+          "line": 147,
+          "identifier": "hasProcessRunner",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "shared/effect-runtime.ts",
+          "line": 10,
+          "identifier": "PROCESS_RUNNER",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "shared/effect-runtime.ts",
+          "line": 15,
+          "identifier": "ProcessRunner",
+          "identifier_kind": "type"
+        },
+        {
+          "package": ".",
+          "file": "shared/effect-runtime.ts",
+          "line": 21,
+          "identifier": "ProcessRunnerCarrier",
+          "identifier_kind": "type"
+        },
+        {
+          "package": ".",
+          "file": "src/policy/config.ts",
+          "line": 83,
+          "identifier": "ContentMatchRunner",
+          "identifier_kind": "exported-symbol"
+        }
+      ]
+    },
+    {
+      "canonical": "runtime",
+      "aliases": [],
+      "frequency": 18,
+      "provenance": [
+        {
+          "package": ".",
+          "file": "src/context/runtime.ts",
+          "line": 64,
+          "identifier": "ContextLayerRuntime",
+          "identifier_kind": "type"
+        },
+        {
+          "package": ".",
+          "file": "src/context/runtime.ts",
+          "line": 49,
+          "identifier": "FrameworkContextRuntimeClient",
+          "identifier_kind": "type"
+        },
+        {
+          "package": ".",
+          "file": "src/policy/runtime.ts",
+          "line": 86,
+          "identifier": "FrameworkPolicyRuntimeClient",
+          "identifier_kind": "type"
+        },
+        {
+          "package": ".",
+          "file": "src/policy/runtime.ts",
+          "line": 350,
+          "identifier": "getPolicyRuntimeState",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/policy/runtime.ts",
+          "line": 43,
+          "identifier": "POLICY_RUNTIME_METADATA_KEY",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/policy/runtime.ts",
+          "line": 97,
+          "identifier": "PolicyLayerRuntime",
+          "identifier_kind": "type"
+        },
+        {
+          "package": ".",
+          "file": "src/policy/runtime.ts",
+          "line": 66,
+          "identifier": "PolicyRuntimeState",
+          "identifier_kind": "type"
+        },
+        {
+          "package": ".",
+          "file": "src/policy/runtime.ts",
+          "line": 369,
+          "identifier": "setPolicyRuntimeState",
+          "identifier_kind": "function"
+        }
+      ]
+    },
+    {
+      "canonical": "schema",
+      "aliases": [],
+      "frequency": 300,
+      "provenance": [
+        {
+          "package": ".",
+          "file": "src/cli/codex.ts",
+          "line": 15,
+          "identifier": "CodexInstallProjectInputSchema",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/codex.ts",
+          "line": 23,
+          "identifier": "CodexInstallUserInputSchema",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/commands.ts",
+          "line": 119,
+          "identifier": "schemaCommand",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/commands.ts",
+          "line": 111,
+          "identifier": "schemaListCommand",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/commands.ts",
+          "line": 115,
+          "identifier": "schemaShowCommand",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/discovery.ts",
+          "line": 541,
+          "identifier": "showSchema",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/schemas.ts",
+          "line": 6,
+          "identifier": "BaseSchema",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/schemas.ts",
+          "line": 273,
+          "identifier": "CodexInstallProjectInputSchemaContract",
+          "identifier_kind": "const"
+        }
+      ]
+    },
+    {
+      "canonical": "scope",
+      "aliases": [],
+      "frequency": 28,
+      "provenance": [
+        {
+          "package": ".",
+          "file": "src/kernel/state.ts",
+          "line": 24,
+          "identifier": "FrameworkLockScope",
+          "identifier_kind": "type"
+        },
+        {
+          "package": ".",
+          "file": "src/policy/config.ts",
+          "line": 157,
+          "identifier": "CONTENT_SCOPE",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/policy/config.ts",
+          "line": 10,
+          "identifier": "GuardrailContentScope",
+          "identifier_kind": "type"
+        },
+        {
+          "package": ".",
+          "file": "src/policy/config.ts",
+          "line": 876,
+          "identifier": "parseContentScope",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/policy/config.ts",
+          "line": 1315,
+          "identifier": "resolveRuleScope",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/args.ts",
+          "line": 151,
+          "identifier": "provenanceScopeArg",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/expand/schemas.ts",
+          "line": 98,
+          "identifier": "TREE_SCOPE_TYPE_VALUES",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/expand/schemas.ts",
+          "line": 440,
+          "identifier": "TreeScope",
+          "identifier_kind": "type"
+        }
+      ]
+    },
+    {
+      "canonical": "score",
+      "aliases": [],
+      "frequency": 16,
+      "provenance": [
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/score/schemas.ts",
+          "line": 190,
+          "identifier": "ExplainableScore",
+          "identifier_kind": "type"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/score/schemas.ts",
+          "line": 27,
+          "identifier": "ExplainableScoreSchema",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/score/schemas.ts",
+          "line": 189,
+          "identifier": "ProvenanceScoreFactor",
+          "identifier_kind": "type"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/score/schemas.ts",
+          "line": 17,
+          "identifier": "ProvenanceScoreFactorSchema",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/tests/provenance-score-tools.test.ts",
+          "line": 149,
+          "identifier": "seedScoreRoot",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/score/schemas.ts",
+          "line": 190,
+          "identifier": "ExplainableScore",
+          "identifier_kind": "exported-symbol"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/score/schemas.ts",
+          "line": 189,
+          "identifier": "ProvenanceScoreFactor",
+          "identifier_kind": "exported-symbol"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/score/index.ts",
+          "line": 1259,
+          "identifier": "buildAuthorityScore",
+          "identifier_kind": "function"
+        }
+      ]
+    },
+    {
+      "canonical": "semgrep",
+      "aliases": [],
+      "frequency": 21,
+      "provenance": [
+        {
+          "package": ".",
+          "file": "src/policy/config.ts",
+          "line": 697,
+          "identifier": "parseSemgrepContentMatcher",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/policy/config.ts",
+          "line": 2158,
+          "identifier": "parseSemgrepFindings",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/policy/config.ts",
+          "line": 787,
+          "identifier": "parseSemgrepSeverity",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/policy/config.ts",
+          "line": 1453,
+          "identifier": "runSemgrepMatcher",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/policy/config.ts",
+          "line": 1576,
+          "identifier": "runSemgrepMatcherBatchRegions",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/policy/config.ts",
+          "line": 1462,
+          "identifier": "runSemgrepMatcherRegions",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/policy/config.ts",
+          "line": 153,
+          "identifier": "SEMGREP_SEVERITY",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/policy/config.ts",
+          "line": 51,
+          "identifier": "SemgrepContentMatcher",
+          "identifier_kind": "type"
+        }
+      ]
+    },
+    {
+      "canonical": "session",
+      "aliases": [],
+      "frequency": 166,
+      "provenance": [
+        {
+          "package": ".",
+          "file": "src/cli/codex.ts",
+          "line": 418,
+          "identifier": "sessionStartContext",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/commands.ts",
+          "line": 410,
+          "identifier": "sessionCleanupCommand",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/commands.ts",
+          "line": 431,
+          "identifier": "sessionCommand",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/commands.ts",
+          "line": 359,
+          "identifier": "sessionGetCommand",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/commands.ts",
+          "line": 377,
+          "identifier": "sessionOverrideCommand",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/commands.ts",
+          "line": 398,
+          "identifier": "sessionPutPendingToolCommand",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/commands.ts",
+          "line": 386,
+          "identifier": "sessionRememberActionCommand",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/commands.ts",
+          "line": 419,
+          "identifier": "sessionRenderCompactionCommand",
+          "identifier_kind": "const"
+        }
+      ]
+    },
+    {
+      "canonical": "shell",
+      "aliases": [],
+      "frequency": 16,
+      "provenance": [
+        {
+          "package": ".",
+          "file": "src/cli/codex.ts",
+          "line": 414,
+          "identifier": "shellQuote",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/commands.ts",
+          "line": 99,
+          "identifier": "createShell",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/state/local-state.ts",
+          "line": 9,
+          "identifier": "Shell",
+          "identifier_kind": "type"
+        },
+        {
+          "package": ".",
+          "file": "src/risk/rules.ts",
+          "line": 102,
+          "identifier": "evaluateInlineShell",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/tests/index.test.ts",
+          "line": 241,
+          "identifier": "createUnexpectedShell",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/tests/pr-comments.test.ts",
+          "line": 16,
+          "identifier": "createShellStub",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/tests/provenance-lineage-tools.test.ts",
+          "line": 31,
+          "identifier": "createShellStub",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/tests/provenance-local-state.test.ts",
+          "line": 33,
+          "identifier": "makeShellStub",
+          "identifier_kind": "const"
+        }
+      ]
+    },
+    {
+      "canonical": "skill",
+      "aliases": [],
+      "frequency": 27,
+      "provenance": [
+        {
+          "package": ".",
+          "file": "src/cli/commands.ts",
+          "line": 235,
+          "identifier": "policySkillLoadedCommand",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/commands.ts",
+          "line": 368,
+          "identifier": "sessionSkillLoadedCommand",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/schemas.ts",
+          "line": 441,
+          "identifier": "PolicySkillLoadedInput",
+          "identifier_kind": "type"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/schemas.ts",
+          "line": 269,
+          "identifier": "PolicySkillLoadedInputSchema",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/schemas.ts",
+          "line": 326,
+          "identifier": "SessionSkillLoadedInputSchemaContract",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/policy/cli-service.ts",
+          "line": 386,
+          "identifier": "handleEnsureSkillLoadedAction",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/policy/cli-service.ts",
+          "line": 708,
+          "identifier": "normalizeSkillName",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/policy/cli-service.ts",
+          "line": 72,
+          "identifier": "PolicySkillLoadedInput",
+          "identifier_kind": "interface"
+        }
+      ]
+    },
+    {
+      "canonical": "snippet",
+      "aliases": [],
+      "frequency": 11,
+      "provenance": [
+        {
+          "package": ".",
+          "file": "src/policy/config.ts",
+          "line": 1923,
+          "identifier": "buildChangedLineSnippetPlan",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/policy/config.ts",
+          "line": 113,
+          "identifier": "ChangedLineSnippetPlan",
+          "identifier_kind": "type"
+        },
+        {
+          "package": ".",
+          "file": "src/policy/config.ts",
+          "line": 101,
+          "identifier": "GuardrailMatcherSnippet",
+          "identifier_kind": "type"
+        },
+        {
+          "package": ".",
+          "file": "src/policy/config.ts",
+          "line": 2252,
+          "identifier": "mapSnippetRegions",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/policy/config.ts",
+          "line": 166,
+          "identifier": "MAX_SNIPPET_COVERAGE_RATIO",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/policy/config.ts",
+          "line": 165,
+          "identifier": "MAX_SNIPPET_TOTAL_LINES",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/policy/config.ts",
+          "line": 164,
+          "identifier": "MAX_SNIPPET_WINDOW_LINES",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/policy/config.ts",
+          "line": 163,
+          "identifier": "MAX_SNIPPET_WINDOWS",
+          "identifier_kind": "const"
+        }
+      ]
+    },
+    {
+      "canonical": "source",
+      "aliases": [
+        "sources"
+      ],
+      "frequency": 53,
+      "provenance": [
+        {
+          "package": ".",
+          "file": "src/context/runtime.ts",
+          "line": 34,
+          "identifier": "CONTEXT_DEDUPE_SOURCE",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/kernel/state.ts",
+          "line": 286,
+          "identifier": "cloneToolTargetSource",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/kernel/state.ts",
+          "line": 79,
+          "identifier": "FrameworkToolTargetSource",
+          "identifier_kind": "interface"
+        },
+        {
+          "package": ".",
+          "file": "src/kernel/state.ts",
+          "line": 75,
+          "identifier": "FrameworkToolTargetSourceKind",
+          "identifier_kind": "type"
+        },
+        {
+          "package": ".",
+          "file": "src/kernel/tool-targets.ts",
+          "line": 147,
+          "identifier": "buildArgumentSource",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/kernel/tool-targets.ts",
+          "line": 155,
+          "identifier": "buildPatchSource",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/kernel/tool-targets.ts",
+          "line": 47,
+          "identifier": "normalizeSourceKey",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/policy/config.ts",
+          "line": 2653,
+          "identifier": "globToRegexSource",
+          "identifier_kind": "function"
+        }
+      ]
+    },
+    {
+      "canonical": "span",
+      "aliases": [],
+      "frequency": 35,
+      "provenance": [
+        {
+          "package": ".",
+          "file": "src/tests/provenance-lineage-tools.test.ts",
+          "line": 239,
+          "identifier": "createSpanHistoryTool",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/lineage/index.ts",
+          "line": 620,
+          "identifier": "createInvalidSpanFailure",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/lineage/index.ts",
+          "line": 430,
+          "identifier": "createSpanHistorySummary",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/lineage/index.ts",
+          "line": 539,
+          "identifier": "createSpanHistoryTool",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/lineage/index.ts",
+          "line": 711,
+          "identifier": "createSpanHistoryUnavailableFailure",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/lineage/index.ts",
+          "line": 276,
+          "identifier": "createSpanHistoryWarnings",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/lineage/index.ts",
+          "line": 554,
+          "identifier": "executeSpanHistoryTool",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/lineage/index.ts",
+          "line": 31,
+          "identifier": "GW_SPAN_HISTORY_TOOL",
+          "identifier_kind": "const"
+        }
+      ]
+    },
+    {
+      "canonical": "stability",
+      "aliases": [],
+      "frequency": 35,
+      "provenance": [
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/score/schemas.ts",
+          "line": 142,
+          "identifier": "ProvStabilityReportDataSchema",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/score/schemas.ts",
+          "line": 184,
+          "identifier": "ProvStabilityReportResultSchema",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/score/schemas.ts",
+          "line": 197,
+          "identifier": "StabilityAssessment",
+          "identifier_kind": "type"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/score/schemas.ts",
+          "line": 137,
+          "identifier": "StabilityAssessmentSchema",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/score/schemas.ts",
+          "line": 142,
+          "identifier": "ProvStabilityReportDataSchema",
+          "identifier_kind": "exported-symbol"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/score/schemas.ts",
+          "line": 184,
+          "identifier": "ProvStabilityReportResultSchema",
+          "identifier_kind": "exported-symbol"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/score/schemas.ts",
+          "line": 197,
+          "identifier": "StabilityAssessment",
+          "identifier_kind": "exported-symbol"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/score/index.ts",
+          "line": 1779,
+          "identifier": "buildCompositeStabilityScore",
+          "identifier_kind": "function"
+        }
+      ]
+    },
+    {
+      "canonical": "state",
+      "aliases": [
+        "states"
+      ],
+      "frequency": 194,
+      "provenance": [
+        {
+          "package": ".",
+          "file": "src/cli/commands.ts",
+          "line": 307,
+          "identifier": "provenanceFileStateCommand",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/commands.ts",
+          "line": 293,
+          "identifier": "provenanceRepoStateCommand",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/schemas.ts",
+          "line": 436,
+          "identifier": "ProvenanceFileStateInput",
+          "identifier_kind": "type"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/schemas.ts",
+          "line": 229,
+          "identifier": "ProvenanceFileStateInputSchema",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/schemas.ts",
+          "line": 435,
+          "identifier": "ProvenanceRepoStateInput",
+          "identifier_kind": "type"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/schemas.ts",
+          "line": 223,
+          "identifier": "ProvenanceRepoStateInputSchema",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/context/runtime.ts",
+          "line": 275,
+          "identifier": "getOrCreateSessionState",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/kernel/state.ts",
+          "line": 425,
+          "identifier": "cleanupSessionKernelState",
+          "identifier_kind": "function"
+        }
+      ]
+    },
+    {
+      "canonical": "strategy",
+      "aliases": [],
+      "frequency": 36,
+      "provenance": [
+        {
+          "package": ".",
+          "file": "src/provenance/classifier.ts",
+          "line": 21,
+          "identifier": "FRAMEWORK_AMBIENT_CAPTURE_STRATEGY_VALUES",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/classifier.ts",
+          "line": 32,
+          "identifier": "FRAMEWORK_AMBIENT_QUERY_STRATEGY_VALUES",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/classifier.ts",
+          "line": 50,
+          "identifier": "FrameworkAmbientCaptureStrategy",
+          "identifier_kind": "interface"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/classifier.ts",
+          "line": 29,
+          "identifier": "FrameworkAmbientCaptureStrategyName",
+          "identifier_kind": "type"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/classifier.ts",
+          "line": 55,
+          "identifier": "FrameworkAmbientQueryStrategy",
+          "identifier_kind": "interface"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/classifier.ts",
+          "line": 40,
+          "identifier": "FrameworkAmbientQueryStrategyName",
+          "identifier_kind": "type"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/classifier.ts",
+          "line": 45,
+          "identifier": "FrameworkAmbientStrategyBudget",
+          "identifier_kind": "interface"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/runtime.ts",
+          "line": 37,
+          "identifier": "FRAMEWORK_TOOL_DEFINITION_GUIDANCE_BY_QUERY_STRATEGY",
+          "identifier_kind": "const"
+        }
+      ]
+    },
+    {
+      "canonical": "synthetic",
+      "aliases": [],
+      "frequency": 16,
+      "provenance": [
+        {
+          "package": ".",
+          "file": "src/kernel/helpers.ts",
+          "line": 308,
+          "identifier": "createFrameworkSyntheticInjectionDedupeKey",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/kernel/helpers.ts",
+          "line": 328,
+          "identifier": "rememberFrameworkSyntheticInjection",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/kernel/helpers.ts",
+          "line": 47,
+          "identifier": "RememberFrameworkSyntheticInjectionOptions",
+          "identifier_kind": "interface"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/expand/tree-tools.ts",
+          "line": 269,
+          "identifier": "buildSyntheticUntrackedPatch",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/kernel/helpers.ts",
+          "line": 308,
+          "identifier": "createFrameworkSyntheticInjectionDedupeKey",
+          "identifier_kind": "exported-symbol"
+        },
+        {
+          "package": ".",
+          "file": "src/kernel/helpers.ts",
+          "line": 328,
+          "identifier": "rememberFrameworkSyntheticInjection",
+          "identifier_kind": "exported-symbol"
+        },
+        {
+          "package": ".",
+          "file": "src/kernel/helpers.ts",
+          "line": 47,
+          "identifier": "RememberFrameworkSyntheticInjectionOptions",
+          "identifier_kind": "exported-symbol"
+        },
+        {
+          "package": ".",
+          "file": "src/kernel/index.ts",
+          "line": 308,
+          "identifier": "createFrameworkSyntheticInjectionDedupeKey",
+          "identifier_kind": "exported-symbol"
+        }
+      ]
+    },
+    {
+      "canonical": "target",
+      "aliases": [
+        "targets"
+      ],
+      "frequency": 72,
+      "provenance": [
+        {
+          "package": ".",
+          "file": "src/cli/commands.ts",
+          "line": 79,
+          "identifier": "targetArg",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/context/cli-service.ts",
+          "line": 141,
+          "identifier": "normalizeExplicitTargets",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/context/cli-service.ts",
+          "line": 150,
+          "identifier": "normalizeInputTarget",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/context/cli-service.ts",
+          "line": 178,
+          "identifier": "readOptionalNormalizedTargetPath",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/context/cli-service.ts",
+          "line": 168,
+          "identifier": "readTargetPath",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/context/runtime.ts",
+          "line": 318,
+          "identifier": "resolveDiscoveryTargetPath",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/kernel/state.ts",
+          "line": 299,
+          "identifier": "cloneToolTargets",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/kernel/state.ts",
+          "line": 286,
+          "identifier": "cloneToolTargetSource",
+          "identifier_kind": "function"
+        }
+      ]
+    },
+    {
+      "canonical": "tool",
+      "aliases": [
+        "tools"
+      ],
+      "frequency": 318,
+      "provenance": [
+        {
+          "package": ".",
+          "file": "src/cli/codex.ts",
+          "line": 562,
+          "identifier": "normalizePolicyToolName",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/codex.ts",
+          "line": 290,
+          "identifier": "runPostToolUseHook",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/codex.ts",
+          "line": 210,
+          "identifier": "runPreToolUseHook",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/codex.ts",
+          "line": 548,
+          "identifier": "toolInputFromHookPayload",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/commands.ts",
+          "line": 202,
+          "identifier": "policyEvaluateToolCallCommand",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/commands.ts",
+          "line": 214,
+          "identifier": "policyEvaluateToolResultCommand",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/commands.ts",
+          "line": 398,
+          "identifier": "sessionPutPendingToolCommand",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/cli/schemas.ts",
+          "line": 438,
+          "identifier": "PolicyEvaluateToolCallInput",
+          "identifier_kind": "type"
+        }
+      ]
+    },
+    {
+      "canonical": "violation",
+      "aliases": [],
+      "frequency": 14,
+      "provenance": [
+        {
+          "package": ".",
+          "file": "src/policy/cli-service.ts",
+          "line": 86,
+          "identifier": "PolicyViolation",
+          "identifier_kind": "interface"
+        },
+        {
+          "package": ".",
+          "file": "src/policy/cli-service.ts",
+          "line": 484,
+          "identifier": "recordViolation",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/policy/runtime.ts",
+          "line": 879,
+          "identifier": "enforceViolation",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/policy/runtime.ts",
+          "line": 854,
+          "identifier": "enforceViolationForAction",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/risk/rules.ts",
+          "line": 11,
+          "identifier": "GuardViolation",
+          "identifier_kind": "type"
+        },
+        {
+          "package": ".",
+          "file": "src/risk/service.ts",
+          "line": 38,
+          "identifier": "riskViolationMessage",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/risk/rules.ts",
+          "line": 11,
+          "identifier": "GuardViolation",
+          "identifier_kind": "exported-symbol"
+        },
+        {
+          "package": ".",
+          "file": "src/risk/service.ts",
+          "line": 38,
+          "identifier": "riskViolationMessage",
+          "identifier_kind": "exported-symbol"
+        }
+      ]
+    },
+    {
+      "canonical": "warning",
+      "aliases": [
+        "warnings"
+      ],
+      "frequency": 27,
+      "provenance": [
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/expand/commit-expand.ts",
+          "line": 58,
+          "identifier": "collectCommitWarnings",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/expand/diff-response.ts",
+          "line": 18,
+          "identifier": "collectDiffWarnings",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/expand/pr-tools.ts",
+          "line": 1063,
+          "identifier": "collectExpandWarnings",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/expand/pr-tools.ts",
+          "line": 902,
+          "identifier": "collectMaterializeWarnings",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/expand/pr-tools.ts",
+          "line": 882,
+          "identifier": "toRepoWarnings",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/expand/shared.ts",
+          "line": 156,
+          "identifier": "dedupeWarnings",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/expand/tool-support.ts",
+          "line": 74,
+          "identifier": "collectCommitExpandWarnings",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/expand/tree-tools.ts",
+          "line": 771,
+          "identifier": "collectTreeWarnings",
+          "identifier_kind": "function"
+        }
+      ]
+    },
+    {
+      "canonical": "window",
+      "aliases": [],
+      "frequency": 25,
+      "provenance": [
+        {
+          "package": ".",
+          "file": "src/policy/config.ts",
+          "line": 162,
+          "identifier": "CHANGED_LINE_WINDOW_PADDING",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/policy/config.ts",
+          "line": 164,
+          "identifier": "MAX_SNIPPET_WINDOW_LINES",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/args.ts",
+          "line": 118,
+          "identifier": "provenanceWindowEndArg",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/args.ts",
+          "line": 111,
+          "identifier": "provenanceWindowStartArg",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/score/schemas.ts",
+          "line": 192,
+          "identifier": "HotspotWindow",
+          "identifier_kind": "type"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/score/schemas.ts",
+          "line": 78,
+          "identifier": "HotspotWindowSchema",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/args.ts",
+          "line": 118,
+          "identifier": "provenanceWindowEndArg",
+          "identifier_kind": "exported-symbol"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/args.ts",
+          "line": 111,
+          "identifier": "provenanceWindowStartArg",
+          "identifier_kind": "exported-symbol"
+        }
+      ]
+    },
+    {
+      "canonical": "worktree",
+      "aliases": [],
+      "frequency": 33,
+      "provenance": [
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/expand/schemas.ts",
+          "line": 18,
+          "identifier": "GW_WORKTREE_OVERVIEW_TOOL",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/expand/schemas.ts",
+          "line": 448,
+          "identifier": "ProvWorktreeOverviewData",
+          "identifier_kind": "type"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/expand/schemas.ts",
+          "line": 262,
+          "identifier": "ProvWorktreeOverviewDataSchema",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/expand/schemas.ts",
+          "line": 275,
+          "identifier": "ProvWorktreeOverviewResultSchema",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/expand/schemas.ts",
+          "line": 173,
+          "identifier": "WorktreeOverviewSummarySchema",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/expand/tree-tools.ts",
+          "line": 747,
+          "identifier": "buildWorktreeOverviewSources",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/expand/tree-tools.ts",
+          "line": 948,
+          "identifier": "buildWorktreeOverviewSummary",
+          "identifier_kind": "function"
+        },
+        {
+          "package": ".",
+          "file": "src/provenance/tooling/expand/tree-tools.ts",
+          "line": 1030,
+          "identifier": "createWorktreeOverviewTool",
+          "identifier_kind": "function"
+        }
+      ]
+    }
+  ],
+  "rejected_terms": [
+    "absolute",
+    "accept",
+    "acquire",
+    "action",
+    "actionable",
+    "activity",
+    "after",
+    "against",
+    "aggregate",
+    "aggregates",
+    "all",
+    "allowed",
+    "ambiguity",
+    "analysis",
+    "anchor",
+    "append",
+    "application",
+    "applies",
+    "apply",
+    "area",
+    "arg",
+    "args",
+    "argument",
+    "array",
+    "artifacts",
+    "as",
+    "assert",
+    "assessment",
+    "assign",
+    "assignment",
+    "ast",
+    "at",
+    "attach",
+    "augment",
+    "auth",
+    "author",
+    "authors",
+    "auto",
+    "available",
+    "aware",
+    "backtrack",
+    "base",
+    "baseline",
+    "bash",
+    "batch",
+    "before",
+    "block",
+    "blocking",
+    "body",
+    "boolean",
+    "bound",
+    "bounded",
+    "bounds",
+    "branch",
+    "branches",
+    "breakdown",
+    "bucket",
+    "buckets",
+    "budgets",
+    "build",
+    "builder",
+    "by",
+    "byte",
+    "bytes",
+    "calculate",
+    "call",
+    "candidate",
+    "candidates",
+    "canonical",
+    "capabilities",
+    "capture",
+    "carrier",
+    "chain",
+    "change",
+    "changed",
+    "changes",
+    "chat",
+    "check",
+    "checkout",
+    "churn",
+    "clamp",
+    "clarity",
+    "classification",
+    "classifications",
+    "classify",
+    "cleanup",
+    "clear",
+    "client",
+    "clone",
+    "code",
+    "collapse",
+    "collect",
+    "collection",
+    "combine",
+    "commands",
+    "comment",
+    "comments",
+    "commit",
+    "commits",
+    "common",
+    "compaction",
+    "compare",
+    "comparison",
+    "completed",
+    "completion",
+    "composite",
+    "compute",
+    "concurrency",
+    "confidence",
+    "config",
+    "configs",
+    "configured",
+    "confirm",
+    "connection",
+    "consume",
+    "content",
+    "contents",
+    "contexts",
+    "contracts",
+    "contributor",
+    "core",
+    "count",
+    "counts",
+    "coverage",
+    "create",
+    "current",
+    "cursor",
+    "custom",
+    "cwd",
+    "data",
+    "date",
+    "day",
+    "days",
+    "decision",
+    "decode",
+    "default",
+    "definition",
+    "definitions",
+    "delta",
+    "depth",
+    "derive",
+    "describe",
+    "description",
+    "descriptions",
+    "details",
+    "detect",
+    "detected",
+    "detection",
+    "diffs",
+    "dir",
+    "direct",
+    "directive",
+    "directory",
+    "dirs",
+    "disabled",
+    "discard",
+    "discover",
+    "discovered",
+    "discovery",
+    "disk",
+    "dispatcher",
+    "docker",
+    "doctor",
+    "duplicate",
+    "edit",
+    "effect",
+    "empty",
+    "encode",
+    "encoding",
+    "end",
+    "enforce",
+    "ensure",
+    "entries",
+    "entry",
+    "env",
+    "envelope",
+    "error",
+    "escape",
+    "evaluate",
+    "evaluation",
+    "event",
+    "events",
+    "examples",
+    "execute",
+    "execution",
+    "exists",
+    "expand",
+    "expect",
+    "expectation",
+    "explainable",
+    "explicit",
+    "extension",
+    "extract",
+    "extraction",
+    "factor",
+    "failed",
+    "failure",
+    "fallback",
+    "feature",
+    "fetch",
+    "field",
+    "filesystem",
+    "filter",
+    "finalize",
+    "finalized",
+    "find",
+    "finding",
+    "findings",
+    "first",
+    "fixture",
+    "flag",
+    "flatten",
+    "focused",
+    "for",
+    "format",
+    "from",
+    "get",
+    "gh",
+    "glob",
+    "global",
+    "globals",
+    "graph",
+    "graphql",
+    "grep",
+    "group",
+    "guards",
+    "handle",
+    "harness",
+    "has",
+    "hash",
+    "head",
+    "header",
+    "hierarchical",
+    "hierarchy",
+    "highest",
+    "hints",
+    "hit",
+    "hits",
+    "home",
+    "hub",
+    "human",
+    "hunk",
+    "hybrid",
+    "id",
+    "identity",
+    "idle",
+    "ids",
+    "if",
+    "ignored",
+    "image",
+    "include",
+    "included",
+    "includes",
+    "indent",
+    "index",
+    "infer",
+    "info",
+    "init",
+    "initial",
+    "inject",
+    "injected",
+    "inline",
+    "input",
+    "inputs",
+    "integer",
+    "internal",
+    "interpret",
+    "invalid",
+    "invalidate",
+    "invoke",
+    "is",
+    "iso",
+    "issue",
+    "item",
+    "items",
+    "key",
+    "keys",
+    "kind",
+    "known",
+    "kubectl",
+    "language",
+    "latest",
+    "lcs",
+    "leading",
+    "length",
+    "level",
+    "levels",
+    "like",
+    "limit",
+    "limitations",
+    "limited",
+    "line",
+    "lines",
+    "list",
+    "load",
+    "loaded",
+    "local",
+    "location",
+    "log",
+    "long",
+    "looks",
+    "lookup",
+    "lowest",
+    "make",
+    "manager",
+    "map",
+    "mark",
+    "markdown",
+    "match",
+    "matched",
+    "matches",
+    "matching",
+    "materialized",
+    "matrix",
+    "max",
+    "maybe",
+    "merge",
+    "merged",
+    "message",
+    "messages",
+    "meta",
+    "method",
+    "methods",
+    "missing",
+    "mkdir",
+    "mock",
+    "model",
+    "ms",
+    "mutable",
+    "mutating",
+    "name",
+    "names",
+    "native",
+    "nearby",
+    "nearest",
+    "needs",
+    "never",
+    "newline",
+    "next",
+    "nice",
+    "node",
+    "normalization",
+    "normalize",
+    "normalized",
+    "now",
+    "number",
+    "numbers",
+    "object",
+    "of",
+    "old",
+    "oldest",
+    "only",
+    "op",
+    "opencode",
+    "option",
+    "optional",
+    "options",
+    "or",
+    "order",
+    "out",
+    "output",
+    "outside",
+    "overlap",
+    "overview",
+    "owned",
+    "ownership",
+    "padding",
+    "page",
+    "pages",
+    "pagination",
+    "params",
+    "parse",
+    "parsed",
+    "parser",
+    "part",
+    "pattern",
+    "patterns",
+    "payload",
+    "payloads",
+    "pending",
+    "percent",
+    "permission",
+    "perspective",
+    "phase",
+    "plan",
+    "positive",
+    "posix",
+    "post",
+    "pr",
+    "pre",
+    "prefix",
+    "prefixes",
+    "preflight",
+    "presence",
+    "pressure",
+    "primitive",
+    "priority",
+    "process",
+    "processed",
+    "project",
+    "promise",
+    "properties",
+    "property",
+    "provider",
+    "push",
+    "put",
+    "ql",
+    "quote",
+    "quoted",
+    "radius",
+    "ratio",
+    "raw",
+    "read",
+    "reader",
+    "realpath",
+    "reason",
+    "recent",
+    "record",
+    "recursive",
+    "ref",
+    "reference",
+    "references",
+    "regex",
+    "region",
+    "registration",
+    "registry",
+    "regular",
+    "reject",
+    "relation",
+    "reminders",
+    "remove",
+    "render",
+    "repeated",
+    "repo",
+    "request",
+    "requested",
+    "require",
+    "resolve",
+    "resolved",
+    "response",
+    "responses",
+    "result",
+    "rm",
+    "root",
+    "roots",
+    "round",
+    "rules",
+    "run",
+    "safe",
+    "sample",
+    "scan",
+    "schemas",
+    "scoped",
+    "scores",
+    "sdk",
+    "section",
+    "sections",
+    "seed",
+    "seen",
+    "segment",
+    "segments",
+    "select",
+    "selected",
+    "separator",
+    "serialize",
+    "service",
+    "set",
+    "severity",
+    "shape",
+    "share",
+    "short",
+    "show",
+    "signal",
+    "signals",
+    "since",
+    "single",
+    "size",
+    "skills",
+    "slash",
+    "slashes",
+    "sleep",
+    "slot",
+    "snapshot",
+    "sort",
+    "sorted",
+    "spawn",
+    "specs",
+    "split",
+    "src",
+    "stable",
+    "stale",
+    "start",
+    "stat",
+    "stats",
+    "status",
+    "statuses",
+    "stop",
+    "store",
+    "stream",
+    "strictness",
+    "string",
+    "strip",
+    "stub",
+    "submit",
+    "success",
+    "sudo",
+    "suffix",
+    "sum",
+    "summaries",
+    "summarize",
+    "summary",
+    "supported",
+    "surface",
+    "system",
+    "temp",
+    "termination",
+    "test",
+    "text",
+    "thread",
+    "threads",
+    "timed",
+    "timeout",
+    "timestamp",
+    "to",
+    "token",
+    "tokenize",
+    "toml",
+    "tooling",
+    "top",
+    "total",
+    "totals",
+    "touched",
+    "tracked",
+    "tracking",
+    "trailing",
+    "transform",
+    "tree",
+    "trigger",
+    "trim",
+    "truncate",
+    "type",
+    "unavailable",
+    "unescape",
+    "unexpected",
+    "unified",
+    "unique",
+    "unit",
+    "unsupported",
+    "untracked",
+    "update",
+    "use",
+    "user",
+    "validate",
+    "validation",
+    "value",
+    "values",
+    "version",
+    "warn",
+    "warning",
+    "web",
+    "wildcard",
+    "windows",
+    "with",
+    "within",
+    "working",
+    "wrap",
+    "wrappers",
+    "write",
+    "yaml"
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "extracted_at_sha": "cb3cff4098a0e35d954897a15ac0c9ba2ed37ca8",
+  "boundaries": {
+    ".": {
+      "visibility": "public-api",
+      "allowed_imports": [
+        "@effect/cli",
+        "@effect/platform-bun",
+        "@iarna/toml",
+        "@opencode-ai/plugin",
+        "@opencode-ai/sdk",
+        "effect",
+        "gray-matter",
+        "zod"
+      ]
+    }
+  },
+  "naming_conventions": {
+    "function": "camelCase",
+    "class": "PascalCase",
+    "interface": "PascalCase",
+    "type": "PascalCase",
+    "const": "camelCase | PascalCase | UPPER_SNAKE_CASE",
+    "enum": "PascalCase"
+  },
+  "architectural_rules": []
+}

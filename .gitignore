@@ -2,6 +2,7 @@ node_modules/
 dist/
 .agents/traces/
 .groundwork/
+.pulsar/cache/
 
 .DS_Store
 *.log

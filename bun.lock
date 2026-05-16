@@ -15,6 +15,7 @@
       "devDependencies": {
         "@opencode-ai/plugin": "1.3.17",
         "@opencode-ai/sdk": "1.3.17",
+        "@skastr0/pulsar-project-module-effect": "^0.1.0",
         "@types/bun": "latest",
         "@types/node": "^22.0.0",
         "typescript": "^5.7.3",
@@ -139,6 +140,12 @@
     "@rolldown/binding-win32-x64-msvc": ["@rolldown/binding-win32-x64-msvc@1.0.0-rc.17", "", { "os": "win32", "cpu": "x64" }, "sha512-3hkiolcUAvPB9FLb3UZdfjVVNWherN1f/skkGWJP/fgSQhYUZpSIRr0/I8ZK9TkF3F7kxvJAk0+IcKvPHk9qQg=="],
 
     "@rolldown/pluginutils": ["@rolldown/pluginutils@1.0.0-rc.17", "", {}, "sha512-n8iosDOt6Ig1UhJ2AYqoIhHWh/isz0xpicHTzpKBeotdVsTEcxsSA/i3EVM7gQAj0rU27OLAxCjzlj15IWY7bg=="],
+
+    "@skastr0/pulsar-core": ["@skastr0/pulsar-core@0.1.0", "", { "dependencies": { "effect": "^3.0.0" } }, "sha512-4TMZzWMlx+R+FxUn8wkx1K1y05KVHxlGKhKFouVW88GKW5w13ZvKxrVBkg5GDgwUDLJDcx+fY2XxK/qQnm1tSw=="],
+
+    "@skastr0/pulsar-project-module-effect": ["@skastr0/pulsar-project-module-effect@0.1.0", "", { "dependencies": { "@skastr0/pulsar-project-module-sdk": "0.1.0", "effect": "^3.0.0" } }, "sha512-irn6ZZveXc6tFVBg3iTxvFrVmrYYcLSHbOvdkNgBPIKwA9KI88YIQYmLfA9HUurewFh50nO01aYXNgogIc4pQQ=="],
+
+    "@skastr0/pulsar-project-module-sdk": ["@skastr0/pulsar-project-module-sdk@0.1.0", "", { "dependencies": { "@skastr0/pulsar-core": "0.1.0", "effect": "^3.0.0", "typescript": "^5.8.0" } }, "sha512-xKqmj5NTfUwsL8gXUpRIZPZ6doRbCEWtzlWbMTr6EvOBmQLScF3hiuBQJC5/7ZYdUmBGZ6x5XtTm5tOnrlUhgw=="],
 
     "@standard-schema/spec": ["@standard-schema/spec@1.1.0", "", {}, "sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w=="],
 
