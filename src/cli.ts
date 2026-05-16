@@ -17,6 +17,72 @@ const ROOT_LOG_LEVELS = [
   "none",
 ] as const;
 
+const SIMPLE_TOP_LEVEL_COMMANDS = ["capabilities", "doctor"] as const;
+const DISCOVERY_COMMAND_GROUPS = ["schema", "examples"] as const;
+const CODEX_SUBCOMMANDS = ["doctor", "hook", "install-project", "install-user"] as const;
+
+const INPUT_COMMAND_SPECS = {
+  context: {
+    commandPrefix: "context",
+    expectedSubcommands: ["discover", "touched-paths"],
+  },
+  policy: {
+    commandPrefix: "policy",
+    expectedSubcommands: [
+      "evaluate-tool-call",
+      "evaluate-tool-result",
+      "override",
+      "skill-loaded",
+    ],
+  },
+  provenance: {
+    commandPrefix: "provenance",
+    expectedSubcommands: [
+      "authority",
+      "block-read",
+      "commit-expand",
+      "commit-materialize",
+      "diff-expand",
+      "file-state",
+      "hotspots",
+      "pr-expand",
+      "pr-materialize",
+      "read",
+      "repo-state",
+      "run",
+      "span-history",
+      "stability-report",
+      "tree-expand",
+      "worktree-overview",
+    ],
+  },
+  risk: {
+    commandPrefix: "risk evaluate-command",
+    expectedSubcommands: ["evaluate-command"],
+  },
+  session: {
+    commandPrefix: "session",
+    expectedSubcommands: [
+      "cleanup",
+      "get",
+      "override",
+      "put-pending-tool",
+      "remember-action",
+      "render-compaction",
+      "skill-loaded",
+    ],
+  },
+} as const satisfies Record<string, InputCommandSpec>;
+
+type DiscoveryCommandGroup = (typeof DISCOVERY_COMMAND_GROUPS)[number];
+type InputCommandGroup = keyof typeof INPUT_COMMAND_SPECS;
+type SimpleTopLevelCommand = (typeof SIMPLE_TOP_LEVEL_COMMANDS)[number];
+
+interface InputCommandSpec {
+  commandPrefix: string;
+  expectedSubcommands: readonly string[];
+}
+
 const cli = Command.run(rootCommand, {
   name: "groundwork",
   version: "0.1.0",
@@ -75,65 +141,51 @@ function validateCommandShape(args: string[]): CommandShapeFailure | undefined {
 
 function validateTopLevelCommand(commandArgs: string[]): CommandShapeFailure | undefined {
   const [group, subcommand, input] = commandArgs;
-  switch (group) {
-    case "capabilities":
-    case "doctor":
-      return rejectUnexpectedArgs(group, commandArgs, 1);
-    case "codex":
-      return validateCodexCommand(subcommand, input, commandArgs);
-    case "schema":
-    case "examples":
-      return validateDiscoveryCommand(group, subcommand, input, commandArgs);
-    case "risk":
-      return validateInputCommand("risk evaluate-command", subcommand, input, commandArgs, [
-        "evaluate-command",
-      ]);
-    case "context":
-      return validateInputCommand("context", subcommand, input, commandArgs, [
-        "discover",
-        "touched-paths",
-      ]);
-    case "policy":
-      return validateInputCommand("policy", subcommand, input, commandArgs, [
-        "evaluate-tool-call",
-        "evaluate-tool-result",
-        "override",
-        "skill-loaded",
-      ]);
-    case "provenance":
-      return validateInputCommand("provenance", subcommand, input, commandArgs, [
-        "authority",
-        "block-read",
-        "commit-expand",
-        "commit-materialize",
-        "diff-expand",
-        "file-state",
-        "hotspots",
-        "pr-expand",
-        "pr-materialize",
-        "read",
-        "repo-state",
-        "run",
-        "span-history",
-        "stability-report",
-        "tree-expand",
-        "worktree-overview",
-      ]);
-    case "session":
-      return validateInputCommand("session", subcommand, input, commandArgs, [
-        "cleanup",
-        "get",
-        "override",
-        "put-pending-tool",
-        "remember-action",
-        "render-compaction",
-        "skill-loaded",
-      ]);
-    default:
-      return shapeFailure(undefined, `Unknown command '${group ?? ""}'`, {
-        expected: knownTopLevelCommands(),
-      });
+  if (isSimpleTopLevelCommand(group)) {
+    return rejectUnexpectedArgs(group, commandArgs, 1);
   }
+
+  if (group === "codex") {
+    return validateCodexCommand(subcommand, input, commandArgs);
+  }
+
+  if (isDiscoveryCommandGroup(group)) {
+    return validateDiscoveryCommand(group, subcommand, input, commandArgs);
+  }
+
+  const inputCommandSpec = getInputCommandSpec(group);
+  if (inputCommandSpec) {
+    return validateInputCommand(
+      inputCommandSpec.commandPrefix,
+      subcommand,
+      input,
+      commandArgs,
+      inputCommandSpec.expectedSubcommands,
+    );
+  }
+
+  return shapeFailure(undefined, `Unknown command '${group ?? ""}'`, {
+    expected: knownTopLevelCommands(),
+  });
+}
+
+function isSimpleTopLevelCommand(
+  group: string | undefined,
+): group is SimpleTopLevelCommand {
+  return SIMPLE_TOP_LEVEL_COMMANDS.includes(group as SimpleTopLevelCommand);
+}
+
+function isDiscoveryCommandGroup(
+  group: string | undefined,
+): group is DiscoveryCommandGroup {
+  return DISCOVERY_COMMAND_GROUPS.includes(group as DiscoveryCommandGroup);
+}
+
+function getInputCommandSpec(group: string | undefined): InputCommandSpec | undefined {
+  if (!group || !(group in INPUT_COMMAND_SPECS)) {
+    return undefined;
+  }
+  return INPUT_COMMAND_SPECS[group as InputCommandGroup];
 }
 
 function isRootParserOwnedOption(arg: string): boolean {
@@ -195,9 +247,10 @@ function validateCodexCommand(
   input: string | undefined,
   args: string[],
 ): CommandShapeFailure | undefined {
-  const expected = ["doctor", "hook", "install-project", "install-user"];
   if (subcommand === undefined) {
-    return shapeFailure("codex", "Missing codex subcommand", { expected });
+    return shapeFailure("codex", "Missing codex subcommand", {
+      expected: CODEX_SUBCOMMANDS,
+    });
   }
 
   if (subcommand === "doctor" || subcommand === "hook") {
@@ -211,7 +264,9 @@ function validateCodexCommand(
     return rejectUnexpectedArgs(`codex ${subcommand}`, args, 3);
   }
 
-  return shapeFailure("codex", `Unknown codex subcommand '${subcommand}'`, { expected });
+  return shapeFailure("codex", `Unknown codex subcommand '${subcommand}'`, {
+    expected: CODEX_SUBCOMMANDS,
+  });
 }
 
 function validateDiscoveryCommand(
@@ -245,7 +300,7 @@ function validateInputCommand(
   subcommand: string | undefined,
   input: string | undefined,
   args: string[],
-  expectedSubcommands: string[],
+  expectedSubcommands: readonly string[],
 ): CommandShapeFailure | undefined {
   const command = expectedSubcommands.length === 1 ? commandPrefix : `${commandPrefix} ${subcommand ?? ""}`.trim();
   if (subcommand === undefined) {
