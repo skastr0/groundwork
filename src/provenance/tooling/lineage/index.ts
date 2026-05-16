@@ -26,6 +26,7 @@ import {
   normalizeRequestedPath,
   type CreateStateToolsOptions,
 } from "../state/index.ts";
+import { createUnsupportedModeFailure } from "../shared.ts";
 import { logger } from "../utils/logger.ts";
 
 const GW_SPAN_HISTORY_TOOL = "gw_span_history" as const;
@@ -436,24 +437,6 @@ function createSpanHistorySummary(data: ProvSpanHistoryData): string {
   return `Span history for ${data.resolvedPath}:${data.span.startLine}-${data.span.endLine}: ${commitSummary}, ${data.contributors.length} contributor(s).`;
 }
 
-function createUnsupportedModeFailure(mode: string): string {
-  return JSON.stringify(
-    createProvenanceFailure({
-      tool: GW_SPAN_HISTORY_TOOL,
-      mode: mode as "remote" | "hybrid",
-      confidence: "unknown",
-      ambiguity: "high",
-      summary: `Unsupported provenance mode '${mode}' for ${GW_SPAN_HISTORY_TOOL}.`,
-      error: {
-        code: "MODE_NOT_SUPPORTED",
-        message: `${GW_SPAN_HISTORY_TOOL} currently supports only local mode.`,
-      },
-    }),
-    null,
-    2,
-  );
-}
-
 export interface ResolveLocalSpanLineageOptions {
   shell: CreateStateToolsOptions["shell"];
   rootDir: string;
@@ -568,7 +551,7 @@ async function executeSpanHistoryTool(
       tool: GW_SPAN_HISTORY_TOOL,
       mode: resolvedMode,
     });
-    return createUnsupportedModeFailure(resolvedMode);
+    return createUnsupportedModeFailure(GW_SPAN_HISTORY_TOOL, resolvedMode);
   }
 
   if (endLine < startLine) {

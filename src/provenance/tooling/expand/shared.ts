@@ -1,11 +1,11 @@
 import { DEFAULT_PROVENANCE_BYTE_LIMIT, resolveBoundedNumber } from "../args.ts";
 import {
-  createProvenanceFailure,
   type ProvenanceAmbiguity,
   type ProvenanceBounds,
   type ProvenanceConfidence,
   type ProvenanceWarning,
 } from "../contracts.ts";
+export { createUnsupportedModeFailure } from "../shared.ts";
 import type { PatchText } from "./schemas.ts";
 
 const ISO_TIMESTAMP_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/;
@@ -167,22 +167,4 @@ export function dedupeWarnings(warnings: readonly ProvenanceWarning[]): Provenan
   }
 
   return output;
-}
-
-export function createUnsupportedModeFailure(toolName: `gw_${string}`, mode: string): string {
-  return JSON.stringify(
-    createProvenanceFailure({
-      tool: toolName,
-      mode: mode as "remote" | "hybrid",
-      confidence: "unknown",
-      ambiguity: "high",
-      summary: `Unsupported provenance mode '${mode}' for ${toolName}.`,
-      error: {
-        code: "MODE_NOT_SUPPORTED",
-        message: `${toolName} currently supports only local mode.`,
-      },
-    }),
-    null,
-    2,
-  );
 }

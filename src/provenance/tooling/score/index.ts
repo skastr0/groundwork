@@ -25,6 +25,7 @@ import {
   type CreateStateToolsOptions,
   type LocalRepoFileStatus,
 } from "../state/index.ts";
+import { createUnsupportedModeFailure } from "../shared.ts";
 import { logger } from "../utils/logger.ts";
 import {
   ProvAuthorityDataSchema,
@@ -384,30 +385,6 @@ function dedupeSignals(signals: readonly ProvenanceSignal[]): ProvenanceSignal[]
   }
 
   return output;
-}
-
-function createUnsupportedModeFailure(
-  toolName:
-    | typeof GW_HOTSPOTS_TOOL
-    | typeof GW_AUTHORITY_TOOL
-    | typeof GW_STABILITY_REPORT_TOOL,
-  mode: string,
-): string {
-  return JSON.stringify(
-    createProvenanceFailure({
-      tool: toolName,
-      mode: mode as "remote" | "hybrid",
-      confidence: "unknown",
-      ambiguity: "high",
-      summary: `Unsupported provenance mode '${mode}' for ${toolName}.`,
-      error: {
-        code: "MODE_NOT_SUPPORTED",
-        message: `${toolName} currently supports only local mode.`,
-      },
-    }),
-    null,
-    2,
-  );
 }
 
 function createToolFailure(

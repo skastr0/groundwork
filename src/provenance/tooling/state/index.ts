@@ -19,6 +19,7 @@ import {
   type ProvenanceEvidenceSource,
   type ProvenanceWarning,
 } from "../contracts.ts";
+import { createUnsupportedModeFailure } from "../shared.ts";
 import { logger } from "../utils/logger.ts";
 import {
   LOCAL_BASE_DETECTION_KIND_VALUES,
@@ -413,27 +414,6 @@ function createFileStateSummary(data: ProvFileStateData): string {
       formatComparison("index->worktree", data.comparisons.indexToWorktree),
     ].join(", "),
   ].join(" ");
-}
-
-function createUnsupportedModeFailure(
-  toolName: typeof GW_REPO_STATE_TOOL | typeof GW_FILE_STATE_TOOL,
-  mode: string,
-): string {
-  return JSON.stringify(
-    createProvenanceFailure({
-      tool: toolName,
-      mode: mode as "remote" | "hybrid",
-      confidence: "unknown",
-      ambiguity: "high",
-      summary: `Unsupported provenance mode '${mode}' for ${toolName}.`,
-      error: {
-        code: "MODE_NOT_SUPPORTED",
-        message: `${toolName} currently supports only local mode.`,
-      },
-    }),
-    null,
-    2,
-  );
 }
 
 function toFileStateSources(state: ProvFileStateData): ProvenanceEvidenceSource[] {

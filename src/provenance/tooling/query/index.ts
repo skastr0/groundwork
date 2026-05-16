@@ -49,6 +49,7 @@ import {
   type LocalFileState,
   type LocalRepoAmbiguityState,
 } from "../state/index.ts";
+import { createUnsupportedModeFailure } from "../shared.ts";
 import { logger } from "../utils/logger.ts";
 
 const GW_READ_TOOL = "gw_read" as const;
@@ -222,27 +223,6 @@ function toAmbiguityWarnings(ambiguity: LocalRepoAmbiguityState): ProvenanceWarn
     message: issue.message,
     ambiguity: issue.level,
   }));
-}
-
-function createUnsupportedModeFailure(
-  toolName: typeof GW_READ_TOOL | typeof GW_BLOCK_READ_TOOL,
-  mode: string,
-): string {
-  return JSON.stringify(
-    createProvenanceFailure({
-      tool: toolName,
-      mode: mode as "remote" | "hybrid",
-      confidence: "unknown",
-      ambiguity: "high",
-      summary: `Unsupported provenance mode '${mode}' for ${toolName}.`,
-      error: {
-        code: "MODE_NOT_SUPPORTED",
-        message: `${toolName} currently supports only local mode.`,
-      },
-    }),
-    null,
-    2,
-  );
 }
 
 function getSelectedLayerState(
