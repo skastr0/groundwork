@@ -1,0 +1,6 @@
+export const CHANGED_LINE_WINDOW_PADDING = 12;
+export const MAX_SNIPPET_WINDOWS = 8;
+export const MAX_SNIPPET_WINDOW_LINES = 160;
+export const MAX_SNIPPET_TOTAL_LINES = 480;
+export const MAX_SNIPPET_COVERAGE_RATIO = 0.6;
+export const MATCHER_CONCURRENCY = 50;
