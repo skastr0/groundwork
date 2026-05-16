@@ -169,104 +169,131 @@ function evaluateGit(tokens: string[], segment: string): GuardViolation | null {
   const subcommand = normalizeCommandToken(tokens[1]);
   const args = tokens.slice(2);
 
-  if (subcommand === "checkout" && isCheckoutDiscard(args)) {
-    return {
-      ruleId: "git.checkout-discard",
-      severity: "high",
-      reason: "git checkout -- discards local file changes",
+  if (subcommand === "checkout") return evaluateGitCheckout(args, segment);
+  if (subcommand === "reset") return evaluateGitReset(args, segment);
+  if (subcommand === "clean") return evaluateGitClean(args, segment);
+  if (subcommand === "restore") return evaluateGitRestore(args, segment);
+  if (subcommand === "stash") return evaluateGitStash(args, segment);
+  if (subcommand === "push") return evaluateGitPush(args, segment);
+
+  return null;
+}
+
+function evaluateGitCheckout(args: string[], segment: string): GuardViolation | null {
+  if (!isCheckoutDiscard(args)) return null;
+
+  return gitViolation(
+    "git.checkout-discard",
+    "high",
+    "git checkout -- discards local file changes",
+    segment,
+  );
+}
+
+function evaluateGitReset(args: string[], segment: string): GuardViolation | null {
+  const parsed = parseCommandArgs(args);
+  if (hasLongOption(parsed.longOptions, "hard")) {
+    return gitViolation(
+      "git.reset-hard",
+      "critical",
+      "git reset --hard discards local changes",
       segment,
-    };
+    );
   }
 
-  if (subcommand === "reset") {
-    const parsed = parseCommandArgs(args);
-    if (hasLongOption(parsed.longOptions, "hard")) {
-      return {
-        ruleId: "git.reset-hard",
-        severity: "critical",
-        reason: "git reset --hard discards local changes",
-        segment,
-      };
-    }
-
-    if (hasLongOption(parsed.longOptions, "merge")) {
-      return {
-        ruleId: "git.reset-merge",
-        severity: "high",
-        reason: "git reset --merge can discard local merge state",
-        segment,
-      };
-    }
-  }
-
-  if (subcommand === "clean") {
-    const parsed = parseCommandArgs(args);
-    const hasForce =
-      hasShortFlag(parsed.shortFlags, "f") || hasLongOption(parsed.longOptions, "force");
-    const hasDryRun =
-      hasShortFlag(parsed.shortFlags, "n") || hasLongOption(parsed.longOptions, "dry-run");
-
-    if (hasForce && !hasDryRun) {
-      return {
-        ruleId: "git.clean-force",
-        severity: "high",
-        reason: "git clean with force deletes untracked files",
-        segment,
-      };
-    }
-  }
-
-  if (subcommand === "restore") {
-    const parsed = parseCommandArgs(args);
-    const hasStaged =
-      hasShortFlag(parsed.shortFlags, "S") || hasLongOption(parsed.longOptions, "staged");
-    const hasWorktree =
-      hasShortFlag(parsed.shortFlags, "W") || hasLongOption(parsed.longOptions, "worktree");
-
-    if (hasWorktree) {
-      return {
-        ruleId: "git.restore-worktree",
-        severity: "high",
-        reason: "git restore --worktree discards working tree changes",
-        segment,
-      };
-    }
-
-    if (!hasStaged && parsed.positionals.length > 0) {
-      return {
-        ruleId: "git.restore-path",
-        severity: "high",
-        reason: "git restore on paths discards working tree changes",
-        segment,
-      };
-    }
-  }
-
-  if (subcommand === "stash" && normalizeCommandToken(tokens[2]) === "clear") {
-    return {
-      ruleId: "git.stash-clear",
-      severity: "high",
-      reason: "git stash clear permanently removes all stashes",
+  if (hasLongOption(parsed.longOptions, "merge")) {
+    return gitViolation(
+      "git.reset-merge",
+      "high",
+      "git reset --merge can discard local merge state",
       segment,
-    };
-  }
-
-  if (subcommand === "push") {
-    const parsed = parseCommandArgs(args);
-    const hasForce =
-      hasShortFlag(parsed.shortFlags, "f") || hasLongOption(parsed.longOptions, "force");
-
-    if (hasForce) {
-      return {
-        ruleId: "git.push-force",
-        severity: "high",
-        reason: "git push --force rewrites remote history",
-        segment,
-      };
-    }
+    );
   }
 
   return null;
+}
+
+function evaluateGitClean(args: string[], segment: string): GuardViolation | null {
+  const parsed = parseCommandArgs(args);
+  const hasForce =
+    hasShortFlag(parsed.shortFlags, "f") || hasLongOption(parsed.longOptions, "force");
+  const hasDryRun =
+    hasShortFlag(parsed.shortFlags, "n") || hasLongOption(parsed.longOptions, "dry-run");
+
+  if (!hasForce || hasDryRun) return null;
+
+  return gitViolation(
+    "git.clean-force",
+    "high",
+    "git clean with force deletes untracked files",
+    segment,
+  );
+}
+
+function evaluateGitRestore(args: string[], segment: string): GuardViolation | null {
+  const parsed = parseCommandArgs(args);
+  const hasStaged =
+    hasShortFlag(parsed.shortFlags, "S") || hasLongOption(parsed.longOptions, "staged");
+  const hasWorktree =
+    hasShortFlag(parsed.shortFlags, "W") || hasLongOption(parsed.longOptions, "worktree");
+
+  if (hasWorktree) {
+    return gitViolation(
+      "git.restore-worktree",
+      "high",
+      "git restore --worktree discards working tree changes",
+      segment,
+    );
+  }
+
+  if (hasStaged || parsed.positionals.length === 0) return null;
+
+  return gitViolation(
+    "git.restore-path",
+    "high",
+    "git restore on paths discards working tree changes",
+    segment,
+  );
+}
+
+function evaluateGitStash(args: string[], segment: string): GuardViolation | null {
+  if (normalizeCommandToken(args[0]) !== "clear") return null;
+
+  return gitViolation(
+    "git.stash-clear",
+    "high",
+    "git stash clear permanently removes all stashes",
+    segment,
+  );
+}
+
+function evaluateGitPush(args: string[], segment: string): GuardViolation | null {
+  const parsed = parseCommandArgs(args);
+  const hasForce =
+    hasShortFlag(parsed.shortFlags, "f") || hasLongOption(parsed.longOptions, "force");
+
+  if (!hasForce) return null;
+
+  return gitViolation(
+    "git.push-force",
+    "high",
+    "git push --force rewrites remote history",
+    segment,
+  );
+}
+
+function gitViolation(
+  ruleId: string,
+  severity: GuardSeverity,
+  reason: string,
+  segment: string,
+): GuardViolation {
+  return {
+    ruleId,
+    severity,
+    reason,
+    segment,
+  };
 }
 
 function evaluateDocker(tokens: string[], segment: string): GuardViolation | null {
