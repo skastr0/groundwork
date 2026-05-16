@@ -115,6 +115,32 @@ type MutableAreaSummary = {
   samplePaths: Set<string>;
 };
 
+type TreeExpandCoreArgs = {
+  path: string;
+  base?: string;
+  scope?: TreeScopeType;
+  limit?: number;
+  max_bytes?: number;
+  max_depth?: number;
+};
+
+type TreeExpandLoadContext = {
+  rootDir: string;
+  scope: TreeScopeType;
+  maxDepth: number;
+  anchor: ResolvedTreeAnchor;
+  repoState: Awaited<ReturnType<typeof resolveLocalRepoState>>;
+  scopedSections: Awaited<ReturnType<typeof loadScopedSections>>;
+};
+
+type TreeExpandAssembly = {
+  summary: ProvTreeExpandData["summary"];
+  areas: TreeAreaSummary[];
+  files: TreeFileSummary[];
+  commits: TreeCommitActivity;
+  bounds: ProvTreeExpandData["bounds"];
+};
+
 function createStatusBreakdown(): TreeStatusBreakdown {
   return {
     added: 0,
@@ -820,17 +846,10 @@ function collectTreeWarnings(data: {
   return dedupeWarnings(output);
 }
 
-async function resolveTreeExpandCore(
+async function loadTreeExpandContext(
   options: CreateStateToolsOptions,
-  args: {
-    path: string;
-    base?: string;
-    scope?: TreeScopeType;
-    limit?: number;
-    max_bytes?: number;
-    max_depth?: number;
-  },
-): Promise<{ data: ProvTreeExpandData; warnings: ProvenanceWarning[] }> {
+  args: TreeExpandCoreArgs,
+): Promise<TreeExpandLoadContext> {
   const rootDir = options.rootDir ?? process.cwd();
   const scope = args.scope ?? "branch";
   const maxDepth = resolveBoundedNumber(args.max_depth, DEFAULT_PROVENANCE_DEPTH_LIMIT);
@@ -849,53 +868,88 @@ async function resolveTreeExpandCore(
     scope,
     baseRef: repoState.base.ref,
   });
-  const files = mergeTreeFiles(toMatchedSections(scopedSections.sections, anchor.resolvedPath));
-  const areas = await buildAreaSummaries({
+
+  return {
     rootDir,
-    anchorPath: anchor.resolvedPath,
+    scope,
     maxDepth,
+    anchor,
+    repoState,
+    scopedSections,
+  };
+}
+
+async function assembleTreeFilesAndAreas(
+  context: TreeExpandLoadContext,
+): Promise<{
+  files: TreeFileSummary[];
+  areas: TreeAreaSummary[];
+}> {
+  const files = mergeTreeFiles(
+    toMatchedSections(context.scopedSections.sections, context.anchor.resolvedPath),
+  );
+  const areas = await buildAreaSummaries({
+    rootDir: context.rootDir,
+    anchorPath: context.anchor.resolvedPath,
+    maxDepth: context.maxDepth,
     files,
-    indexFiles: repoState.index.files,
-    worktreeFiles: repoState.worktree.files,
-    untrackedFiles: repoState.untracked.files,
+    indexFiles: context.repoState.index.files,
+    worktreeFiles: context.repoState.worktree.files,
+    untrackedFiles: context.repoState.untracked.files,
   });
+
+  return {
+    files,
+    areas,
+  };
+}
+
+function buildTreeExpandSummaryData(options: {
+  anchorPath: string;
+  areas: readonly TreeAreaSummary[];
+  files: readonly TreeFileSummary[];
+  commits: TreeCommitActivity;
+  repoState: TreeExpandLoadContext["repoState"];
+}): ProvTreeExpandData["summary"] {
+  return {
+    areas: options.areas.length,
+    changedFiles: options.files.length,
+    additions: options.files.reduce((sum, file) => sum + file.additions, 0),
+    deletions: options.files.reduce((sum, file) => sum + file.deletions, 0),
+    commits: options.commits.count,
+    checkout: summarizeCheckout({
+      anchorPath: options.anchorPath,
+      indexFiles: options.repoState.index.files,
+      worktreeFiles: options.repoState.worktree.files,
+      untrackedFiles: options.repoState.untracked.files,
+    }),
+  };
+}
+
+async function assembleTreeExpandData(
+  options: CreateStateToolsOptions,
+  args: TreeExpandCoreArgs,
+  context: TreeExpandLoadContext,
+): Promise<TreeExpandAssembly> {
+  const { areas, files } = await assembleTreeFilesAndAreas(context);
   const fileBounds = applyBoundedLimit(files, args.limit, DEFAULT_PROVENANCE_ITEM_LIMIT);
   const areaBounds = applyBoundedLimit(areas, args.limit, DEFAULT_PROVENANCE_ITEM_LIMIT);
   const commits = await loadCommitActivity({
     shell: options.shell,
-    scope,
-    anchorPath: anchor.resolvedPath,
-    baseRef: repoState.base.ref,
+    scope: context.scope,
+    anchorPath: context.anchor.resolvedPath,
+    baseRef: context.repoState.base.ref,
     limit: args.limit,
   });
-  const summary = {
-    areas: areas.length,
-    changedFiles: files.length,
-    additions: files.reduce((sum, file) => sum + file.additions, 0),
-    deletions: files.reduce((sum, file) => sum + file.deletions, 0),
-    commits: commits.count,
-    checkout: summarizeCheckout({
-      anchorPath: anchor.resolvedPath,
-      indexFiles: repoState.index.files,
-      worktreeFiles: repoState.worktree.files,
-      untrackedFiles: repoState.untracked.files,
+
+  return {
+    summary: buildTreeExpandSummaryData({
+      anchorPath: context.anchor.resolvedPath,
+      areas,
+      files,
+      commits,
+      repoState: context.repoState,
     }),
-  } satisfies ProvTreeExpandData["summary"];
-  const data: ProvTreeExpandData = {
-    anchor: {
-      requestedPath: anchor.requestedPath,
-      resolvedPath: anchor.resolvedPath,
-      kind: anchor.kind,
-    },
-    scope: {
-      type: scope,
-      branchName: repoState.currentBranch.name,
-      baseRef: repoState.base.ref,
-      baseDetectionMethod: repoState.base.detectionMethod,
-      changeDetectionMethod: scopedSections.changeDetectionMethod,
-    },
-    repo: toProvRepoStateData(repoState, args.limit),
-    summary,
     areas: areaBounds.items,
     files: fileBounds.items,
     commits,
@@ -904,13 +958,56 @@ async function resolveTreeExpandCore(
       files: fileBounds.bounds,
     },
   };
-  const warnings = collectTreeWarnings({
-    scope,
-    summary,
+}
+
+function buildTreeExpandData(
+  args: TreeExpandCoreArgs,
+  context: TreeExpandLoadContext,
+  assembly: TreeExpandAssembly,
+): ProvTreeExpandData {
+  return {
+    anchor: {
+      requestedPath: context.anchor.requestedPath,
+      resolvedPath: context.anchor.resolvedPath,
+      kind: context.anchor.kind,
+    },
+    scope: {
+      type: context.scope,
+      branchName: context.repoState.currentBranch.name,
+      baseRef: context.repoState.base.ref,
+      baseDetectionMethod: context.repoState.base.detectionMethod,
+      changeDetectionMethod: context.scopedSections.changeDetectionMethod,
+    },
+    repo: toProvRepoStateData(context.repoState, args.limit),
+    summary: assembly.summary,
+    areas: assembly.areas,
+    files: assembly.files,
+    commits: assembly.commits,
+    bounds: assembly.bounds,
+  };
+}
+
+function collectTreeExpandWarnings(
+  context: TreeExpandLoadContext,
+  data: ProvTreeExpandData,
+): ProvenanceWarning[] {
+  return collectTreeWarnings({
+    scope: context.scope,
+    summary: data.summary,
     bounds: data.bounds,
-    commits,
-    warnings: [...anchor.warnings, ...scopedSections.warnings],
+    commits: data.commits,
+    warnings: [...context.anchor.warnings, ...context.scopedSections.warnings],
   });
+}
+
+async function resolveTreeExpandCore(
+  options: CreateStateToolsOptions,
+  args: TreeExpandCoreArgs,
+): Promise<{ data: ProvTreeExpandData; warnings: ProvenanceWarning[] }> {
+  const context = await loadTreeExpandContext(options, args);
+  const assembly = await assembleTreeExpandData(options, args, context);
+  const data = buildTreeExpandData(args, context, assembly);
+  const warnings = collectTreeExpandWarnings(context, data);
 
   return {
     data,
