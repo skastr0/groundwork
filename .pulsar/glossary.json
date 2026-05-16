@@ -1077,6 +1077,92 @@
       ]
     },
     {
+      "canonical": "github",
+      "aliases": [
+        "gh"
+      ],
+      "frequency": 8,
+      "provenance": [
+        {
+          "package": ".",
+          "file": "review/pr-comments.ts",
+          "line": 59,
+          "identifier": "GitHubUser",
+          "identifier_kind": "interface"
+        },
+        {
+          "package": ".",
+          "file": "review/pr-comments.ts",
+          "line": 63,
+          "identifier": "GitHubReview",
+          "identifier_kind": "interface"
+        },
+        {
+          "package": ".",
+          "file": "review/pr-comments.ts",
+          "line": 72,
+          "identifier": "GitHubReviewComment",
+          "identifier_kind": "interface"
+        },
+        {
+          "package": ".",
+          "file": "review/pr-comments.ts",
+          "line": 86,
+          "identifier": "GitHubIssueComment",
+          "identifier_kind": "interface"
+        }
+      ]
+    },
+    {
+      "canonical": "graphql",
+      "aliases": [],
+      "frequency": 10,
+      "provenance": [
+        {
+          "package": ".",
+          "file": "review/pr-comments.ts",
+          "line": 43,
+          "identifier": "THREAD_COMMENTS_QUERY",
+          "identifier_kind": "const"
+        },
+        {
+          "package": ".",
+          "file": "review/pr-comments.ts",
+          "line": 126,
+          "identifier": "GraphQLReviewThreadComments",
+          "identifier_kind": "interface"
+        },
+        {
+          "package": ".",
+          "file": "review/pr-comments.ts",
+          "line": 134,
+          "identifier": "GraphQLReviewThread",
+          "identifier_kind": "interface"
+        },
+        {
+          "package": ".",
+          "file": "review/pr-comments.ts",
+          "line": 143,
+          "identifier": "GraphQLReviewThreadConnection",
+          "identifier_kind": "interface"
+        },
+        {
+          "package": ".",
+          "file": "review/pr-comments.ts",
+          "line": 151,
+          "identifier": "GraphQLResponse",
+          "identifier_kind": "interface"
+        },
+        {
+          "package": ".",
+          "file": "review/pr-comments.ts",
+          "line": 161,
+          "identifier": "GraphQLThreadCommentsResponse",
+          "identifier_kind": "interface"
+        }
+      ]
+    },
+    {
       "canonical": "groundwork",
       "aliases": [
         "gw"
@@ -5101,12 +5187,10 @@
     "format",
     "from",
     "get",
-    "gh",
     "glob",
     "global",
     "globals",
     "graph",
-    "graphql",
     "grep",
     "group",
     "guards",
