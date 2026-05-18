@@ -4,6 +4,7 @@ import {
   applyBoundedLimit,
   resolveBoundedNumber,
 } from "../args.ts";
+import { Effect } from "effect";
 import type { CreateStateToolsOptions } from "../state/index.ts";
 import {
   PRCommentsManager,
@@ -78,7 +79,7 @@ export async function resolveRemoteReviewContext(options: {
   maxBytes: number | undefined;
 }): Promise<PrRemoteReviewContext> {
   const commentsManager = new PRCommentsManager(options.shell);
-  const raw = await commentsManager.fetchAllComments(options.prNumber);
+  const raw = await Effect.runPromise(commentsManager.fetchAllCommentsEffect(options.prNumber));
   if (!raw.success) {
     const failure = classifyGhFailure(raw.error);
     return {

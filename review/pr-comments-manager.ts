@@ -73,6 +73,21 @@ export class PRCommentsManager {
     }
   }
 
+  private async fetchPaginatedJson<T>(endpoint: string): Promise<Result<T>> {
+    const command = `gh api --paginate ${endpoint}`;
+    const result = await this.runCommand(command, ["gh", "api", "--paginate", endpoint], {
+      tool: "pr_comments",
+      endpoint,
+    });
+
+    if (!result.success) return result;
+    return parseJson<T>(result.data);
+  }
+
+  private resultEffect<T>(run: () => Promise<Result<T>>): Effect.Effect<Result<T>, never> {
+    return Effect.promise(run);
+  }
+
   async detectPrNumber(): Promise<Result<number>> {
     const command = "gh pr view --json number --jq '.number'";
     const result = await this.runCommand(
@@ -91,57 +106,6 @@ export class PRCommentsManager {
       return { success: false, error: "Error: Could not detect PR number." };
     }
     return { success: true, data: parsed };
-  }
-
-  async fetchReviews(prNumber: number): Promise<Result<GitHubReview[]>> {
-    const endpoint = `repos/:owner/:repo/pulls/${prNumber}/reviews`;
-    const command = `gh api --paginate ${endpoint}`;
-    const result = await this.runCommand(command, ["gh", "api", "--paginate", endpoint], {
-      tool: "pr_comments",
-      endpoint,
-    });
-
-    if (!result.success) return result;
-    return parseJson<GitHubReview[]>(result.data);
-  }
-
-  async fetchReviewComments(prNumber: number): Promise<Result<GitHubReviewComment[]>> {
-    const endpoint = `repos/:owner/:repo/pulls/${prNumber}/comments`;
-    const command = `gh api --paginate ${endpoint}`;
-    const result = await this.runCommand(command, ["gh", "api", "--paginate", endpoint], {
-      tool: "pr_comments",
-      endpoint,
-    });
-
-    if (!result.success) return result;
-    return parseJson<GitHubReviewComment[]>(result.data);
-  }
-
-  async fetchReviewCommentsForReview(
-    prNumber: number,
-    reviewId: number,
-  ): Promise<Result<GitHubReviewComment[]>> {
-    const endpoint = `repos/:owner/:repo/pulls/${prNumber}/reviews/${reviewId}/comments`;
-    const command = `gh api --paginate ${endpoint}`;
-    const result = await this.runCommand(command, ["gh", "api", "--paginate", endpoint], {
-      tool: "pr_comments",
-      endpoint,
-    });
-
-    if (!result.success) return result;
-    return parseJson<GitHubReviewComment[]>(result.data);
-  }
-
-  async fetchIssueComments(prNumber: number): Promise<Result<GitHubIssueComment[]>> {
-    const endpoint = `repos/:owner/:repo/issues/${prNumber}/comments`;
-    const command = `gh api --paginate ${endpoint}`;
-    const result = await this.runCommand(command, ["gh", "api", "--paginate", endpoint], {
-      tool: "pr_comments",
-      endpoint,
-    });
-
-    if (!result.success) return result;
-    return parseJson<GitHubIssueComment[]>(result.data);
   }
 
   private async fetchThreadCommentIds(
@@ -232,7 +196,15 @@ export class PRCommentsManager {
     }
   }
 
-  async fetchCommentStatesViaGraphQL(prNumber: number): Promise<Result<Map<number, CommentState>>> {
+  fetchCommentStatesViaGraphQLEffect(
+    prNumber: number,
+  ): Effect.Effect<Result<Map<number, CommentState>>, never> {
+    return this.resultEffect(() => this.fetchCommentStatesViaGraphQL(prNumber));
+  }
+
+  private async fetchCommentStatesViaGraphQL(
+    prNumber: number,
+  ): Promise<Result<Map<number, CommentState>>> {
     const stateMap = new Map<number, CommentState>();
     const seenCursors = new Set<string>();
     let cursor: string | null = null;
@@ -266,8 +238,14 @@ export class PRCommentsManager {
     return { success: true, data: stateMap };
   }
 
-  async fetchAllComments(prNumber: number): Promise<Result<RawComments>> {
-    const reviews = await this.fetchReviews(prNumber);
+  fetchAllCommentsEffect(prNumber: number): Effect.Effect<Result<RawComments>, never> {
+    return this.resultEffect(() => this.fetchAllComments(prNumber));
+  }
+
+  private async fetchAllComments(prNumber: number): Promise<Result<RawComments>> {
+    const reviews = await this.fetchPaginatedJson<GitHubReview[]>(
+      `repos/:owner/:repo/pulls/${prNumber}/reviews`,
+    );
     if (!reviews.success) {
       return { success: false, error: reviews.error };
     }
@@ -278,10 +256,18 @@ export class PRCommentsManager {
           reviewCommentResults: Effect.forEach(
             reviews.data,
             (review) =>
-              Effect.promise(() => this.fetchReviewCommentsForReview(prNumber, review.id)),
+              Effect.promise(() =>
+                this.fetchPaginatedJson<GitHubReviewComment[]>(
+                  `repos/:owner/:repo/pulls/${prNumber}/reviews/${review.id}/comments`,
+                ),
+              ),
             { concurrency: MAX_REVIEW_COMMENT_CONCURRENCY },
           ),
-          issueComments: Effect.promise(() => this.fetchIssueComments(prNumber)),
+          issueComments: Effect.promise(() =>
+            this.fetchPaginatedJson<GitHubIssueComment[]>(
+              `repos/:owner/:repo/issues/${prNumber}/comments`,
+            ),
+          ),
         },
         { concurrency: 2 },
       ),
@@ -314,7 +300,11 @@ export class PRCommentsManager {
     };
   }
 
-  async fetchProcessedComments(prNumber: number): Promise<Result<ProcessedComments>> {
+  fetchProcessedCommentsEffect(prNumber: number): Effect.Effect<Result<ProcessedComments>, never> {
+    return this.resultEffect(() => this.fetchProcessedComments(prNumber));
+  }
+
+  private async fetchProcessedComments(prNumber: number): Promise<Result<ProcessedComments>> {
     const fetchResult = await this.fetchAllComments(prNumber);
     if (!fetchResult.success) return fetchResult;
 

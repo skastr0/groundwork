@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { Effect } from "effect";
 import {
   PROCESS_RUNNER,
   type ProcessCommand,
@@ -138,7 +139,7 @@ describe("PRCommentsManager", () => {
       ),
     );
 
-    const result = await manager.fetchCommentStatesViaGraphQL(17);
+    const result = await Effect.runPromise(manager.fetchCommentStatesViaGraphQLEffect(17));
 
     expect(result.success).toBe(true);
     if (!result.success) return;
@@ -180,7 +181,7 @@ describe("PRCommentsManager", () => {
       ]),
     );
 
-    const result = await manager.fetchCommentStatesViaGraphQL(23);
+    const result = await Effect.runPromise(manager.fetchCommentStatesViaGraphQLEffect(23));
 
     expect(result).toEqual({
       success: false,
@@ -205,7 +206,7 @@ describe("PRCommentsManager", () => {
       ]),
     );
 
-    const result = await manager.fetchCommentStatesViaGraphQL(41);
+    const result = await Effect.runPromise(manager.fetchCommentStatesViaGraphQLEffect(41));
 
     expect(result).toEqual({
       success: false,
@@ -224,7 +225,7 @@ describe("PRCommentsManager", () => {
       createShellStub([{ pattern: "pr=29", output: "{not-json" }]),
     );
 
-    const result = await manager.fetchCommentStatesViaGraphQL(29);
+    const result = await Effect.runPromise(manager.fetchCommentStatesViaGraphQLEffect(29));
 
     expect(result).toEqual({
       success: false,
@@ -262,7 +263,7 @@ describe("PRCommentsManager", () => {
       ]),
     );
 
-    const result = await manager.fetchCommentStatesViaGraphQL(31);
+    const result = await Effect.runPromise(manager.fetchCommentStatesViaGraphQLEffect(31));
 
     expect(result.success).toBe(true);
     if (!result.success) return;
