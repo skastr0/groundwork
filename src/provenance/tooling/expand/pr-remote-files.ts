@@ -13,22 +13,17 @@ import type {
 } from "./schemas.ts";
 import type { CreateStateToolsOptions } from "../state/index.ts";
 
+const REMOTE_STATUS_MAP: Record<string, PrChangedFile["status"]> = {
+  added: "added",
+  modified: "modified",
+  changed: "modified",
+  removed: "deleted",
+  renamed: "renamed",
+  copied: "copied",
+};
+
 function normalizeRemoteStatus(status: string): PrChangedFile["status"] {
-  switch (status) {
-    case "added":
-      return "added";
-    case "modified":
-    case "changed":
-      return "modified";
-    case "removed":
-      return "deleted";
-    case "renamed":
-      return "renamed";
-    case "copied":
-      return "copied";
-    default:
-      return "unknown";
-  }
+  return REMOTE_STATUS_MAP[status] ?? "unknown";
 }
 
 function toRemoteChangedFile(file: GhPrFile): PrChangedFile {
