@@ -27,6 +27,18 @@ const STATUS_PRIORITY: Record<LocalRepoFileStatusKind, number> = {
   renamed: 5,
 };
 
+const FILE_COMPARISON_STATUS_BY_CODE: Record<
+  string,
+  Exclude<LocalFileComparisonStatus, "unchanged">
+> = {
+  A: "added",
+  C: "copied",
+  D: "deleted",
+  M: "modified",
+  R: "renamed",
+  T: "type_changed",
+};
+
 function normalizeStatus(code: string, fallbackPath: string): LocalRepoFileStatus {
   const trimmed = fallbackPath.trim();
 
@@ -136,23 +148,7 @@ function normalizeFileComparisonStatus(
   code: string,
 ): Exclude<LocalFileComparisonStatus, "unchanged"> {
   const normalized = code.trim().charAt(0);
-
-  switch (normalized) {
-    case "A":
-      return "added";
-    case "C":
-      return "copied";
-    case "D":
-      return "deleted";
-    case "M":
-      return "modified";
-    case "R":
-      return "renamed";
-    case "T":
-      return "type_changed";
-    default:
-      return "unknown";
-  }
+  return FILE_COMPARISON_STATUS_BY_CODE[normalized] ?? "unknown";
 }
 
 export function parseNameStatusEntries(raw: string): LocalDiffEntry[] {
