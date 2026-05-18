@@ -11,6 +11,9 @@ import {
 } from "./constants.ts";
 import type { HistoryCommit, HistoryHeadAnchor, HistoryLoadOptions, LoadedHistory, RawHistoryData } from "./types.ts";
 import type { HistorySummary } from "./schemas.ts";
+
+type HistoryChange = HistoryCommit["changes"][number];
+
 function parseTimestamp(value: string | undefined): number | null {
   if (!value) {
     return null;
@@ -50,6 +53,46 @@ function normalizeHistoryPath(rawPath: string): string {
   return normalized;
 }
 
+function parseCommitHeader(line: string): HistoryCommit | null | undefined {
+  const commitParts = line.split("\u001f");
+  if (commitParts.length < 5) {
+    return undefined;
+  }
+
+  const [commit, authoredAt, authorName, authorEmail, ...summaryParts] = commitParts;
+  const authoredAtMs = parseTimestamp(authoredAt);
+  if (!commit || !authoredAt || !authorName || !authorEmail || authoredAtMs === null) {
+    return null;
+  }
+
+  return {
+    commit,
+    authoredAt,
+    authoredAtMs,
+    authorName,
+    authorEmail,
+    summary: summaryParts.join("\u001f") || "(no summary)",
+    changes: [],
+  };
+}
+
+function parseHistoryChange(line: string): HistoryChange | null {
+  const [additionsRaw, deletionsRaw, ...pathParts] = line.split("\t");
+  if (!additionsRaw || !deletionsRaw || pathParts.length === 0) {
+    return null;
+  }
+
+  const additions = additionsRaw === "-" ? 0 : Number.parseInt(additionsRaw, 10) || 0;
+  const deletions = deletionsRaw === "-" ? 0 : Number.parseInt(deletionsRaw, 10) || 0;
+  const normalizedPath = normalizeHistoryPath(pathParts.join("\t"));
+  return {
+    path: normalizedPath,
+    additions,
+    deletions,
+    churn: additions + deletions,
+  };
+}
+
 export function parseHistoryLog(raw: string): HistoryCommit[] {
   const commits: HistoryCommit[] = [];
   let current: HistoryCommit | null = null;
@@ -67,24 +110,10 @@ export function parseHistoryLog(raw: string): HistoryCommit[] {
       continue;
     }
 
-    const commitParts = trimmed.split("\u001f");
-    if (commitParts.length >= 5) {
+    const commitHeader = parseCommitHeader(trimmed);
+    if (commitHeader !== undefined) {
       pushCurrent();
-      const [commit, authoredAt, authorName, authorEmail, ...summaryParts] = commitParts;
-      const authoredAtMs = parseTimestamp(authoredAt);
-      if (!commit || !authoredAt || !authorName || !authorEmail || authoredAtMs === null) {
-        continue;
-      }
-
-      current = {
-        commit,
-        authoredAt,
-        authoredAtMs,
-        authorName,
-        authorEmail,
-        summary: summaryParts.join("\u001f") || "(no summary)",
-        changes: [],
-      };
+      current = commitHeader;
       continue;
     }
 
@@ -92,20 +121,12 @@ export function parseHistoryLog(raw: string): HistoryCommit[] {
       continue;
     }
 
-    const [additionsRaw, deletionsRaw, ...pathParts] = line.split("\t");
-    if (!additionsRaw || !deletionsRaw || pathParts.length === 0) {
+    const change = parseHistoryChange(line);
+    if (!change) {
       continue;
     }
 
-    const additions = additionsRaw === "-" ? 0 : Number.parseInt(additionsRaw, 10) || 0;
-    const deletions = deletionsRaw === "-" ? 0 : Number.parseInt(deletionsRaw, 10) || 0;
-    const normalizedPath = normalizeHistoryPath(pathParts.join("\t"));
-    current.changes.push({
-      path: normalizedPath,
-      additions,
-      deletions,
-      churn: additions + deletions,
-    });
+    current.changes.push(change);
   }
 
   pushCurrent();
