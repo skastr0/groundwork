@@ -46,17 +46,7 @@ export async function resolveLocalBranchContext(options: {
 }): Promise<PrLocalBranchContext> {
   const baseRef = options.repoState.base.ref;
   if (!baseRef) {
-    return {
-      status: "unavailable",
-      baseRef: null,
-      detectionMethod: options.repoState.base.detectionMethod,
-      confidence: options.repoState.base.confidence,
-      code: "LOCAL_BASE_UNRESOLVED",
-      message: "Local branch fallback is unavailable because no local base ref could be resolved.",
-      hints: [
-        "Provide an explicit base ref if you want deterministic local changed-file fallback.",
-      ],
-    };
+    return createMissingLocalBaseContext(options.repoState);
   }
 
   try {
@@ -67,39 +57,74 @@ export async function resolveLocalBranchContext(options: {
       maxOutputBytes: PR_LOCAL_DIFF_PARSE_MAX_OUTPUT_BYTES,
       trim: false,
     });
-    const allFiles = toLocalChangedFile(baseRef, diffText);
-    const bounded = applyBoundedLimit(allFiles, options.limit, DEFAULT_PROVENANCE_ITEM_LIMIT);
-    const hints: string[] = [];
-
-    if (bounded.bounds.truncated) {
-      hints.push(
-        `Local branch fallback files were truncated to ${bounded.bounds.returned}/${allFiles.length}.`,
-      );
-    }
-
-    return {
-      status: "available",
+    return createAvailableLocalBranchContext({
+      repoState: options.repoState,
       baseRef,
-      detectionMethod: LOCAL_BRANCH_DIFF_METHOD,
-      confidence: getLowestConfidence([
-        options.repoState.confidence,
-        options.repoState.base.confidence,
-      ]),
-      files: bounded.items,
-      bounds: bounded.bounds,
-      hints,
-    };
+      diffText,
+      limit: options.limit,
+    });
   } catch (error) {
-    return {
-      status: "unavailable",
-      baseRef,
-      detectionMethod: LOCAL_BRANCH_DIFF_METHOD,
-      confidence: "low",
-      code: "LOCAL_BRANCH_DIFF_FAILED",
-      message: `Local branch fallback failed: ${toErrorMessage(error)}`,
-      hints: [],
-    };
+    return createLocalBranchFailureContext(baseRef, error);
   }
+}
+
+function createMissingLocalBaseContext(repoState: LocalRepoState): PrLocalBranchContext {
+  return {
+    status: "unavailable",
+    baseRef: null,
+    detectionMethod: repoState.base.detectionMethod,
+    confidence: repoState.base.confidence,
+    code: "LOCAL_BASE_UNRESOLVED",
+    message: "Local branch fallback is unavailable because no local base ref could be resolved.",
+    hints: [
+      "Provide an explicit base ref if you want deterministic local changed-file fallback.",
+    ],
+  };
+}
+
+function createAvailableLocalBranchContext(options: {
+  repoState: LocalRepoState;
+  baseRef: string;
+  diffText: string;
+  limit: number | undefined;
+}): PrLocalBranchContext {
+  const allFiles = toLocalChangedFile(options.baseRef, options.diffText);
+  const bounded = applyBoundedLimit(allFiles, options.limit, DEFAULT_PROVENANCE_ITEM_LIMIT);
+  return {
+    status: "available",
+    baseRef: options.baseRef,
+    detectionMethod: LOCAL_BRANCH_DIFF_METHOD,
+    confidence: getLowestConfidence([
+      options.repoState.confidence,
+      options.repoState.base.confidence,
+    ]),
+    files: bounded.items,
+    bounds: bounded.bounds,
+    hints: buildLocalBranchHints(bounded.bounds.truncated, bounded.bounds.returned, allFiles.length),
+  };
+}
+
+function buildLocalBranchHints(truncated: boolean, returned: number, total: number): string[] {
+  if (!truncated) {
+    return [];
+  }
+
+  return [`Local branch fallback files were truncated to ${returned}/${total}.`];
+}
+
+function createLocalBranchFailureContext(
+  baseRef: string,
+  error: unknown,
+): PrLocalBranchContext {
+  return {
+    status: "unavailable",
+    baseRef,
+    detectionMethod: LOCAL_BRANCH_DIFF_METHOD,
+    confidence: "low",
+    code: "LOCAL_BRANCH_DIFF_FAILED",
+    message: `Local branch fallback failed: ${toErrorMessage(error)}`,
+    hints: [],
+  };
 }
 
 export function resolveFallback(
