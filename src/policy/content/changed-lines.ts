@@ -1,7 +1,8 @@
 import path from "node:path";
+import { Effect } from "effect";
 import type { GuardrailChangeTarget, GuardrailContentMatcher, LineRange } from "../config.ts";
 import { runMatcherBatchRegionsForPlan } from "./batches.ts";
-import { readFileText } from "./files.ts";
+import { readFileTextEffect } from "./files.ts";
 import {
   buildChangedLineSnippetPlan,
   computeChangeDeltaRangesFromContents,
@@ -57,7 +58,7 @@ export async function filterChangedLineTarget(params: {
   const filePath = path.isAbsolute(normalizedPath)
     ? normalizedPath
     : path.resolve(rootDir, normalizedPath);
-  const afterContent = await readFileText(filePath);
+  const afterContent = await Effect.runPromise(readFileTextEffect(filePath));
   const lineSelection = selectChangedLineRanges(target, afterContent);
   if (lineSelection.changedLines.length === 0 && lineSelection.deletedLines.length === 0) {
     return null;

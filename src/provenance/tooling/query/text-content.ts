@@ -1,5 +1,6 @@
 import path from "node:path";
-import { readFileString, runProcessText } from "../../../../shared/effect-runtime.ts";
+import { Effect } from "effect";
+import { readFileStringEffect, runProcessText } from "../../../../shared/effect-runtime.ts";
 import {
   DEFAULT_PROVENANCE_BYTE_LIMIT,
   resolveBoundedNumber,
@@ -103,7 +104,7 @@ export async function readSelectedLayerText(options: {
       });
     case "worktree": {
       const filePath = resolveWorktreePath(options.rootDir, selectedLayer.path);
-      return readFileString(filePath);
+      return Effect.runPromise(readFileStringEffect(filePath));
     }
   }
 }

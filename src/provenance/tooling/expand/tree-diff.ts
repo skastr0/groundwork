@@ -1,6 +1,7 @@
 import path from "node:path";
+import { Effect } from "effect";
 import {
-  readFileString,
+  readFileStringEffect,
   runProcessText,
 } from "../../../../shared/effect-runtime.ts";
 import type { CreateStateToolsOptions } from "../state/index.ts";
@@ -110,7 +111,7 @@ async function createWorkingTreeDiffText(options: {
   const untrackedDiffs = await Promise.all(
     untrackedFiles.map(async (relativePath) => {
       const absolutePath = path.join(options.rootDir, relativePath);
-      const rawText = await readFileString(absolutePath);
+      const rawText = await Effect.runPromise(readFileStringEffect(absolutePath));
       return buildSyntheticUntrackedPatch(relativePath, rawText);
     }),
   );

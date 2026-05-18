@@ -1,5 +1,6 @@
 import path from "node:path";
-import { readFileResult } from "../../../../shared/effect-runtime.ts";
+import { Effect } from "effect";
+import { readFileResultEffect } from "../../../../shared/effect-runtime.ts";
 import { normalizeRequestedPath } from "../state/index.ts";
 import { toNormalizedPath } from "./shared.ts";
 
@@ -11,7 +12,7 @@ export type DiffAnchorResolution = {
 };
 
 async function safeReadFile(filePath: string): Promise<string | null> {
-  const result = await readFileResult(filePath);
+  const result = await Effect.runPromise(readFileResultEffect(filePath));
   if (result.status === "available") {
     return result.content;
   }

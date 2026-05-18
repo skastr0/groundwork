@@ -543,6 +543,18 @@ function toFileErrorResult(error: FileSystemRuntimeError): ReadFileResult {
   };
 }
 
+function recoverMissingFileSystemResult<T>(
+  error: FileSystemRuntimeError,
+  onMissing: () => T,
+  onError: (error: FileSystemRuntimeError) => T,
+): Effect.Effect<T, never> {
+  if (error instanceof FileSystemError && error.code === "ENOENT") {
+    return Effect.succeed(onMissing());
+  }
+
+  return Effect.succeed(onError(error));
+}
+
 export async function runCommandText(options: {
   command: string;
   exec: () => Promise<string>;
@@ -599,74 +611,63 @@ export async function runOptionalProcessText(options: {
   return applyTrim(value, options.trim);
 }
 
-export async function readDirectoryResult(
+export function readDirectoryResultEffect(
   directory: string,
   timeoutMs?: number,
-): Promise<ReadDirectoryResult> {
-  return Effect.runPromise(
-    fileSystemEffect({
-      operation: "readdir",
-      target: directory,
-      run: () => fs.readdir(directory, { withFileTypes: true }),
-      timeoutMs,
-    }).pipe(
-      Effect.map((entries: Dirent[]) => toAvailableDirectoryResult(entries)),
-      Effect.catchAll((error: FileSystemRuntimeError) => {
-        if (error instanceof FileSystemError && error.code === "ENOENT") {
-          return Effect.succeed(toMissingDirectoryResult());
-        }
-
-        return Effect.succeed(toDirectoryErrorResult(error));
-      }),
+): Effect.Effect<ReadDirectoryResult, never> {
+  return fileSystemEffect({
+    operation: "readdir",
+    target: directory,
+    run: () => fs.readdir(directory, { withFileTypes: true }),
+    timeoutMs,
+  }).pipe(
+    Effect.map((entries: Dirent[]) => toAvailableDirectoryResult(entries)),
+    Effect.catchAll((error: FileSystemRuntimeError) =>
+      recoverMissingFileSystemResult(error, toMissingDirectoryResult, toDirectoryErrorResult),
     ),
   );
 }
 
-export async function readFileResult(
+export function readFileResultEffect(
   filePath: string,
   options: {
     encoding?: TextEncoding;
     timeoutMs?: number;
   } = {},
-): Promise<ReadFileResult> {
+): Effect.Effect<ReadFileResult, never> {
   const encoding = options.encoding ?? "utf8";
 
-  return Effect.runPromise(
-    fileSystemEffect({
-      operation: "readFile",
-      target: filePath,
-      run: () => fs.readFile(filePath, { encoding }),
-      timeoutMs: options.timeoutMs,
-    }).pipe(
-      Effect.map((content: string) => toAvailableFileResult(content)),
-      Effect.catchAll((error: FileSystemRuntimeError) => {
-        if (error instanceof FileSystemError && error.code === "ENOENT") {
-          return Effect.succeed(toMissingFileResult());
-        }
-
-        return Effect.succeed(toFileErrorResult(error));
-      }),
+  return readFileTextEffect(filePath, encoding, options.timeoutMs).pipe(
+    Effect.map((content: string) => toAvailableFileResult(content)),
+    Effect.catchAll((error: FileSystemRuntimeError) =>
+      recoverMissingFileSystemResult(error, toMissingFileResult, toFileErrorResult),
     ),
   );
 }
 
-export async function readFileString(
+export function readFileStringEffect(
   filePath: string,
   options: {
     encoding?: TextEncoding;
     timeoutMs?: number;
   } = {},
-): Promise<string> {
+): Effect.Effect<string, FileSystemRuntimeError> {
   const encoding = options.encoding ?? "utf8";
 
-  return Effect.runPromise(
-    fileSystemEffect({
-      operation: "readFile",
-      target: filePath,
-      run: () => fs.readFile(filePath, { encoding }),
-      timeoutMs: options.timeoutMs,
-    }),
-  );
+  return readFileTextEffect(filePath, encoding, options.timeoutMs);
+}
+
+function readFileTextEffect(
+  filePath: string,
+  encoding: TextEncoding,
+  timeoutMs: number | undefined,
+): Effect.Effect<string, FileSystemRuntimeError> {
+  return fileSystemEffect({
+    operation: "readFile",
+    target: filePath,
+    run: () => fs.readFile(filePath, { encoding }),
+    timeoutMs,
+  });
 }
 
 export async function statPath(targetPath: string, timeoutMs?: number): Promise<Stats> {

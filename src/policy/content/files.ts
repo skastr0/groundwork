@@ -2,14 +2,14 @@ import { spawn } from "node:child_process";
 import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { Effect } from "effect";
+import { readFileResultEffect } from "../../../shared/effect-runtime.ts";
 import type { GuardrailMatcherSnippet, MatcherProcessOutput } from "./types.ts";
 
-export async function readFileText(filePath: string): Promise<string | null> {
-  try {
-    return await fs.readFile(filePath, "utf8");
-  } catch {
-    return null;
-  }
+export function readFileTextEffect(filePath: string): Effect.Effect<string | null, never> {
+  return readFileResultEffect(filePath).pipe(
+    Effect.map((result) => (result.status === "available" ? result.content : null)),
+  );
 }
 
 export async function isRegularFile(filePath: string): Promise<boolean> {
