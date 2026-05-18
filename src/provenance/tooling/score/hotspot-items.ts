@@ -33,6 +33,52 @@ function toSampleAuthors(stats: MutablePathStats): AuthorSample[] {
     }));
 }
 
+function toHotspotSignals(stats: MutablePathStats, historySourceID: string) {
+  return [
+    createSignal({
+      key: "commit_count",
+      label: "Commit count",
+      value: stats.commitCount,
+      unit: "commits",
+      sourceIDs: [historySourceID],
+    }),
+    createSignal({
+      key: "unique_authors",
+      label: "Unique authors",
+      value: stats.authors.size,
+      unit: "authors",
+      sourceIDs: [historySourceID],
+    }),
+    createSignal({
+      key: "additions",
+      label: "Additions",
+      value: stats.additions,
+      unit: "lines",
+      sourceIDs: [historySourceID],
+    }),
+    createSignal({
+      key: "deletions",
+      label: "Deletions",
+      value: stats.deletions,
+      unit: "lines",
+      sourceIDs: [historySourceID],
+    }),
+    createSignal({
+      key: "churn",
+      label: "Churn",
+      value: stats.churn,
+      unit: "lines",
+      sourceIDs: [historySourceID],
+    }),
+    createSignal({
+      key: "last_touched_at",
+      label: "Last touched at",
+      value: stats.lastTouchedAt ?? "unavailable",
+      sourceIDs: [historySourceID],
+    }),
+  ];
+}
+
 export function toHotspotItem(stats: MutablePathStats, historySourceID: string): HotspotItem {
   return {
     path: stats.path,
@@ -43,48 +89,6 @@ export function toHotspotItem(stats: MutablePathStats, historySourceID: string):
     churn: stats.churn,
     lastTouchedAt: stats.lastTouchedAt,
     sampleAuthors: toSampleAuthors(stats),
-    signals: [
-      createSignal({
-        key: "commit_count",
-        label: "Commit count",
-        value: stats.commitCount,
-        unit: "commits",
-        sourceIDs: [historySourceID],
-      }),
-      createSignal({
-        key: "unique_authors",
-        label: "Unique authors",
-        value: stats.authors.size,
-        unit: "authors",
-        sourceIDs: [historySourceID],
-      }),
-      createSignal({
-        key: "additions",
-        label: "Additions",
-        value: stats.additions,
-        unit: "lines",
-        sourceIDs: [historySourceID],
-      }),
-      createSignal({
-        key: "deletions",
-        label: "Deletions",
-        value: stats.deletions,
-        unit: "lines",
-        sourceIDs: [historySourceID],
-      }),
-      createSignal({
-        key: "churn",
-        label: "Churn",
-        value: stats.churn,
-        unit: "lines",
-        sourceIDs: [historySourceID],
-      }),
-      createSignal({
-        key: "last_touched_at",
-        label: "Last touched at",
-        value: stats.lastTouchedAt ?? "unavailable",
-        sourceIDs: [historySourceID],
-      }),
-    ],
+    signals: toHotspotSignals(stats, historySourceID),
   };
 }
