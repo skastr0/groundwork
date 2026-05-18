@@ -1,5 +1,6 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
+import { Effect } from "effect";
 import {
   extractFrameworkToolTargets,
   type FrameworkJsonObject,
@@ -45,6 +46,9 @@ const SEVERITY_ORDER: Record<GuardrailSeverity, number> = {
   block: 2,
   terminate: 3,
 };
+
+const toError = (error: unknown): Error =>
+  error instanceof Error ? error : new Error(String(error));
 
 type PolicyDecision = "allow" | "warn" | "block";
 
@@ -270,16 +274,20 @@ export async function acceptPolicyOverride(input: PolicyOverrideInput) {
   };
 }
 
-export async function confirmPolicySkillsLoaded(input: PolicySkillLoadedInput) {
-  const result = await markSessionSkillsLoaded(input);
-  return {
-    command: "policy skill-loaded",
-    decision: "allow" as const,
-    session_id: input.session_id,
-    skills: result.state.policy.confirmedSkills,
-    state: result.state,
-    artifact_root: result.artifact_root,
-  };
+export function confirmPolicySkillsLoadedEffect(input: PolicySkillLoadedInput) {
+  return Effect.tryPromise({
+    try: () => markSessionSkillsLoaded(input),
+    catch: toError,
+  }).pipe(
+    Effect.map((result) => ({
+      command: "policy skill-loaded",
+      decision: "allow" as const,
+      session_id: input.session_id,
+      skills: result.state.policy.confirmedSkills,
+      state: result.state,
+      artifact_root: result.artifact_root,
+    })),
+  );
 }
 
 function createContext(params: {

@@ -6,10 +6,11 @@ import { configFromEnv } from "../risk/rules.ts";
 import { evaluateRiskCommand } from "../risk/service.ts";
 import {
   acceptPolicyOverride,
-  confirmPolicySkillsLoaded,
+  confirmPolicySkillsLoadedEffect,
   evaluatePolicyToolCall,
   evaluatePolicyToolResult,
 } from "../policy/cli-service.ts";
+import { Effect } from "effect";
 import { evaluateContextTouchedPaths } from "../context/cli-service.ts";
 
 export const CodexInstallProjectInputSchema = z
@@ -30,6 +31,18 @@ export const CodexInstallUserInputSchema = z
 
 export type CodexInstallProjectInput = z.infer<typeof CodexInstallProjectInputSchema>;
 export type CodexInstallUserInput = z.infer<typeof CodexInstallUserInputSchema>;
+
+type PreToolRiskResult =
+  | { kind: "continue"; warning?: string }
+  | { kind: "deny"; reason: string };
+
+type PostToolHookContext = {
+  rootDir: string | undefined;
+  sessionID: string;
+  toolUseID: string;
+  tool: string | undefined;
+  args: Record<string, unknown> | undefined;
+};
 
 export async function renderCodexDoctor() {
   const cwd = path.resolve(process.cwd());
@@ -189,11 +202,13 @@ async function runUserPromptSubmitHook(payload: unknown) {
         reason: command.reason,
       });
     } else {
-      await confirmPolicySkillsLoaded({
-        root_dir: cwdFromHookPayload(payload),
-        session_id: sessionID,
-        skills: command.skills,
-      });
+      await Effect.runPromise(
+        confirmPolicySkillsLoadedEffect({
+          root_dir: cwdFromHookPayload(payload),
+          session_id: sessionID,
+          skills: command.skills,
+        }),
+      );
     }
   }
 
@@ -211,33 +226,18 @@ async function runPreToolUseHook(payload: unknown) {
   const toolName = stringField(payload, "tool_name");
   if (!toolName) return;
 
-  let riskWarning: string | undefined;
-  if (toolName === "Bash") {
-    const command = commandFromHookPayload(payload);
-    if (command) {
-      const decision = evaluateRiskCommand({ command, config: configFromEnv(process.env) });
-      if (decision.violation) {
-        if (decision.decision === "warn") {
-          riskWarning = `[groundwork:risk] Warn mode matched ${decision.violation.ruleId}: ${decision.violation.reason}`;
-        } else {
-          writeHookJson({
-            hookSpecificOutput: {
-              hookEventName: "PreToolUse",
-              permissionDecision: "deny",
-              permissionDecisionReason: `[groundwork:risk] ${decision.violation.reason}`,
-            },
-          });
-          return;
-        }
-      }
-    }
+  const riskResult = evaluatePreToolRisk(payload, toolName);
+  if (riskResult.kind === "deny") {
+    writePreToolDeny(`[groundwork:risk] ${riskResult.reason}`);
+    return;
   }
 
   const sessionID = stringField(payload, "session_id");
   if (!sessionID) {
-    if (riskWarning) writeHookJson({ systemMessage: riskWarning });
+    writeHookSystemMessage(riskResult.warning);
     return;
   }
+
   const result = await evaluatePolicyToolCall({
     root_dir: cwdFromHookPayload(payload),
     directory: cwdFromHookPayload(payload),
@@ -247,25 +247,58 @@ async function runPreToolUseHook(payload: unknown) {
     args: toolInputFromHookPayload(payload),
   });
 
-  if (isPolicyBlock(result)) {
-    writeHookJson({
-      hookSpecificOutput: {
-        hookEventName: "PreToolUse",
-        permissionDecision: "deny",
-        permissionDecisionReason: renderPolicyDecisionReason(result),
-      },
-    });
+  if (writePreToolPolicyFeedback(result)) {
     return;
+  }
+
+  writeHookSystemMessage(riskResult.warning);
+}
+
+function evaluatePreToolRisk(payload: unknown, toolName: string): PreToolRiskResult {
+  if (toolName !== "Bash") return { kind: "continue" };
+
+  const command = commandFromHookPayload(payload);
+  if (!command) return { kind: "continue" };
+
+  const decision = evaluateRiskCommand({ command, config: configFromEnv(process.env) });
+  if (!decision.violation) return { kind: "continue" };
+
+  if (decision.decision === "warn") {
+    return {
+      kind: "continue",
+      warning: `[groundwork:risk] Warn mode matched ${decision.violation.ruleId}: ${decision.violation.reason}`,
+    };
+  }
+
+  return { kind: "deny", reason: decision.violation.reason };
+}
+
+function writePreToolPolicyFeedback(result: unknown): boolean {
+  if (isPolicyBlock(result)) {
+    writePreToolDeny(renderPolicyDecisionReason(result));
+    return true;
   }
 
   if (isPolicyWarn(result)) {
     writeHookJson({ systemMessage: renderPolicyDecisionReason(result) });
-    return;
+    return true;
   }
 
-  if (riskWarning) {
-    writeHookJson({ systemMessage: riskWarning });
-  }
+  return false;
+}
+
+function writePreToolDeny(reason: string): void {
+  writeHookJson({
+    hookSpecificOutput: {
+      hookEventName: "PreToolUse",
+      permissionDecision: "deny",
+      permissionDecisionReason: reason,
+    },
+  });
+}
+
+function writeHookSystemMessage(message: string | undefined): void {
+  if (message) writeHookJson({ systemMessage: message });
 }
 
 async function runPermissionRequestHook(payload: unknown) {
@@ -288,53 +321,91 @@ async function runPermissionRequestHook(payload: unknown) {
 }
 
 async function runPostToolUseHook(payload: unknown) {
-  const sessionID = stringField(payload, "session_id");
-  const toolUseID = stringField(payload, "tool_use_id");
-  const toolName = stringField(payload, "tool_name");
-  if (!sessionID || !toolUseID) return;
+  const context = readPostToolHookContext(payload);
+  if (!context) return;
 
   const result = await evaluatePolicyToolResult({
-    root_dir: cwdFromHookPayload(payload),
-    session_id: sessionID,
-    call_id: toolUseID,
-    tool: toolName ? normalizePolicyToolName(toolName) : undefined,
+    root_dir: context.rootDir,
+    session_id: context.sessionID,
+    call_id: context.toolUseID,
+    tool: context.tool,
   });
   const contextResult = await evaluateContextTouchedPaths({
-    root_dir: cwdFromHookPayload(payload),
-    directory: cwdFromHookPayload(payload),
-    session_id: sessionID,
+    root_dir: context.rootDir,
+    directory: context.rootDir,
+    session_id: context.sessionID,
+    tool: context.tool,
+    args: context.args,
+  });
+
+  writePostToolFeedback(result, contextResult);
+}
+
+function readPostToolHookContext(payload: unknown): PostToolHookContext | undefined {
+  const sessionID = stringField(payload, "session_id");
+  const toolUseID = stringField(payload, "tool_use_id");
+  if (!sessionID || !toolUseID) return undefined;
+
+  const toolName = stringField(payload, "tool_name");
+  return {
+    rootDir: cwdFromHookPayload(payload),
+    sessionID,
+    toolUseID,
     tool: toolName ? normalizePolicyToolName(toolName) : undefined,
     args: toolInputFromHookPayload(payload),
-  });
+  };
+}
+
+function writePostToolFeedback(
+  result: unknown,
+  contextResult: Awaited<ReturnType<typeof evaluateContextTouchedPaths>>,
+): void {
   if (isPolicyWarn(result)) {
-    writeHookJson({
-      systemMessage: combineHookMessages([
-        `${renderPolicyDecisionReason(result)} Side effects may already have happened; inspect and repair if needed.`,
-        renderContextReminderMessage(contextResult),
-      ]),
-      hookSpecificOutput: {
-        hookEventName: "PostToolUse",
-        additionalContext:
-          "Groundwork reported non-blocking post-tool feedback. This cannot undo side effects or provide synthetic prompt injection parity.",
-      },
-    });
+    writePostToolWarnFeedback(result, contextResult);
     return;
   }
 
   if (!isPolicyBlock(result)) {
-    if (contextResult.reminders.length > 0) {
-      writeHookJson({
-        systemMessage: renderContextReminderMessage(contextResult),
-        hookSpecificOutput: {
-          hookEventName: "PostToolUse",
-          additionalContext:
-            "Groundwork found new context reminders for touched paths. This is feedback, not synthetic prompt injection parity.",
-        },
-      });
-    }
+    writePostToolContextFeedback(contextResult);
     return;
   }
 
+  writePostToolBlockFeedback(result);
+}
+
+function writePostToolWarnFeedback(
+  result: unknown,
+  contextResult: Awaited<ReturnType<typeof evaluateContextTouchedPaths>>,
+): void {
+  writeHookJson({
+    systemMessage: combineHookMessages([
+      `${renderPolicyDecisionReason(result)} Side effects may already have happened; inspect and repair if needed.`,
+      renderContextReminderMessage(contextResult),
+    ]),
+    hookSpecificOutput: {
+      hookEventName: "PostToolUse",
+      additionalContext:
+        "Groundwork reported non-blocking post-tool feedback. This cannot undo side effects or provide synthetic prompt injection parity.",
+    },
+  });
+}
+
+function writePostToolContextFeedback(
+  contextResult: Awaited<ReturnType<typeof evaluateContextTouchedPaths>>,
+): void {
+  if (contextResult.reminders.length === 0) return;
+
+  writeHookJson({
+    systemMessage: renderContextReminderMessage(contextResult),
+    hookSpecificOutput: {
+      hookEventName: "PostToolUse",
+      additionalContext:
+        "Groundwork found new context reminders for touched paths. This is feedback, not synthetic prompt injection parity.",
+    },
+  });
+}
+
+function writePostToolBlockFeedback(result: unknown): void {
   writeHookJson({
     decision: "block",
     reason: `${renderPolicyDecisionReason(result)} Side effects may already have happened; inspect and repair before continuing.`,

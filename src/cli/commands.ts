@@ -1,13 +1,14 @@
 import path from "node:path";
 import { Args, Command } from "@effect/cli";
-import { Effect } from "effect";
+import { Effect, Either } from "effect";
+import type { ZodType } from "zod";
 import { attachProcessRunner } from "../../shared/effect-runtime.ts";
 import { discoverFrameworkContextFiles } from "../context/discovery.ts";
 import { evaluateContextTouchedPaths } from "../context/cli-service.ts";
 import { evaluateRiskCommand } from "../risk/service.ts";
 import {
   acceptPolicyOverride,
-  confirmPolicySkillsLoaded,
+  confirmPolicySkillsLoadedEffect,
   evaluatePolicyToolCall,
   evaluatePolicyToolResult,
 } from "../policy/cli-service.ts";
@@ -70,7 +71,7 @@ import {
   rememberSessionAction,
   renderSessionCompaction,
 } from "../session/index.ts";
-import { decodeJsonInput, executeJsonCommand } from "./protocol.ts";
+import { decodeJsonInputEffect, executeJsonCommand } from "./protocol.ts";
 
 const inputArg = Args.text({ name: "input" }).pipe(
   Args.withDescription("JSON object, @file path, or - for stdin"),
@@ -91,6 +92,25 @@ function commandDescription(command: string): string {
 function toEffect(run: () => Promise<void>): Effect.Effect<void> {
   return Effect.promise(run);
 }
+function jsonEffect(command: string, run: () => unknown | Promise<unknown>): Effect.Effect<void> {
+  return toEffect(() => executeJsonCommand(command, async () => run()));
+}
+function decodedJsonEffect<T>(
+  command: string,
+  input: string,
+  schema: ZodType<T>,
+  run: (payload: T) => unknown | Promise<unknown>,
+): Effect.Effect<void> {
+  return jsonEffect(command, async () => run(await decodeInput(input, schema)));
+}
+async function decodeInput<T>(input: string, schema: ZodType<T>): Promise<T> {
+  const decoded = await Effect.runPromise(Effect.either(decodeJsonInputEffect(input, schema)));
+  if (Either.isRight(decoded)) {
+    return decoded.right;
+  }
+
+  throw decoded.left;
+}
 
 function resolveRootDir(rootDir: string | undefined): string {
   return path.resolve(rootDir ?? process.cwd());
@@ -101,19 +121,19 @@ function createShell(rootDir: string): Shell {
 }
 
 const doctorCommand = Command.make("doctor", {}, () =>
-  toEffect(() => executeJsonCommand("doctor", async () => renderDoctor())),
+  jsonEffect("doctor", () => renderDoctor()),
 ).pipe(Command.withDescription("Inspect local runtime health"));
 
 const capabilitiesCommand = Command.make("capabilities", {}, () =>
-  toEffect(() => executeJsonCommand("capabilities", async () => renderCapabilities())),
+  jsonEffect("capabilities", () => renderCapabilities()),
 ).pipe(Command.withDescription("Describe the Groundwork CLI protocol and command surface"));
 
 const schemaListCommand = Command.make("list", {}, () =>
-  toEffect(() => executeJsonCommand("schema list", async () => listSchemas())),
+  jsonEffect("schema list", () => listSchemas()),
 ).pipe(Command.withDescription(commandDescription("schema list")));
 
 const schemaShowCommand = Command.make("show", { target: targetArg }, ({ target }) =>
-  toEffect(() => executeJsonCommand("schema show", async () => showSchema(target))),
+  jsonEffect("schema show", () => showSchema(target)),
 ).pipe(Command.withDescription(commandDescription("schema show")));
 
 const schemaCommand = Command.make("schema").pipe(
@@ -122,11 +142,11 @@ const schemaCommand = Command.make("schema").pipe(
 );
 
 const examplesListCommand = Command.make("list", {}, () =>
-  toEffect(() => executeJsonCommand("examples list", async () => listExamples())),
+  jsonEffect("examples list", () => listExamples()),
 ).pipe(Command.withDescription(commandDescription("examples list")));
 
 const examplesShowCommand = Command.make("show", { target: targetArg }, ({ target }) =>
-  toEffect(() => executeJsonCommand("examples show", async () => showExamples(target))),
+  jsonEffect("examples show", () => showExamples(target)),
 ).pipe(Command.withDescription(commandDescription("examples show")));
 
 const examplesCommand = Command.make("examples").pipe(
@@ -138,13 +158,10 @@ const riskEvaluateCommandCommand = Command.make(
   "evaluate-command",
   { input: inputArg },
   ({ input }) =>
-    toEffect(() =>
-      executeJsonCommand("risk evaluate-command", async () => {
-        const payload = await decodeJsonInput(input, RiskEvaluateCommandInputSchema);
-        return evaluateRiskCommand({
-          command: payload.command,
-          config: payload.config,
-        });
+    decodedJsonEffect("risk evaluate-command", input, RiskEvaluateCommandInputSchema, (payload) =>
+      evaluateRiskCommand({
+        command: payload.command,
+        config: payload.config,
       }),
     ),
 ).pipe(Command.withDescription(commandDescription("risk evaluate-command")));
@@ -157,7 +174,7 @@ const riskCommand = Command.make("risk").pipe(
 const contextDiscoverCommand = Command.make("discover", { input: inputArg }, ({ input }) =>
   toEffect(() =>
     executeJsonCommand("context discover", async () => {
-      const payload = await decodeJsonInput(input, ContextDiscoverInputSchema);
+      const payload = await decodeInput(input, ContextDiscoverInputSchema);
       const rootDir = resolveRootDir(payload.root_dir);
       const directory = path.resolve(payload.directory ?? process.cwd());
       const files = await discoverFrameworkContextFiles({
@@ -186,11 +203,8 @@ const contextDiscoverCommand = Command.make("discover", { input: inputArg }, ({ 
 ).pipe(Command.withDescription(commandDescription("context discover")));
 
 const contextTouchedPathsCommand = Command.make("touched-paths", { input: inputArg }, ({ input }) =>
-  toEffect(() =>
-    executeJsonCommand("context touched-paths", async () => {
-      const payload = await decodeJsonInput(input, ContextTouchedPathsInputSchema);
-      return evaluateContextTouchedPaths(payload);
-    }),
+  decodedJsonEffect("context touched-paths", input, ContextTouchedPathsInputSchema, (payload) =>
+    evaluateContextTouchedPaths(payload),
   ),
 ).pipe(Command.withDescription(commandDescription("context touched-paths")));
 
@@ -203,11 +217,11 @@ const policyEvaluateToolCallCommand = Command.make(
   "evaluate-tool-call",
   { input: inputArg },
   ({ input }) =>
-    toEffect(() =>
-      executeJsonCommand("policy evaluate-tool-call", async () => {
-        const payload = await decodeJsonInput(input, PolicyEvaluateToolCallInputSchema);
-        return evaluatePolicyToolCall(payload);
-      }),
+    decodedJsonEffect(
+      "policy evaluate-tool-call",
+      input,
+      PolicyEvaluateToolCallInputSchema,
+      (payload) => evaluatePolicyToolCall(payload),
     ),
 ).pipe(Command.withDescription(commandDescription("policy evaluate-tool-call")));
 
@@ -215,29 +229,23 @@ const policyEvaluateToolResultCommand = Command.make(
   "evaluate-tool-result",
   { input: inputArg },
   ({ input }) =>
-    toEffect(() =>
-      executeJsonCommand("policy evaluate-tool-result", async () => {
-        const payload = await decodeJsonInput(input, PolicyEvaluateToolResultInputSchema);
-        return evaluatePolicyToolResult(payload);
-      }),
+    decodedJsonEffect(
+      "policy evaluate-tool-result",
+      input,
+      PolicyEvaluateToolResultInputSchema,
+      (payload) => evaluatePolicyToolResult(payload),
     ),
 ).pipe(Command.withDescription(commandDescription("policy evaluate-tool-result")));
 
 const policyOverrideCommand = Command.make("override", { input: inputArg }, ({ input }) =>
-  toEffect(() =>
-    executeJsonCommand("policy override", async () => {
-      const payload = await decodeJsonInput(input, PolicyOverrideInputSchema);
-      return acceptPolicyOverride(payload);
-    }),
+  decodedJsonEffect("policy override", input, PolicyOverrideInputSchema, (payload) =>
+    acceptPolicyOverride(payload),
   ),
 ).pipe(Command.withDescription(commandDescription("policy override")));
 
 const policySkillLoadedCommand = Command.make("skill-loaded", { input: inputArg }, ({ input }) =>
-  toEffect(() =>
-    executeJsonCommand("policy skill-loaded", async () => {
-      const payload = await decodeJsonInput(input, PolicySkillLoadedInputSchema);
-      return confirmPolicySkillsLoaded(payload);
-    }),
+  decodedJsonEffect("policy skill-loaded", input, PolicySkillLoadedInputSchema, (payload) =>
+    Effect.runPromise(confirmPolicySkillsLoadedEffect(payload)),
   ),
 ).pipe(Command.withDescription(commandDescription("policy skill-loaded")));
 
@@ -252,27 +260,21 @@ const policyCommand = Command.make("policy").pipe(
 );
 
 const codexDoctorCommand = Command.make("doctor", {}, () =>
-  toEffect(() => executeJsonCommand("codex doctor", async () => renderCodexDoctor())),
+  jsonEffect("codex doctor", () => renderCodexDoctor()),
 ).pipe(Command.withDescription(commandDescription("codex doctor")));
 
 const codexInstallProjectCommand = Command.make(
   "install-project",
   { input: inputArg },
   ({ input }) =>
-    toEffect(() =>
-      executeJsonCommand("codex install-project", async () => {
-        const payload = await decodeJsonInput(input, CodexInstallProjectInputSchema);
-        return installCodexProject(payload);
-      }),
+    decodedJsonEffect("codex install-project", input, CodexInstallProjectInputSchema, (payload) =>
+      installCodexProject(payload),
     ),
 ).pipe(Command.withDescription(commandDescription("codex install-project")));
 
 const codexInstallUserCommand = Command.make("install-user", { input: inputArg }, ({ input }) =>
-  toEffect(() =>
-    executeJsonCommand("codex install-user", async () => {
-      const payload = await decodeJsonInput(input, CodexInstallUserInputSchema);
-      return installCodexUser(payload);
-    }),
+  decodedJsonEffect("codex install-user", input, CodexInstallUserInputSchema, (payload) =>
+    installCodexUser(payload),
   ),
 ).pipe(Command.withDescription(commandDescription("codex install-user")));
 
@@ -293,7 +295,7 @@ const codexCommand = Command.make("codex").pipe(
 const provenanceRepoStateCommand = Command.make("repo-state", { input: inputArg }, ({ input }) =>
   toEffect(() =>
     executeJsonCommand("provenance repo-state", async () => {
-      const payload = await decodeJsonInput(input, ProvenanceRepoStateInputSchema);
+      const payload = await decodeInput(input, ProvenanceRepoStateInputSchema);
       const rootDir = resolveRootDir(payload.root_dir);
       const state = await resolveLocalRepoState({
         shell: createShell(rootDir),
@@ -307,7 +309,7 @@ const provenanceRepoStateCommand = Command.make("repo-state", { input: inputArg 
 const provenanceFileStateCommand = Command.make("file-state", { input: inputArg }, ({ input }) =>
   toEffect(() =>
     executeJsonCommand("provenance file-state", async () => {
-      const payload = await decodeJsonInput(input, ProvenanceFileStateInputSchema);
+      const payload = await decodeInput(input, ProvenanceFileStateInputSchema);
       const rootDir = resolveRootDir(payload.root_dir);
       const normalizedPath = normalizeRequestedPath(payload.path, rootDir);
       const state = await resolveLocalFileState({
@@ -321,11 +323,8 @@ const provenanceFileStateCommand = Command.make("file-state", { input: inputArg 
 ).pipe(Command.withDescription(commandDescription("provenance file-state")));
 
 const provenanceRunCommand = Command.make("run", { input: inputArg }, ({ input }) =>
-  toEffect(() =>
-    executeJsonCommand("provenance run", async () => {
-      const payload = await decodeJsonInput(input, ProvenanceToolInputSchema);
-      return runProvenanceTool(payload);
-    }),
+  decodedJsonEffect("provenance run", input, ProvenanceToolInputSchema, (payload) =>
+    runProvenanceTool(payload),
   ),
 ).pipe(Command.withDescription(commandDescription("provenance run")));
 
@@ -335,7 +334,7 @@ const provenanceRegistryCommands = Object.entries(PROVENANCE_CLI_COMMANDS)
     Command.make(command, { input: inputArg }, ({ input }) =>
       toEffect(() =>
         executeJsonCommand(`provenance ${command}`, async () => {
-          const payload = await decodeJsonInput(input, ProvenanceToolArgsInputSchema);
+          const payload = await decodeInput(input, ProvenanceToolArgsInputSchema);
           const { root_dir: rootDir, ...args } = payload;
           if (!isProvenanceToolID(toolID)) {
             throw new Error(`Unknown provenance tool '${toolID}'.`);
@@ -357,29 +356,20 @@ const provenanceCommand = Command.make("provenance").pipe(
 );
 
 const sessionGetCommand = Command.make("get", { input: inputArg }, ({ input }) =>
-  toEffect(() =>
-    executeJsonCommand("session get", async () => {
-      const payload = await decodeJsonInput(input, SessionGetInputSchema);
-      return getSessionArtifact(payload);
-    }),
+  decodedJsonEffect("session get", input, SessionGetInputSchema, (payload) =>
+    getSessionArtifact(payload),
   ),
 ).pipe(Command.withDescription(commandDescription("session get")));
 
 const sessionSkillLoadedCommand = Command.make("skill-loaded", { input: inputArg }, ({ input }) =>
-  toEffect(() =>
-    executeJsonCommand("session skill-loaded", async () => {
-      const payload = await decodeJsonInput(input, SessionSkillLoadedInputSchema);
-      return markSessionSkillsLoaded(payload);
-    }),
+  decodedJsonEffect("session skill-loaded", input, SessionSkillLoadedInputSchema, (payload) =>
+    markSessionSkillsLoaded(payload),
   ),
 ).pipe(Command.withDescription(commandDescription("session skill-loaded")));
 
 const sessionOverrideCommand = Command.make("override", { input: inputArg }, ({ input }) =>
-  toEffect(() =>
-    executeJsonCommand("session override", async () => {
-      const payload = await decodeJsonInput(input, SessionOverrideInputSchema);
-      return recordSessionOverride(payload);
-    }),
+  decodedJsonEffect("session override", input, SessionOverrideInputSchema, (payload) =>
+    recordSessionOverride(payload),
   ),
 ).pipe(Command.withDescription(commandDescription("session override")));
 
@@ -387,11 +377,11 @@ const sessionRememberActionCommand = Command.make(
   "remember-action",
   { input: inputArg },
   ({ input }) =>
-    toEffect(() =>
-      executeJsonCommand("session remember-action", async () => {
-        const payload = await decodeJsonInput(input, SessionRememberActionInputSchema);
-        return rememberSessionAction(payload);
-      }),
+    decodedJsonEffect(
+      "session remember-action",
+      input,
+      SessionRememberActionInputSchema,
+      (payload) => rememberSessionAction(payload),
     ),
 ).pipe(Command.withDescription(commandDescription("session remember-action")));
 
@@ -399,20 +389,17 @@ const sessionPutPendingToolCommand = Command.make(
   "put-pending-tool",
   { input: inputArg },
   ({ input }) =>
-    toEffect(() =>
-      executeJsonCommand("session put-pending-tool", async () => {
-        const payload = await decodeJsonInput(input, SessionPutPendingToolInputSchema);
-        return putPendingSessionTool(payload);
-      }),
+    decodedJsonEffect(
+      "session put-pending-tool",
+      input,
+      SessionPutPendingToolInputSchema,
+      (payload) => putPendingSessionTool(payload),
     ),
 ).pipe(Command.withDescription(commandDescription("session put-pending-tool")));
 
 const sessionCleanupCommand = Command.make("cleanup", { input: inputArg }, ({ input }) =>
-  toEffect(() =>
-    executeJsonCommand("session cleanup", async () => {
-      const payload = await decodeJsonInput(input, SessionCleanupInputSchema);
-      return cleanupSessionArtifacts(payload);
-    }),
+  decodedJsonEffect("session cleanup", input, SessionCleanupInputSchema, (payload) =>
+    cleanupSessionArtifacts(payload),
   ),
 ).pipe(Command.withDescription(commandDescription("session cleanup")));
 
@@ -420,11 +407,11 @@ const sessionRenderCompactionCommand = Command.make(
   "render-compaction",
   { input: inputArg },
   ({ input }) =>
-    toEffect(() =>
-      executeJsonCommand("session render-compaction", async () => {
-        const payload = await decodeJsonInput(input, SessionRenderCompactionInputSchema);
-        return renderSessionCompaction(payload);
-      }),
+    decodedJsonEffect(
+      "session render-compaction",
+      input,
+      SessionRenderCompactionInputSchema,
+      (payload) => renderSessionCompaction(payload),
     ),
 ).pipe(Command.withDescription(commandDescription("session render-compaction")));
 
