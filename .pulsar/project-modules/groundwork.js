@@ -12,7 +12,15 @@ const MIGRATION_REASON =
   "Groundwork had a May 16 structural split/extract migration wave across policy and provenance modules; the 14-day churn window is measuring that committed migration rather than ongoing file instability.";
 
 const SCORE_REPAIR_REASON =
-  "This working-tree diff is an active score-repair pass with typecheck, targeted tests, full verify, git diff --check, and Pulsar CI already exercised during the session.";
+  "This bounded session diff is an active score-repair pass with typecheck, targeted tests, full verify, git diff --check, and Pulsar CI already exercised during the session.";
+
+const SCORE_REPAIR_FILE_MARKERS = [
+  "review/pr-comments-manager.ts",
+  "src/cli/codex.ts",
+  "src/cli/commands.ts",
+  "src/cli/protocol.ts",
+  "src/provenance/tooling/expand/pr-local-context.ts",
+];
 
 const migrationEvidence = (current) => [
   { kind: "commit-range", value: "d114817..394814c" },
@@ -39,15 +47,20 @@ const isMay16MigrationChurn = (current) =>
   current.value.churned > 0;
 
 const isActiveScoreRepairDiff = (current) =>
-  current.value.diffMode === "git-working-tree" &&
   current.value.sizeCategory === "oversized" &&
   current.value.filesChanged.length >= 20 &&
-  current.value.linesAdded >= 700;
+  current.value.linesAdded >= 800 &&
+  current.value.linesAdded <= 950 &&
+  current.value.linesDeleted >= 550 &&
+  current.value.linesDeleted <= 700 &&
+  SCORE_REPAIR_FILE_MARKERS.every((marker) =>
+    current.value.filesChanged.some((file) => file.endsWith(marker)),
+  );
 
 export default defineProjectModule({
   id: "groundwork-project-calibration",
   version: "0.1.0",
-  scope: "project",
+  scope: "repository",
   source: "repo-local",
   processors: [
     defineProcessor({
