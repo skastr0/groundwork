@@ -10,34 +10,30 @@ const INSTALL_DIR = process.env["INSTALL_DIR"] || join(homedir(), ".local", "bin
 const BINARY_NAME = "groundwork";
 const DESTINATION = join(INSTALL_DIR, BINARY_NAME);
 
+const PLATFORM_NAMES = {
+  darwin: "darwin",
+  linux: "linux",
+} as const satisfies Record<string, string>;
+
+const ARCH_NAMES = {
+  x64: "x64",
+  arm64: "arm64",
+} as const satisfies Record<string, string>;
+
 const detectPlatform = (): string => {
   const os = platform();
   const cpu = arch();
 
-  let platformName: string;
-  switch (os) {
-    case "darwin":
-      platformName = "darwin";
-      break;
-    case "linux":
-      platformName = "linux";
-      break;
-    default:
-      console.error(`Unsupported operating system: ${os}`);
-      process.exit(1);
+  const platformName = PLATFORM_NAMES[os];
+  if (!platformName) {
+    console.error(`Unsupported operating system: ${os}`);
+    process.exit(1);
   }
 
-  let archName: string;
-  switch (cpu) {
-    case "x64":
-      archName = "x64";
-      break;
-    case "arm64":
-      archName = "arm64";
-      break;
-    default:
-      console.error(`Unsupported architecture: ${cpu}`);
-      process.exit(1);
+  const archName = ARCH_NAMES[cpu];
+  if (!archName) {
+    console.error(`Unsupported architecture: ${cpu}`);
+    process.exit(1);
   }
 
   return `${platformName}-${archName}`;
