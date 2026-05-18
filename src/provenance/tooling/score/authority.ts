@@ -15,6 +15,8 @@ import { analysisLimitArg, authorityWindowArg, historyMaxCommitsArg, optionalPat
 import { ProvAuthorityDataSchema, type AuthorityTotals, type ExplainableScore } from "./schemas.ts";
 import type { AuthorityToolInput, AuthorStats } from "./types.ts";
 
+type AuthorityAggregate = ReturnType<typeof aggregateWindow>;
+
 export function buildAuthorityScore(options: {
   author: AuthorStats;
   totals: AuthorityTotals;
@@ -70,6 +72,46 @@ export function buildAuthorityScore(options: {
   };
 }
 
+function toAuthorityTotals(aggregate: AuthorityAggregate): AuthorityTotals {
+  return {
+    commits: aggregate.commits,
+    touchedPaths: aggregate.rawTouchedPaths,
+    uniqueAuthors: aggregate.uniqueAuthors,
+    additions: aggregate.additions,
+    deletions: aggregate.deletions,
+    churn: aggregate.churn,
+  };
+}
+
+function buildAuthorityLeaders(options: {
+  aggregate: AuthorityAggregate;
+  totals: AuthorityTotals;
+  historySourceID: string;
+  limit: number;
+}) {
+  return options.aggregate.authorStats
+    .map((author) => {
+      const score = buildAuthorityScore({
+        author,
+        totals: options.totals,
+        historySourceID: options.historySourceID,
+      });
+      return {
+        authorName: author.authorName,
+        authorEmail: author.authorEmail,
+        commits: author.commits,
+        uniquePaths: author.uniquePaths.size,
+        additions: author.additions,
+        deletions: author.deletions,
+        churn: author.churn,
+        lastTouchedAt: author.lastTouchedAt,
+        score,
+      };
+    })
+    .sort((left, right) => compareAuthors(left, right))
+    .slice(0, options.limit);
+}
+
 export async function executeAuthority(
   options: CreateStateToolsOptions,
   args: {
@@ -108,36 +150,8 @@ export async function executeAuthority(
     directoryDepth: 1,
   });
 
-  const totals = {
-    commits: aggregate.commits,
-    touchedPaths: aggregate.rawTouchedPaths,
-    uniqueAuthors: aggregate.uniqueAuthors,
-    additions: aggregate.additions,
-    deletions: aggregate.deletions,
-    churn: aggregate.churn,
-  } satisfies AuthorityTotals;
-
-  const leaders = aggregate.authorStats
-    .map((author) => {
-      const score = buildAuthorityScore({
-        author,
-        totals,
-        historySourceID,
-      });
-      return {
-        authorName: author.authorName,
-        authorEmail: author.authorEmail,
-        commits: author.commits,
-        uniquePaths: author.uniquePaths.size,
-        additions: author.additions,
-        deletions: author.deletions,
-        churn: author.churn,
-        lastTouchedAt: author.lastTouchedAt,
-        score,
-      };
-    })
-    .sort((left, right) => compareAuthors(left, right))
-    .slice(0, limit);
+  const totals = toAuthorityTotals(aggregate);
+  const leaders = buildAuthorityLeaders({ aggregate, totals, historySourceID, limit });
 
   return {
     anchor: {
