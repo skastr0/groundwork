@@ -20,6 +20,93 @@ import type {
   ResolvedBlockWindow,
 } from "./schemas.ts";
 
+type RequestedWindowOptions = {
+  startLine: number;
+  endLine: number;
+  radius: number | undefined;
+  windowStart: number | undefined;
+  windowEnd: number | undefined;
+  totalLines: number;
+};
+
+function hasExplicitWindow(options: RequestedWindowOptions): boolean {
+  return options.windowStart !== undefined || options.windowEnd !== undefined;
+}
+
+function validateRequestedWindow(options: RequestedWindowOptions): void {
+  validateRequestedSpan(options);
+  validateWindowMode(options);
+  validateWindowRange(options);
+  validateWindowContainsFocus(options);
+}
+
+function validateRequestedSpan(options: RequestedWindowOptions): void {
+  if (options.endLine < options.startLine) {
+    throw new Error("end_line must be greater than or equal to start_line.");
+  }
+}
+
+function validateWindowMode(options: RequestedWindowOptions): void {
+  const explicitWindow = hasExplicitWindow(options);
+
+  if (explicitWindow && options.radius !== undefined) {
+    throw new Error("radius cannot be combined with window_start or window_end.");
+  }
+
+  if (explicitWindow && (options.windowStart === undefined || options.windowEnd === undefined)) {
+    throw new Error("window_start and window_end must be provided together.");
+  }
+}
+
+function validateWindowRange(options: RequestedWindowOptions): void {
+  if (
+    options.windowStart !== undefined &&
+    options.windowEnd !== undefined &&
+    options.windowEnd < options.windowStart
+  ) {
+    throw new Error("window_end must be greater than or equal to window_start.");
+  }
+}
+
+function validateWindowContainsFocus(options: RequestedWindowOptions): void {
+  if (
+    options.windowStart !== undefined &&
+    options.windowEnd !== undefined &&
+    (options.windowStart > options.startLine || options.windowEnd < options.endLine)
+  ) {
+    throw new Error("Explicit window must fully include the requested start_line and end_line.");
+  }
+}
+
+function resolveWindowSource(options: RequestedWindowOptions): ResolvedBlockWindow["source"] {
+  if (options.windowStart !== undefined) {
+    return "explicit";
+  }
+
+  return options.radius ? "radius" : "focus";
+}
+
+function resolveRequestedBounds(options: RequestedWindowOptions): RequestedBlockSpan {
+  return {
+    startLine: options.windowStart ?? Math.max(1, options.startLine - (options.radius ?? 0)),
+    endLine: options.windowEnd ?? options.endLine + (options.radius ?? 0),
+  };
+}
+
+function clampRequestedBounds(
+  requested: RequestedBlockSpan,
+  totalLines: number,
+): RequestedBlockSpan {
+  if (totalLines <= 0) {
+    return requested;
+  }
+
+  return {
+    startLine: Math.min(requested.startLine, totalLines),
+    endLine: Math.min(requested.endLine, totalLines),
+  };
+}
+
 export function resolveRequestedWindow(options: {
   startLine: number;
   endLine: number;
@@ -28,57 +115,16 @@ export function resolveRequestedWindow(options: {
   windowEnd: number | undefined;
   totalLines: number;
 }): ResolvedBlockWindow {
-  if (options.endLine < options.startLine) {
-    throw new Error("end_line must be greater than or equal to start_line.");
-  }
+  validateRequestedWindow(options);
 
-  const hasExplicitWindow = options.windowStart !== undefined || options.windowEnd !== undefined;
-  if (hasExplicitWindow && options.radius !== undefined) {
-    throw new Error("radius cannot be combined with window_start or window_end.");
-  }
-
-  if (hasExplicitWindow && (options.windowStart === undefined || options.windowEnd === undefined)) {
-    throw new Error("window_start and window_end must be provided together.");
-  }
-
-  if (
-    options.windowStart !== undefined &&
-    options.windowEnd !== undefined &&
-    options.windowEnd < options.windowStart
-  ) {
-    throw new Error("window_end must be greater than or equal to window_start.");
-  }
-
-  if (
-    options.windowStart !== undefined &&
-    options.windowEnd !== undefined &&
-    (options.windowStart > options.startLine || options.windowEnd < options.endLine)
-  ) {
-    throw new Error("Explicit window must fully include the requested start_line and end_line.");
-  }
-
-  const source =
-    options.windowStart !== undefined ? "explicit" : options.radius ? "radius" : "focus";
-  const requestedStart =
-    options.windowStart ?? Math.max(1, options.startLine - (options.radius ?? 0));
-  const requestedEnd = options.windowEnd ?? options.endLine + (options.radius ?? 0);
-
-  if (options.totalLines <= 0) {
-    return {
-      startLine: requestedStart,
-      endLine: requestedEnd,
-      source,
-      clamped: false,
-    };
-  }
-
+  const source = resolveWindowSource(options);
+  const requested = resolveRequestedBounds(options);
+  const clamped = clampRequestedBounds(requested, options.totalLines);
   return {
-    startLine: Math.min(requestedStart, options.totalLines),
-    endLine: Math.min(requestedEnd, options.totalLines),
+    startLine: clamped.startLine,
+    endLine: clamped.endLine,
     source,
-    clamped:
-      requestedStart !== Math.min(requestedStart, options.totalLines) ||
-      requestedEnd !== Math.min(requestedEnd, options.totalLines),
+    clamped: requested.startLine !== clamped.startLine || requested.endLine !== clamped.endLine,
   };
 }
 
