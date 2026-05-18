@@ -13,22 +13,29 @@ type RawAction = {
 };
 
 type MessageActionType = "block_tool" | "require_human_override" | "stop_session";
+type ActionType = GuardrailAction["type"];
+
+const ACTION_TYPES = new Set<ActionType>([
+  "inject_prompt", "block_tool", "require_human_override",
+  "stop_session", "ensure_skill_loaded",
+]);
 
 export function parseAction(ruleId: string, value: unknown, index: number): GuardrailAction {
   const raw = readRawAction(ruleId, value, index);
+  const actionType = readActionType(ruleId, index, raw);
 
-  switch (raw.type) {
+  switch (actionType) {
     case "inject_prompt":
       return parseInjectPromptAction(ruleId, raw);
     case "block_tool":
     case "require_human_override":
     case "stop_session":
-      return parseMessageAction(raw.type, raw);
+      return parseMessageAction(actionType, raw);
     case "ensure_skill_loaded":
       return parseEnsureSkillLoadedAction(ruleId, index, raw);
-    default:
-      throw new Error(`Unsupported action type in rule '${ruleId}' at index ${index}`);
   }
+
+  return assertNever(actionType);
 }
 
 function readRawAction(ruleId: string, value: unknown, index: number): RawAction {
@@ -37,6 +44,18 @@ function readRawAction(ruleId: string, value: unknown, index: number): RawAction
   }
 
   return value as RawAction;
+}
+
+function readActionType(ruleId: string, index: number, raw: RawAction): ActionType {
+  if (typeof raw.type === "string" && ACTION_TYPES.has(raw.type as ActionType)) {
+    return raw.type as ActionType;
+  }
+
+  throw new Error(`Unsupported action type in rule '${ruleId}' at index ${index}`);
+}
+
+function assertNever(value: never): never {
+  throw new Error(`Unsupported action type: ${String(value)}`);
 }
 
 function parseInjectPromptAction(ruleId: string, raw: RawAction): GuardrailAction {
