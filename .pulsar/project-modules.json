@@ -5,6 +5,11 @@
       "id": "@skastr0/pulsar-project-module-effect",
       "kind": "repo-local",
       "path": ".pulsar/project-modules/effect.js"
+    },
+    {
+      "id": "groundwork-project-calibration",
+      "kind": "repo-local",
+      "path": ".pulsar/project-modules/groundwork.js"
     }
   ]
 }

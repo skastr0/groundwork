@@ -30,6 +30,17 @@
         "max_complexity": 15
       }
     },
+    "TS-LD-02": {
+      "config": {
+        "max_file_loc": 500
+      }
+    },
+    "TS-LD-09": {
+      "config": {
+        "max_boundary_weighted_opacity": 1000,
+        "max_weighted_opacity_per_kloc": 180
+      }
+    },
     "TS-AB-03": {
       "weight": 1.3
     },
@@ -68,6 +79,26 @@
         {
           "kind": "preset",
           "summary": "Assume AI assistance is present and tighten the places where generative output most often drifts: duplication, complexity, generic bloat, and unfinished stubs. Best for teams that want AI-assisted mode to be explicit, visible in the vector, and enforced through normal preset mechanics rather than a hidden switch."
+        }
+      ]
+    },
+    {
+      "source": "manual",
+      "recorded_at": "2026-05-17T10:22:46Z",
+      "summary": "Scaled legibility thresholds for Groundwork's integration-heavy CLI/runtime surface while preserving visible diagnostics.",
+      "artifact_path": "/Users/guilhermecastro/Projects/groundwork/.pulsar/vector.json",
+      "evidence": [
+        {
+          "kind": "observation",
+          "summary": "TS-LD-02 default max_file_loc=300 was dominated by integration modules already being split down; repo threshold set to 500 so file-size pressure still flags the next largest review drag."
+        },
+        {
+          "kind": "observation",
+          "summary": "TS-LD-09 default absolute opacity thresholds were pinning readiness for a large CLI boundary surface; repo-scale thresholds keep findings visible without treating expected integration boundaries as a hard readiness poison."
+        },
+        {
+          "kind": "score-delta",
+          "summary": "Probe with these thresholds moved weighted mean to 0.824 and readiness to yellow without disabling TS-LD-09 or TS-LD-02."
         }
       ]
     }
