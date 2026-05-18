@@ -33,6 +33,8 @@ type WorktreeOverviewArgs = Omit<TreeExpandCoreArgs, "path"> & {
   mode?: ProvenanceMode;
 };
 
+type TreeExpandCoreResult = Awaited<ReturnType<typeof resolveTreeExpandCore>>;
+type TreeExpandData = TreeExpandCoreResult["data"];
 type WorktreeOverviewData = ReturnType<typeof toWorktreeOverviewData>;
 type TreeExpandWarnings = ReturnType<typeof collectTreeExpandWarnings>;
 
@@ -49,6 +51,19 @@ export async function executeTreeExpandTool(
     return unsupported;
   }
 
+  logTreeExpandStart(args);
+
+  try {
+    const resolved = await resolveTreeExpandCore(runtimeOptions, args);
+    const response = createTreeExpandSuccess(resolved);
+    logTreeExpandEnd(resolved.data);
+    return toResponseJson(response);
+  } catch (error) {
+    return createTreeExpandFailure(args, error);
+  }
+}
+
+function logTreeExpandStart(args: TreeToolArgs): void {
   logger.info("gw_tree_expand start", {
     tool: GW_TREE_EXPAND_TOOL,
     path: args.path,
@@ -58,49 +73,51 @@ export async function executeTreeExpandTool(
     maxBytes: args.max_bytes,
     maxDepth: args.max_depth,
   });
+}
 
-  try {
-    const resolved = await resolveTreeExpandCore(runtimeOptions, args);
-    const warnings = collectTreeExpandWarnings(resolved.warnings, resolved.data);
-    const response = createProvenanceSuccess({
-      tool: GW_TREE_EXPAND_TOOL,
-      mode: "local",
-      confidence: getLowestConfidence([
-        resolved.data.repo.branch.confidence,
-        resolved.data.summary.changedFiles > 0 ? "high" : "medium",
-      ]),
-      ambiguity: getHighestAmbiguity(warnings.map((warning) => warning.ambiguity ?? "low")),
-      bounds: resolved.data.bounds.areas,
-      summary: buildTreeExpandSummary(resolved.data),
-      warnings,
-      sources: buildTreeSources(resolved.data),
-      data: resolved.data,
-    });
+function createTreeExpandSuccess(resolved: TreeExpandCoreResult) {
+  const warnings = collectTreeExpandWarnings(resolved.warnings, resolved.data);
 
-    logger.info("gw_tree_expand end", {
-      tool: GW_TREE_EXPAND_TOOL,
-      anchor: resolved.data.anchor.resolvedPath,
-      scope: resolved.data.scope.type,
-      changedFiles: resolved.data.summary.changedFiles,
-      areas: resolved.data.summary.areas,
-      commits: resolved.data.summary.commits,
-    });
+  return createProvenanceSuccess({
+    tool: GW_TREE_EXPAND_TOOL,
+    mode: "local",
+    confidence: getLowestConfidence([
+      resolved.data.repo.branch.confidence,
+      resolved.data.summary.changedFiles > 0 ? "high" : "medium",
+    ]),
+    ambiguity: getHighestAmbiguity(warnings.map((warning) => warning.ambiguity ?? "low")),
+    bounds: resolved.data.bounds.areas,
+    summary: buildTreeExpandSummary(resolved.data),
+    warnings,
+    sources: buildTreeSources(resolved.data),
+    data: resolved.data,
+  });
+}
 
-    return toResponseJson(response);
-  } catch (error) {
-    const message = toErrorMessage(error);
-    logger.error("gw_tree_expand failed", {
-      tool: GW_TREE_EXPAND_TOOL,
-      path: args.path,
-      error: message,
-    });
-    return createToolFailure({
-      tool: GW_TREE_EXPAND_TOOL,
-      summary: `Failed to expand tree anchor '${args.path}'.`,
-      code: "TREE_EXPAND_FAILED",
-      message,
-    });
-  }
+function logTreeExpandEnd(data: TreeExpandData): void {
+  logger.info("gw_tree_expand end", {
+    tool: GW_TREE_EXPAND_TOOL,
+    anchor: data.anchor.resolvedPath,
+    scope: data.scope.type,
+    changedFiles: data.summary.changedFiles,
+    areas: data.summary.areas,
+    commits: data.summary.commits,
+  });
+}
+
+function createTreeExpandFailure(args: TreeToolArgs, error: unknown): string {
+  const message = toErrorMessage(error);
+  logger.error("gw_tree_expand failed", {
+    tool: GW_TREE_EXPAND_TOOL,
+    path: args.path,
+    error: message,
+  });
+  return createToolFailure({
+    tool: GW_TREE_EXPAND_TOOL,
+    summary: `Failed to expand tree anchor '${args.path}'.`,
+    code: "TREE_EXPAND_FAILED",
+    message,
+  });
 }
 
 export async function executeWorktreeOverviewTool(
