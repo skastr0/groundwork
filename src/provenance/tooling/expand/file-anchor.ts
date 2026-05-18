@@ -87,9 +87,9 @@ async function readComparisonDiff(options: {
         maxOutputBytes: FILE_ANCHOR_DIFF_PARSE_MAX_OUTPUT_BYTES,
         trim: false,
       });
-    default:
-      return assertNever(options.key);
   }
+
+  return assertNever(options.key);
 }
 
 function buildComparisonContexts(
