@@ -1,10 +1,10 @@
 {
   "schema_version": 1,
-  "baseline_sha": "394814c5defcb9c19e177a0f394290d6a15275be",
-  "created_at": "2026-05-17T10:23:38.076Z",
+  "baseline_sha": "1bfcfd4f35fa55a33a822aeaeccaa7811389228b",
+  "created_at": "2026-05-18T19:36:08.175Z",
   "vector_id": "ai-slop-defense",
   "vector_source": "repo-local .pulsar/vector.json",
   "vector_trust_boundary": "repo-local",
-  "observer_config_hash": "5a831edff7d16c65fff85886fc0bcd8d19df57d810a1abdbec528750982f80a9",
+  "observer_config_hash": "9726eb50065155ef05e249d0f0b426d1bd4d498c4a02900ad188aebf9a79a797",
   "violations": {}
 }
