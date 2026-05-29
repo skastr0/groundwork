@@ -121,6 +121,13 @@ bun run build
 
 ## Development
 
+Development verification expects Bun plus the optional policy matcher CLIs used by content rules:
+
+```sh
+npm install -g @ast-grep/cli@0.43.0
+python3 -m pip install --user semgrep==1.159.0
+```
+
 ```sh
 bun install
 bun run typecheck

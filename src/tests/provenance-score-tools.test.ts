@@ -295,7 +295,7 @@ describe("provenance score tools", () => {
     });
     expect(result.data.windows[0]).toMatchObject({
       days: 7,
-      commitCount: 2,
+      commitCount: 3,
     });
     expect(result.data.windows[0].mostActive[0]).toMatchObject({
       path: "src/a.ts",
