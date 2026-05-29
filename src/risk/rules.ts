@@ -72,33 +72,33 @@ function evaluateSegment(
   const tokens = tokenize(segment);
   if (tokens.length === 0) return null;
 
-  const commandTokens = stripLeadingWrappers(tokens);
-  if (commandTokens.length === 0) return null;
+  const argv = stripLeadingWrappers(tokens);
+  if (argv.length === 0) return null;
 
-  const command = normalizeCommandToken(commandTokens[0]);
+  const command = normalizeCommandToken(argv[0]);
 
-  const inlineViolation = evaluateInlineShell(command, commandTokens, config, depth);
+  const inlineViolation = evaluateInlineShell(command, argv, config, depth);
   if (inlineViolation) return inlineViolation;
 
   if (command === "rm") {
-    return evaluateRm(commandTokens, segment, config);
+    return evaluateRm(argv, segment, config);
   }
 
   if (command === "git") {
-    return evaluateGit(commandTokens, segment);
+    return evaluateGit(argv, segment);
   }
 
   if (!config.includeExtendedRules) return null;
 
   if (command === "docker") {
-    return evaluateDocker(commandTokens, segment);
+    return evaluateDocker(argv, segment);
   }
 
   if (command === "kubectl") {
-    return evaluateKubectl(commandTokens, segment);
+    return evaluateKubectl(argv, segment);
   }
 
-  return evaluateDiskTools(command, commandTokens, segment);
+  return evaluateDiskTools(command, argv, segment);
 }
 
 function evaluateInlineShell(

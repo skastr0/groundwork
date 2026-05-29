@@ -179,7 +179,7 @@ describe("groundwork CLI", () => {
     });
   });
 
-  it("reports Codex integration readiness", async () => {
+  it("reports packaged Codex integration readiness without generated project hooks", async () => {
     const result = await runGroundwork(["codex", "doctor"]);
     expect(result.exitCode).toBe(0);
     expect(result.stderr).toBe("");
@@ -188,12 +188,12 @@ describe("groundwork CLI", () => {
       command: "codex doctor",
       data: {
         integration: "codex",
-        status: "ok",
+        status: "partial",
         checks: expect.arrayContaining([
           expect.objectContaining({ name: "plugin.manifest", ok: true }),
           expect.objectContaining({ name: "plugin.hooks", ok: true }),
-          expect.objectContaining({ name: "project.codex_config", ok: true }),
-          expect.objectContaining({ name: "project.codex_hooks", ok: true }),
+          expect.objectContaining({ name: "project.codex_config", ok: false }),
+          expect.objectContaining({ name: "project.codex_hooks", ok: false }),
         ]),
       },
     });

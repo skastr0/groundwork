@@ -1,0 +1,49 @@
+name: Bug report
+description: Report a reproducible Groundwork bug.
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What happened?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      description: Include the exact command, JSON input, harness state, and minimal repository state needed.
+      placeholder: |
+        1. Run `groundwork doctor`
+        2. Run `groundwork risk evaluate-command '{"command":"git reset --hard"}'`
+        3. Observe ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, Bun version, Groundwork version or commit, harness version, and package manager.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Remove secrets, private project data, and private policy rules before posting.
+      render: shell

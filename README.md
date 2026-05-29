@@ -2,9 +2,26 @@
 
 Groundwork is a JSON-first CLI for policy, provenance, context, and risk foundations in agentic development workflows. Codex and OpenCode integrations are thin harness layers over the same Groundwork foundations where the harness APIs allow it.
 
+## Status
+
+- Maturity: preview
+- Repository visibility: private until explicit maintainer approval
+- Package channel: npm package `@skastr0/groundwork`
+- Binary command: `groundwork`
+- Maintainer model: solo-maintained
+
+The first public package release is prepared for npm but not published yet. Real publishing, tag pushes, GitHub release creation, and repository visibility changes require explicit maintainer approval.
+
 ## Install Surface
 
-The package exposes a standard `groundwork` binary:
+The release package exposes a standard `groundwork` binary. After the first npm publish:
+
+```sh
+npm install -g @skastr0/groundwork
+groundwork doctor
+```
+
+For source builds before the first publish:
 
 ```sh
 bun install
@@ -15,7 +32,7 @@ groundwork doctor
 
 `bun run build` emits both package JavaScript (`dist/server.js`, `dist/cli.js`) and standalone local CLI binaries (`dist/groundwork-<platform>-<arch>`). `bun run install:local` copies the current-platform binary to `~/.local/bin/groundwork`.
 
-Packaged installs use `bin.groundwork -> dist/cli.js`. The published file surface includes `dist/`, `docs/`, `hooks/`, `.codex-plugin/`, and this README.
+Packaged installs use `bin.groundwork -> dist/cli.js`. The npm package file surface includes the package JavaScript in `dist/`, `docs/`, `hooks/`, `.codex-plugin/`, and this README. Standalone compiled binaries are source-build artifacts and are not included in the npm package.
 
 ## CLI
 
@@ -114,9 +131,18 @@ bun run build
 bun run install:local
 bun run check:imports
 bun run verify
+bun run pack:dry-run
 ```
 
-`bun run verify` runs typecheck, tests, build, server import, and CLI doctor checks.
+`bun run verify` runs typecheck, tests, build, server import, CLI doctor checks, and local install smoke tests. `bun run pack:dry-run` inspects the npm package contents without publishing.
+
+## Release Plan
+
+1. Keep the repository private until the public-source surface and package tarball are validated.
+2. Publish the package to npm as `@skastr0/groundwork`; the unscoped `groundwork` package name is not the release target.
+3. Keep the `groundwork` executable name through `bin.groundwork`.
+4. Use CI as the release gate: `bun run verify` and `bun run pack:dry-run` must pass on the release commit.
+5. After maintainer approval, flip repository visibility, create the release tag/GitHub release, and run the real npm publish.
 
 ## Project Layout
 

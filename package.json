@@ -1,11 +1,21 @@
 {
-  "name": "groundwork",
+  "name": "@skastr0/groundwork",
   "version": "0.1.0",
   "description": "Groundwork policy, provenance, context, and risk foundations for agentic development tools",
   "type": "module",
+  "author": "Guilherme Castro <skastr052@gmail.com>",
+  "license": "MIT",
+  "homepage": "https://github.com/skastr0/groundwork#readme",
+  "bugs": {
+    "url": "https://github.com/skastr0/groundwork/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/skastr0/groundwork.git"
+  },
   "main": "./dist/server.js",
   "bin": {
-    "groundwork": "./dist/cli.js"
+    "groundwork": "dist/cli.js"
   },
   "exports": {
     ".": "./dist/server.js",
@@ -15,11 +25,18 @@
   },
   "files": [
     ".codex-plugin",
+    "CHANGELOG.md",
     "docs",
-    "dist",
+    "dist/cli.js",
+    "dist/metadata.js",
+    "dist/server.js",
     "hooks",
     "README.md"
   ],
+  "packageManager": "bun@1.3.14",
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "bun run build:cli && bun run build:js",
     "build:js": "bun build ./src/server.ts ./src/cli.ts ./src/metadata.ts --outdir ./dist --target bun --format esm --external @opencode-ai/plugin",
@@ -30,7 +47,8 @@
     "check:local-install": "bun scripts/check-local-install.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "verify": "bun run typecheck && bun run test && bun run build && bun run check:imports && bun run check:cli && bun run check:local-install"
+    "verify": "bun run typecheck && bun run test && bun run build && bun run check:imports && bun run check:cli && bun run check:local-install",
+    "pack:dry-run": "npm pack --dry-run"
   },
   "keywords": [
     "opencode",
