@@ -1,0 +1,76 @@
+name: Publish packages to npm
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: npm-publish-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: release
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+
+      - name: Install policy matcher CLIs
+        run: |
+          npm install -g @ast-grep/cli@0.43.0
+          python3 -m pip install --user semgrep==1.159.0
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Install
+        run: bun install --frozen-lockfile
+
+      - name: Verify
+        run: bun run verify
+
+      - name: Package verification
+        run: bun run pack:verify
+
+      - name: Publish packages
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          publish_package() {
+            local package_dir="$1"
+            local manifest="${package_dir}/package.json"
+            local name
+            local version
+
+            name="$(node -p "require('./${manifest}').name")"
+            version="$(node -p "require('./${manifest}').version")"
+
+            if npm view "${name}@${version}" version --prefer-online >/dev/null 2>&1; then
+              echo "Skipping ${name}@${version}; already published."
+            else
+              npm publish "./${package_dir}" --access public
+            fi
+          }
+
+          publish_package "packages/core"
+          publish_package "packages/opencode-plugin"
+          publish_package "packages/codex"
+          publish_package "."
