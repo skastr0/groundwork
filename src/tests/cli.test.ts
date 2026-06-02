@@ -806,7 +806,7 @@ describe("groundwork CLI", () => {
       command: "provenance repo-state",
       data: {
         branch: expect.objectContaining({
-          name: expect.any(String),
+          detached: expect.any(Boolean),
         }),
         base: expect.objectContaining({
           ref: expect.any(String),
