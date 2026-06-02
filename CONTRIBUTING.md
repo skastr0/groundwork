@@ -21,7 +21,7 @@ Groundwork is a preview-stage, solo-maintained project. The preferred contributi
 ```sh
 bun install
 bun run verify
-bun run pack:dry-run
+bun run pack:verify
 ```
 
 Use the existing JSON-first CLI protocol, deterministic JSON envelopes, and typed schema discovery patterns. Preserve Codex/OpenCode harness parity when changing policy, risk, provenance, context, or session behavior.

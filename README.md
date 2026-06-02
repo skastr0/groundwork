@@ -1,20 +1,27 @@
 # Groundwork
 
-Groundwork is a JSON-first CLI for policy, provenance, context, and risk foundations in agentic development workflows. Codex and OpenCode integrations are thin harness layers over the same Groundwork foundations where the harness APIs allow it.
+Groundwork is a JSON-first CLI and shared foundation layer for policy, provenance, context, risk, and session artifacts in agentic development workflows. The Bun CLI, OpenCode wrapper, and Codex plugin are published as separate packages around the same Groundwork foundations.
 
 ## Status
 
 - Maturity: preview
 - Repository visibility: private until explicit maintainer approval
-- Package channel: npm package `@skastr0/groundwork`
+- CLI package channel: npm package `@skastr0/groundwork`
 - Binary command: `groundwork`
 - Maintainer model: solo-maintained
 
 The first public package release is prepared for npm but not published yet. Real publishing, tag pushes, GitHub release creation, and repository visibility changes require explicit maintainer approval.
 
-## Install Surface
+## Package Surface
 
-The release package exposes a standard `groundwork` binary. After the first npm publish:
+- `@skastr0/groundwork`: the root Bun CLI package. It exports the `groundwork` executable through `bin.groundwork -> dist/cli.js`.
+- `@skastr0/groundwork-core`: the shared library package under `packages/core` for policy, provenance, context, risk, and session foundations.
+- `@skastr0/groundwork-opencode-plugin`: the OpenCode runtime wrapper under `packages/opencode-plugin`. It uses `@skastr0/groundwork-core` and exports `dist/server.js`.
+- `@skastr0/groundwork-codex`: the self-contained Codex plugin bundle under `packages/codex`. It ships `.codex-plugin/plugin.json`, `hooks/hooks.json`, shell and cmd hook wrappers, and `dist/groundwork-codex-hook.mjs`.
+
+## CLI Install Surface
+
+The root package exposes a standard `groundwork` binary. After the first npm publish:
 
 ```sh
 npm install -g @skastr0/groundwork
@@ -30,9 +37,9 @@ bun run install:local
 groundwork doctor
 ```
 
-`bun run build` emits both package JavaScript (`dist/server.js`, `dist/cli.js`) and standalone local CLI binaries (`dist/groundwork-<platform>-<arch>`). `bun run install:local` copies the current-platform binary to `~/.local/bin/groundwork`.
+`bun run build` emits package JavaScript for the CLI and workspace packages, plus standalone local CLI binaries (`dist/groundwork-<platform>-<arch>`). `bun run install:local` copies the current-platform binary to `~/.local/bin/groundwork`.
 
-Packaged installs use `bin.groundwork -> dist/cli.js`. The npm package file surface includes the package JavaScript in `dist/`, `docs/`, `hooks/`, `.codex-plugin/`, and this README. Standalone compiled binaries are source-build artifacts and are not included in the npm package.
+Packaged CLI installs use `bin.groundwork -> dist/cli.js`. The root npm package file surface includes `dist/cli.js`, `dist/metadata.js`, `docs/`, and this README. Standalone compiled binaries are source-build artifacts and are not included in the npm package.
 
 ## CLI
 
@@ -88,30 +95,27 @@ message = "src edits require review"
 
 ## Codex
 
-Groundwork can be installed into Codex three ways:
+The Codex plugin is published as `@skastr0/groundwork-codex`. Its package root contains `.codex-plugin/plugin.json`, lifecycle hooks in `hooks/hooks.json`, POSIX and Windows hook wrappers in `hooks/`, and the bundled hook runtime at `dist/groundwork-codex-hook.mjs`.
+
+Codex installs plugins from a plugin source directory or marketplace entry. For local development, use the Codex package directory as the plugin source:
 
 ```sh
-groundwork codex install-project '{"target_dir":"."}'
-groundwork codex install-user '{}'
-groundwork codex doctor
+bun install
+bun run build
+# point your Codex plugin source at /path/to/groundwork/packages/codex
 ```
 
-The package also includes a Codex plugin bundle at `.codex-plugin/plugin.json`, with `hooks/hooks.json`.
-Bundled hooks call `$HOME/.local/bin/groundwork` directly so hook execution does not depend on `PATH` or Bun global-link state.
+Codex plugin hooks run shell commands that invoke `node` on the bundled JavaScript file. Runtime support follows the package engine: Node >= 24.
 
-Project and user installers patch `config.toml` to enable Codex hooks and install `hooks.json`. Skills are managed from Prism plugins, not from this package. Generated hooks default to an absolute Bun executable plus the active CLI entrypoint so hook execution does not depend on shell `PATH`. Pass an explicit `hook_command` to pin a packaged binary or custom wrapper:
-
-```sh
-groundwork codex install-project '{"target_dir":".","hook_command":"/absolute/path/to/groundwork codex hook"}'
-```
-
-Codex hook parity is best effort. Current hooks cover `SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PermissionRequest`, `PostToolUse`, and `Stop` within Codex hook API limits. They can deny supported risky commands and policy violations before execution, record explicit policy commands, persist session artifacts, and report post-tool/context feedback. They cannot intercept every tool path, undo side effects after a tool runs, or fully reproduce OpenCode synthetic prompt injection/compaction behavior.
+Codex hook parity is best effort. Current hooks cover `SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PermissionRequest`, `PostToolUse`, and `Stop` within Codex hook API limits. They can deny supported risky commands and policy violations before execution, record explicit policy commands, persist session artifacts, and report post-tool/context feedback. They cannot intercept every tool path, undo side effects after a tool runs, or fully reproduce OpenCode synthetic prompt injection/compaction behavior. Codex requires plugin-bundled hooks to be reviewed and trusted after installation or hook changes.
 
 See `docs/codex-integration.md` for details.
 
 ## OpenCode
 
-The OpenCode entrypoint is `src/server.ts`, exported as `dist/server.js`. OpenCode keeps stronger runtime hooks for ambient behavior, while shared Groundwork services and CLI-facing foundations carry the reusable business logic. Existing OpenCode `gw_*` provenance tool IDs and hook behavior are preserved.
+The OpenCode package is published as `@skastr0/groundwork-opencode-plugin`. Its runtime entrypoint is `packages/opencode-plugin/src/server.ts`, built to `packages/opencode-plugin/dist/server.js`, and it uses `@skastr0/groundwork-core` for shared Groundwork behavior.
+
+OpenCode keeps stronger runtime hooks for ambient behavior, while shared Groundwork services and CLI-facing foundations carry the reusable business logic. Existing OpenCode `gw_*` provenance tool IDs and hook behavior are preserved.
 
 For local OpenCode use, point OpenCode at this package/plugin path after building:
 
@@ -138,23 +142,23 @@ bun run build
 bun run install:local
 bun run check:imports
 bun run verify
-bun run pack:dry-run
+bun run pack:verify
 ```
 
-`bun run verify` runs typecheck, tests, build, server import, CLI doctor checks, and local install smoke tests. `bun run pack:dry-run` inspects the npm package contents without publishing.
+`bun run verify` runs typecheck, tests, build, server import, CLI doctor checks, and local install smoke tests. `bun run pack:verify` inspects all package tarballs and runs clean packed-install smoke tests without publishing.
 
 ## Release Plan
 
 1. Keep the repository private until the public-source surface and package tarball are validated.
-2. Publish the package to npm as `@skastr0/groundwork`; the unscoped `groundwork` package name is not the release target.
+2. Publish the packages to npm as `@skastr0/groundwork`, `@skastr0/groundwork-core`, `@skastr0/groundwork-opencode-plugin`, and `@skastr0/groundwork-codex`; the unscoped `groundwork` package name is not the release target.
 3. Keep the `groundwork` executable name through `bin.groundwork`.
-4. Use CI as the release gate: `bun run verify` and `bun run pack:dry-run` must pass on the release commit.
+4. Use CI as the release gate: `bun run verify` and `bun run pack:verify` must pass on the release commit.
 5. After maintainer approval, flip repository visibility, create the release tag/GitHub release, and run the real npm publish.
 
 ## Project Layout
 
-- `src/cli.ts` and `src/cli/` implement the standalone CLI protocol and Codex installers/hooks.
-- `src/risk/`, `src/policy/`, `src/context/`, `src/provenance/`, and `src/session/` contain the Groundwork foundations.
-- `src/server.ts` exports the OpenCode plugin entrypoint.
-- `.codex-plugin/` and `hooks/` define the Codex plugin/install surface.
+- `src/cli.ts` and `src/cli/` implement the standalone CLI protocol.
+- `packages/core/` contains the shared Groundwork library for risk, policy, context, provenance, and session foundations.
+- `packages/opencode-plugin/` contains the OpenCode runtime wrapper.
+- `packages/codex/` contains the self-contained Codex plugin bundle and bundled hook runtime.
 - `docs/` contains integration and session artifact notes.

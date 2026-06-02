@@ -1,28 +1,30 @@
 # Groundwork for Codex
 
-Groundwork exposes Codex support through the same JSON-first CLI used by other integrations.
+Groundwork exposes Codex support through `@skastr0/groundwork-codex`, a self-contained plugin bundle. The package ships the Codex manifest, hook definitions, platform wrappers, and bundled hook runtime from one plugin source directory.
 
 ## Install Surfaces
 
-- Plugin bundle: `.codex-plugin/plugin.json` with bundled `hooks/hooks.json`. Bundled hooks call `$HOME/.local/bin/groundwork` directly so hook execution does not depend on `PATH` or Bun global-link state.
-- Project install: `groundwork codex install-project '{"target_dir":"."}'`.
-- User install: `groundwork codex install-user '{"codex_home":"/path/to/.codex"}'`.
-- Explicit hook command install: `groundwork codex install-project '{"target_dir":".","hook_command":"/absolute/path/to/groundwork codex hook"}'`.
-- Readiness check: `groundwork codex doctor`.
+- Plugin package: `@skastr0/groundwork-codex`, with `.codex-plugin/plugin.json`, bundled `hooks/hooks.json`, shell and cmd wrappers in `hooks/`, and `dist/groundwork-codex-hook.mjs`.
+- Local plugin source: `packages/codex`, where `.codex-plugin/plugin.json` and `hooks/hooks.json` live.
+- Runtime entrypoint: `dist/groundwork-codex-hook.mjs`, invoked through `hooks/groundwork-codex-hook.sh` or `hooks/groundwork-codex-hook.cmd`.
+- Runtime engine: Node >= 24.
 
-Project installs create:
+For local development, run `bun install` and `bun run build` before installing or refreshing the plugin.
 
-- `.codex/config.toml`, patched to include `[features] codex_hooks = true` while preserving existing settings.
-- `.codex/hooks.json` that calls the Groundwork CLI hook entrypoint.
+## Plugin Browser Testing
 
-User installs create:
+For a local Codex plugin install from this checkout, build the workspace and use a Codex marketplace snapshot whose plugin source path points at the Codex package bundle:
 
-- `$CODEX_HOME/config.toml`, patched to include `[features] codex_hooks = true` while preserving existing settings.
-- `$CODEX_HOME/hooks.json` that calls the Groundwork CLI hook entrypoint.
+```sh
+bun install
+bun run build
+codex plugin marketplace add /path/to/marketplace
+codex plugin add groundwork@<marketplace-name>
+```
 
-By default, existing hook files are skipped. Passing `force: true` overwrites Groundwork-managed hook files, but config files are still patched instead of replaced. Groundwork skills are managed from Prism plugins; the Groundwork package does not write skill folders into `.codex/`.
+The marketplace entry for this package should resolve the `groundwork` plugin source to `/path/to/groundwork/packages/codex`, where `.codex-plugin/plugin.json` and `hooks/hooks.json` live.
 
-Generated hooks default to an absolute Bun executable plus the active CLI entrypoint, so hook execution does not depend on shell `PATH`. For local development, run `bun run build` and `bun run install:local` to install a standalone `groundwork` binary into `~/.local/bin`. Pass `hook_command` during project or user install when you want hooks to call a packaged binary or custom wrapper explicitly.
+Restart Codex after changing plugin files. Codex copies local plugin sources into its plugin cache, so an already-installed plugin can keep using stale hook definitions until the marketplace/plugin is refreshed. Review and trust the plugin-bundled hooks after install or hook changes.
 
 ## Hook Behavior
 
@@ -36,9 +38,9 @@ The hook entrypoint supports:
 - `PostToolUse`: also reports new inherited context reminders for supported touched paths using session dedupe. This is feedback, not synthetic prompt injection.
 - `Stop`: currently returns an empty JSON success object so the shared entrypoint is valid for the event without forcing continuation.
 
-Hooks call the shared CLI hook entrypoint, or the configured `hook_command` for project/user installs, so plugin-bundled hooks, project hooks, and user hooks share the same behavior.
+Plugin-bundled hooks use the bundled Codex hook runtime. Codex plugin-bundled hooks are non-managed hooks; after installation or hook changes, Codex skips them until the user reviews and trusts the current hook definition.
 
-Policy hooks use the same Groundwork config chain as the CLI and OpenCode plugin. Put project policy in `groundwork.toml` or `.groundwork/*.toml`, and put user/global policy in `~/.groundwork/*.toml`.
+Policy hooks use the same Groundwork config chain as the CLI and OpenCode plugin because both package surfaces use the shared Groundwork foundations. Put project policy in `groundwork.toml` or `.groundwork/*.toml`, and put user/global policy in `~/.groundwork/*.toml`.
 
 ## Trust Boundaries
 
@@ -59,7 +61,7 @@ Run:
 
 ```bash
 bun run verify
-groundwork codex doctor
+bun run --cwd packages/codex pack:dry-run
 ```
 
-The test suite covers project/user install, `SessionStart` hook context, `UserPromptSubmit` policy command capture, `PreToolUse` Bash risk and policy denial, `PermissionRequest` denial, `PostToolUse` feedback, unsupported/no-config hook paths, and malformed hook payloads.
+The test suite covers `SessionStart` hook context, `UserPromptSubmit` policy command capture, `PreToolUse` Bash risk and policy denial, `PermissionRequest` denial, `PostToolUse` feedback, unsupported/no-config hook paths, malformed hook payloads, and package layout.
