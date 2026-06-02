@@ -1,0 +1,129 @@
+import { spawn } from "node:child_process";
+import { promises as fs } from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { describe, expect, it } from "vitest";
+
+interface CommandResult {
+  exitCode: number;
+  stdout: string;
+  stderr: string;
+}
+
+const CODEX_HOOK_ENTRY = path.resolve(process.cwd(), "packages", "codex", "src", "hook.ts");
+
+async function runCodexHook(
+  stdin: string,
+  options: { cwd?: string; env?: Record<string, string> } = {},
+): Promise<CommandResult> {
+  const proc = spawn("bun", [CODEX_HOOK_ENTRY], {
+    cwd: options.cwd ?? process.cwd(),
+    env: { ...process.env, ...options.env },
+    stdio: ["pipe", "pipe", "pipe"],
+  });
+
+  let stdout = "";
+  let stderr = "";
+  proc.stdout.setEncoding("utf8");
+  proc.stderr.setEncoding("utf8");
+  proc.stdout.on("data", (chunk: string) => {
+    stdout += chunk;
+  });
+  proc.stderr.on("data", (chunk: string) => {
+    stderr += chunk;
+  });
+  proc.stdin.end(stdin);
+
+  const exitCode = await new Promise<number>((resolve, reject) => {
+    proc.on("error", reject);
+    proc.on("close", (code) => resolve(code ?? 1));
+  });
+
+  return { exitCode, stdout, stderr };
+}
+
+function parseJson(text: string): unknown {
+  return JSON.parse(text);
+}
+
+describe("Groundwork Codex hook package", () => {
+  it("emits SessionStart context", async () => {
+    const result = await runCodexHook(
+      JSON.stringify({
+        hook_event_name: "SessionStart",
+        cwd: process.cwd(),
+        session_id: "session-start",
+      }),
+    );
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stderr).toBe("");
+    expect(parseJson(result.stdout)).toMatchObject({
+      hookSpecificOutput: {
+        hookEventName: "SessionStart",
+        additionalContext: expect.stringContaining("Groundwork Codex plugin is active"),
+      },
+    });
+  });
+
+  it("denies risky Bash commands before tool execution", async () => {
+    const result = await runCodexHook(
+      JSON.stringify({
+        hook_event_name: "PreToolUse",
+        tool_name: "Bash",
+        tool_input: { command: "git reset --hard" },
+      }),
+    );
+
+    expect(result.exitCode).toBe(0);
+    expect(parseJson(result.stdout)).toMatchObject({
+      hookSpecificOutput: {
+        hookEventName: "PreToolUse",
+        permissionDecision: "deny",
+        permissionDecisionReason: expect.stringContaining("[groundwork:risk]"),
+      },
+    });
+  });
+
+  it("reports inherited context for touched paths", async () => {
+    const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "groundwork-codex-context-"));
+    await fs.mkdir(path.join(rootDir, "src"), { recursive: true });
+    await fs.writeFile(path.join(rootDir, "src", "AGENTS.md"), "Use package context guidance.\n", "utf8");
+
+    const payload = {
+      hook_event_name: "PostToolUse",
+      cwd: rootDir,
+      session_id: "context-session",
+      tool_name: "apply_patch",
+      tool_use_id: "context-call",
+      tool_input: {
+        patchText:
+          "*** Begin Patch\n*** Add File: src/feature/main.ts\n+export {}\n*** End Patch\n",
+      },
+    };
+
+    const first = await runCodexHook(JSON.stringify(payload));
+    expect(first.exitCode).toBe(0);
+    expect(parseJson(first.stdout)).toMatchObject({
+      systemMessage: expect.stringContaining("Use package context guidance."),
+      hookSpecificOutput: {
+        hookEventName: "PostToolUse",
+      },
+    });
+
+    const second = await runCodexHook(
+      JSON.stringify({ ...payload, tool_use_id: "context-call-2" }),
+    );
+    expect(second.exitCode).toBe(0);
+    expect(second.stdout).toBe("");
+  });
+
+  it("returns JSON feedback for invalid hook payloads", async () => {
+    const result = await runCodexHook("{");
+    expect(result.exitCode).toBe(0);
+    expect(result.stderr).toBe("");
+    expect(parseJson(result.stdout)).toMatchObject({
+      systemMessage: expect.stringContaining("invalid Codex hook JSON"),
+    });
+  });
+});
