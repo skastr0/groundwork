@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computePostImageRanges } from "../provenance/tooling/diff.ts";
+import { computePostImageRanges } from "../../packages/core/src/provenance/tooling/diff.ts";
 
 describe("computePostImageRanges", () => {
   it("returns range for a single line replacement", () => {

@@ -273,7 +273,7 @@ async function createPolicyRuntimeHarness(options: {
   policyToml?: string;
   sessionMessages?: NonNullable<Parameters<typeof createFrameworkMockClient>[0]>["sessionMessages"];
 }) {
-  const { GroundworkPlugin } = await import("../index.ts");
+  const { GroundworkPlugin } = await import("../../packages/opencode-plugin/src/index.ts");
   const globalConfig = path.join(
     os.tmpdir(),
     `groundwork-global-${Date.now()}-${Math.random().toString(16).slice(2)}.toml`,

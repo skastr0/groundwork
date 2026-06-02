@@ -6,26 +6,14 @@ import {
   PROCESS_RUNNER,
   type ProcessCommand,
   type ProcessRunnerCarrier,
-} from "../../shared/effect-runtime.ts";
-import { z } from "zod";
-import type { Shell } from "../provenance/tooling/state/index.ts";
-
-vi.mock("@opencode-ai/plugin", () => {
-  const mockTool = ((input: unknown) => input) as {
-    (input: unknown): unknown;
-    schema: typeof z;
-  };
-  mockTool.schema = z;
-  return {
-    tool: mockTool,
-  };
-});
+} from "../../packages/core/src/shared/effect-runtime.ts";
+import type { Shell } from "../../packages/core/src/provenance/tooling/state/internal.ts";
 
 const HEAD_HASH = "abcdef1234567890abcdef1234567890abcdef12";
 const TOOLING_ROOT_PATH = path.join("plugin", "groundwork", "provenance", "tooling");
 const TOOLING_ROOT_POSIX = "plugin/groundwork/provenance/tooling";
 const TREE_TOOLS_FILE = `${TOOLING_ROOT_POSIX}/expand/tree-tools.ts`;
-const STATE_FILE = `${TOOLING_ROOT_POSIX}/state/index.ts`;
+const STATE_FILE = `${TOOLING_ROOT_POSIX}/state/internal.ts`;
 const QUERY_FILE = `${TOOLING_ROOT_POSIX}/query/index.ts`;
 const TOOLING_TEST_FILE = `${TOOLING_ROOT_POSIX}/tests/worktree-overview.test.ts`;
 
@@ -54,7 +42,7 @@ function makeShellStub(
     return {
       text: () => executeCommand(command),
     };
-  }) as Shell & ProcessRunnerCarrier;
+  }) as unknown as Shell & ProcessRunnerCarrier;
 
   shell.braces = (_pattern: string) => [];
   shell.escape = (input: string) => input;
@@ -158,7 +146,7 @@ describe("tree provenance tools", () => {
       ["git ls-files --others --exclude-standard", ""],
     ]);
 
-    const { createTreeExpandTool } = await import("../provenance/tooling/expand/tree-tools.ts");
+    const { createTreeExpandTool } = await import("../../packages/core/src/provenance/tooling/expand/tree-tools.ts");
     const toolDef = createTreeExpandTool({ shell, rootDir: tempRoot });
     const raw = await toolDef.execute(
       {
@@ -278,7 +266,7 @@ describe("tree provenance tools", () => {
     ]);
 
     const { createWorktreeOverviewTool } =
-      await import("../provenance/tooling/expand/tree-tools.ts");
+      await import("../../packages/core/src/provenance/tooling/expand/tree-tools.ts");
     const toolDef = createWorktreeOverviewTool({ shell, rootDir: tempRoot });
     const raw = await toolDef.execute(
       {

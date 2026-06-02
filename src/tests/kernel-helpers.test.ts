@@ -4,7 +4,6 @@ import {
   applyFrameworkPromptBudget,
   createFrameworkActionDedupeKey,
   createFrameworkSyntheticInjectionDedupeKey,
-  createSessionKernelState,
   FRAMEWORK_KERNEL_BUDGET_LEDGER_KEYS,
   FRAMEWORK_KERNEL_DEDUPE_CACHE_BUCKETS,
   getFrameworkCacheEntry,
@@ -12,7 +11,8 @@ import {
   rememberFrameworkSyntheticInjection,
   setFrameworkCacheEntry,
   truncateFrameworkTextByBytes,
-} from "../index.ts";
+} from "../../packages/core/src/kernel/helpers.ts";
+import { createSessionKernelState } from "../../packages/core/src/kernel/state.ts";
 
 describe("framework kernel helpers", () => {
   it("stores cache entries and suppresses duplicate synthetic injections and framework actions", () => {

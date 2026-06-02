@@ -3,11 +3,11 @@ import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { attachProcessRunner } from "../../shared/effect-runtime.ts";
+import { attachProcessRunner } from "../../packages/core/src/shared/effect-runtime.ts";
 import {
   createFrameworkProvenanceTools,
   type FrameworkProvenanceToolID,
-} from "../provenance/registry.ts";
+} from "../../packages/core/src/provenance/registry.ts";
 
 interface CommandResult {
   exitCode: number;
@@ -83,6 +83,38 @@ async function runGroundworkWithEnv(
   return { exitCode, stdout, stderr };
 }
 
+async function runProcess(command: string, args: string[], cwd: string): Promise<void> {
+  const proc = spawn(command, args, {
+    cwd,
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  let stderr = "";
+  proc.stderr.setEncoding("utf8");
+  proc.stderr.on("data", (chunk: string) => {
+    stderr += chunk;
+  });
+  const exitCode = await new Promise<number>((resolve, reject) => {
+    proc.on("error", reject);
+    proc.on("close", (code) => resolve(code ?? 1));
+  });
+  if (exitCode !== 0) {
+    throw new Error(`${command} ${args.join(" ")} failed: ${stderr}`);
+  }
+}
+
+async function createProvenanceFixtureRepo(): Promise<string> {
+  const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "groundwork-provenance-fixture-"));
+  await runProcess("git", ["init"], rootDir);
+  await runProcess("git", ["config", "user.email", "groundwork@example.com"], rootDir);
+  await runProcess("git", ["config", "user.name", "Groundwork Test"], rootDir);
+  await fs.mkdir(path.join(rootDir, "src"), { recursive: true });
+  await fs.writeFile(path.join(rootDir, "src", "cli.ts"), "export const fixture = 1;\n", "utf8");
+  await runProcess("git", ["add", "src/cli.ts"], rootDir);
+  await runProcess("git", ["commit", "-m", "test fixture"], rootDir);
+  await fs.writeFile(path.join(rootDir, "src", "cli.ts"), "export const fixture = 2;\n", "utf8");
+  return rootDir;
+}
+
 function parseJson(text: string): unknown {
   return JSON.parse(text);
 }
@@ -92,16 +124,6 @@ function expectJsonOnlyFailure(result: CommandResult) {
   expect(result.stdout).toBe("");
   expect(result.stderr.trim()).toMatch(/^\{/);
   expect(() => parseJson(result.stderr)).not.toThrow();
-}
-
-function expectDefaultHookCommand(command: string) {
-  expect(command).toMatch(/'[^']*bun[^']*' '[^']*src\/cli\.ts' codex hook$/);
-}
-
-function firstHookCommand(hooksConfig: {
-  hooks: Record<string, Array<{ hooks: Array<{ command: string }> }>>;
-}): string {
-  return hooksConfig.hooks["PreToolUse"]?.[0]?.hooks[0]?.command ?? "";
 }
 
 async function runRegistryProvenanceTool(
@@ -176,799 +198,6 @@ describe("groundwork CLI", () => {
           }),
         ]),
       },
-    });
-  });
-
-  it("reports packaged Codex integration readiness without generated project hooks", async () => {
-    const result = await runGroundwork(["codex", "doctor"]);
-    expect(result.exitCode).toBe(0);
-    expect(result.stderr).toBe("");
-    expect(parseJson(result.stdout)).toMatchObject({
-      ok: true,
-      command: "codex doctor",
-      data: {
-        integration: "codex",
-        status: "partial",
-        checks: expect.arrayContaining([
-          expect.objectContaining({ name: "plugin.manifest", ok: true }),
-          expect.objectContaining({ name: "plugin.hooks", ok: true }),
-          expect.objectContaining({ name: "project.codex_config", ok: false }),
-          expect.objectContaining({ name: "project.codex_hooks", ok: false }),
-        ]),
-      },
-    });
-  });
-
-  it("reports missing Codex integration readiness outside configured projects", async () => {
-    const targetDir = await fs.mkdtemp(path.join(os.tmpdir(), "groundwork-codex-doctor-"));
-
-    const missingResult = await runGroundwork(["codex", "doctor"], undefined, {
-      cwd: targetDir,
-    });
-    expect(missingResult.exitCode).toBe(0);
-    expect(parseJson(missingResult.stdout)).toMatchObject({
-      ok: true,
-      command: "codex doctor",
-      data: {
-        integration: "codex",
-        status: "missing",
-        checks: expect.arrayContaining([
-          expect.objectContaining({ name: "plugin.manifest", ok: false }),
-          expect.objectContaining({ name: "plugin.hooks", ok: false }),
-          expect.objectContaining({ name: "project.codex_config", ok: false }),
-          expect.objectContaining({ name: "project.codex_hooks", ok: false }),
-        ]),
-      },
-    });
-
-    await fs.mkdir(path.join(targetDir, ".codex"), { recursive: true });
-    const emptyCodexResult = await runGroundwork(["codex", "doctor"], undefined, {
-      cwd: targetDir,
-    });
-    expect(parseJson(emptyCodexResult.stdout)).toMatchObject({
-      data: {
-        status: "missing",
-        checks: expect.arrayContaining([
-          expect.objectContaining({ name: "project.codex_config", ok: false }),
-          expect.objectContaining({ name: "project.codex_hooks", ok: false }),
-        ]),
-      },
-    });
-
-    await runGroundwork(
-      ["codex", "install-project", JSON.stringify({ target_dir: targetDir })],
-      undefined,
-    );
-    const nestedDir = path.join(targetDir, "nested", "package");
-    await fs.mkdir(nestedDir, { recursive: true });
-    const installedResult = await runGroundwork(["codex", "doctor"], undefined, {
-      cwd: nestedDir,
-    });
-    expect(parseJson(installedResult.stdout)).toMatchObject({
-      data: {
-        project_root: await fs.realpath(targetDir),
-        status: "partial",
-        checks: expect.arrayContaining([
-          expect.objectContaining({ name: "plugin.manifest", ok: false }),
-          expect.objectContaining({ name: "plugin.hooks", ok: false }),
-          expect.objectContaining({ name: "project.codex_config", ok: true }),
-          expect.objectContaining({ name: "project.codex_hooks", ok: true }),
-        ]),
-      },
-    });
-  });
-
-  it("does not treat user Codex home as project-local readiness", async () => {
-    const targetDir = await fs.mkdtemp(path.join(os.homedir(), ".groundwork-codex-doctor-"));
-
-    try {
-      const result = await runGroundwork(["codex", "doctor"], undefined, {
-        cwd: targetDir,
-      });
-      expect(result.exitCode).toBe(0);
-      expect(parseJson(result.stdout)).toMatchObject({
-        data: {
-          project_root: await fs.realpath(targetDir),
-          status: "missing",
-          checks: expect.arrayContaining([
-            expect.objectContaining({ name: "project.codex_config", ok: false }),
-            expect.objectContaining({ name: "project.codex_hooks", ok: false }),
-          ]),
-        },
-      });
-    } finally {
-      await fs.rm(targetDir, { recursive: true, force: true });
-    }
-  });
-
-  it("canonicalizes user Codex home boundaries before project readiness discovery", async () => {
-    const homeDir = await fs.mkdtemp(path.join(os.tmpdir(), "groundwork-codex-home-"));
-    const childDir = path.join(homeDir, "workspace", "child");
-    await fs.mkdir(path.join(homeDir, ".codex"), { recursive: true });
-    await fs.writeFile(path.join(homeDir, ".codex", "config.toml"), "codex_hooks = true\n", "utf8");
-    await fs.writeFile(path.join(homeDir, ".codex", "hooks.json"), '{"hooks":{}}\n', "utf8");
-    await fs.mkdir(childDir, { recursive: true });
-
-    try {
-      const result = await runGroundwork(["codex", "doctor"], undefined, {
-        cwd: await fs.realpath(childDir),
-        env: {
-          HOME: homeDir,
-          CODEX_HOME: path.join(homeDir, ".codex"),
-        },
-      });
-      expect(result.exitCode).toBe(0);
-      expect(parseJson(result.stdout)).toMatchObject({
-        data: {
-          project_root: await fs.realpath(childDir),
-          status: "missing",
-          checks: expect.arrayContaining([
-            expect.objectContaining({ name: "project.codex_config", ok: false }),
-            expect.objectContaining({ name: "project.codex_hooks", ok: false }),
-          ]),
-        },
-      });
-    } finally {
-      await fs.rm(homeDir, { recursive: true, force: true });
-    }
-  });
-
-  it("installs project-local Codex hooks and config files", async () => {
-    const targetDir = await fs.mkdtemp(path.join(os.tmpdir(), "groundwork-codex-project-"));
-    const result = await runGroundwork([
-      "codex",
-      "install-project",
-      JSON.stringify({ target_dir: targetDir }),
-    ]);
-    expect(result.exitCode).toBe(0);
-    expect(result.stderr).toBe("");
-    const parsed = parseJson(result.stdout);
-    expect(parsed).toMatchObject({
-      ok: true,
-      command: "codex install-project",
-      data: {
-        target_dir: targetDir,
-        files: expect.arrayContaining([
-          expect.objectContaining({ action: "created" }),
-        ]),
-      },
-    });
-    expectDefaultHookCommand((parsed as { data: { hook_command: string } }).data.hook_command);
-
-    await expect(fs.readFile(path.join(targetDir, ".codex", "config.toml"), "utf8")).resolves.toContain(
-      "codex_hooks = true",
-    );
-    const hooksConfig = JSON.parse(await fs.readFile(path.join(targetDir, ".codex", "hooks.json"), "utf8"));
-    expectDefaultHookCommand(firstHookCommand(hooksConfig));
-    expect(Object.keys(hooksConfig.hooks).sort()).toEqual([
-      "PermissionRequest",
-      "PostToolUse",
-      "PreToolUse",
-      "SessionStart",
-      "Stop",
-      "UserPromptSubmit",
-    ]);
-    await expect(
-      fs.access(path.join(targetDir, ".codex", "skills", "groundwork", "SKILL.md")),
-    ).rejects.toThrow();
-  });
-
-  it("bundles Codex plugin hooks with the canonical local binary", async () => {
-    const hooksConfig = JSON.parse(await fs.readFile(path.join(process.cwd(), "hooks", "hooks.json"), "utf8"));
-    const command = firstHookCommand(hooksConfig);
-    expect(command).not.toContain("command -v groundwork");
-    expect(command).not.toContain("exec groundwork");
-    expect(command).toContain("$HOME/.local/bin/groundwork");
-    expect(command).toContain("codex hook");
-  });
-
-  it("installs project-local Codex hooks with an explicit hook command", async () => {
-    const targetDir = await fs.mkdtemp(path.join(os.tmpdir(), "groundwork-codex-command-"));
-    const hookCommand = "/opt/groundwork/bin/groundwork codex hook";
-    const result = await runGroundwork([
-      "codex",
-      "install-project",
-      JSON.stringify({ target_dir: targetDir, hook_command: hookCommand }),
-    ]);
-    expect(result.exitCode).toBe(0);
-    expect(parseJson(result.stdout)).toMatchObject({
-      ok: true,
-      command: "codex install-project",
-      data: {
-        hook_command: hookCommand,
-      },
-    });
-    await expect(fs.readFile(path.join(targetDir, ".codex", "hooks.json"), "utf8")).resolves.toContain(
-      hookCommand,
-    );
-  });
-
-  it("patches existing project Codex config without replacing unrelated settings", async () => {
-    const targetDir = await fs.mkdtemp(path.join(os.tmpdir(), "groundwork-codex-existing-"));
-    const codexDir = path.join(targetDir, ".codex");
-    await fs.mkdir(codexDir, { recursive: true });
-    await fs.writeFile(
-      path.join(codexDir, "config.toml"),
-      ['model = "gpt-5.5"', "", "[features]", "shell_snapshot = true", ""].join("\n"),
-      "utf8",
-    );
-    await fs.writeFile(path.join(codexDir, "hooks.json"), '{"existing":true}\n', "utf8");
-
-    const result = await runGroundwork([
-      "codex",
-      "install-project",
-      JSON.stringify({ target_dir: targetDir }),
-    ]);
-    expect(result.exitCode).toBe(0);
-    expect(parseJson(result.stdout)).toMatchObject({
-      ok: true,
-      command: "codex install-project",
-      data: {
-        files: expect.arrayContaining([
-          expect.objectContaining({
-            path: path.join(codexDir, "config.toml"),
-            action: "patched",
-          }),
-          expect.objectContaining({
-            path: path.join(codexDir, "hooks.json"),
-            action: "skipped",
-          }),
-        ]),
-      },
-    });
-
-    const config = await fs.readFile(path.join(codexDir, "config.toml"), "utf8");
-    expect(config).toContain('model = "gpt-5.5"');
-    expect(config).toContain("shell_snapshot = true");
-    expect(config).toContain("codex_hooks = true");
-    await expect(fs.readFile(path.join(codexDir, "hooks.json"), "utf8")).resolves.toBe(
-      '{"existing":true}\n',
-    );
-  });
-
-  it("force overwrites project hook files without replacing config", async () => {
-    const targetDir = await fs.mkdtemp(path.join(os.tmpdir(), "groundwork-codex-force-"));
-    const codexDir = path.join(targetDir, ".codex");
-    await fs.mkdir(codexDir, { recursive: true });
-    await fs.writeFile(path.join(codexDir, "config.toml"), 'model = "gpt-5.5"\n', "utf8");
-    await fs.writeFile(path.join(codexDir, "hooks.json"), '{"existing":true}\n', "utf8");
-
-    const result = await runGroundwork([
-      "codex",
-      "install-project",
-      JSON.stringify({ target_dir: targetDir, force: true }),
-    ]);
-    expect(result.exitCode).toBe(0);
-    expect(parseJson(result.stdout)).toMatchObject({
-      ok: true,
-      command: "codex install-project",
-      data: {
-        files: expect.arrayContaining([
-          expect.objectContaining({
-            path: path.join(codexDir, "config.toml"),
-            action: "patched",
-          }),
-          expect.objectContaining({
-            path: path.join(codexDir, "hooks.json"),
-            action: "overwritten",
-          }),
-        ]),
-      },
-    });
-
-    const config = await fs.readFile(path.join(codexDir, "config.toml"), "utf8");
-    expect(config).toContain('model = "gpt-5.5"');
-    expect(config).toContain("codex_hooks = true");
-    const hooksConfig = JSON.parse(await fs.readFile(path.join(codexDir, "hooks.json"), "utf8"));
-    expectDefaultHookCommand(firstHookCommand(hooksConfig));
-  });
-
-  it("installs user-level Codex hooks and config files", async () => {
-    const codexHome = await fs.mkdtemp(path.join(os.tmpdir(), "groundwork-codex-home-"));
-    const result = await runGroundwork([
-      "codex",
-      "install-user",
-      JSON.stringify({ codex_home: codexHome }),
-    ]);
-    expect(result.exitCode).toBe(0);
-    expect(result.stderr).toBe("");
-    const parsed = parseJson(result.stdout);
-    expect(parsed).toMatchObject({
-      ok: true,
-      command: "codex install-user",
-      data: {
-        codex_home: codexHome,
-      },
-    });
-    expectDefaultHookCommand((parsed as { data: { hook_command: string } }).data.hook_command);
-
-    const hooksConfig = JSON.parse(await fs.readFile(path.join(codexHome, "hooks.json"), "utf8"));
-    expectDefaultHookCommand(firstHookCommand(hooksConfig));
-    await expect(fs.readFile(path.join(codexHome, "config.toml"), "utf8")).resolves.toContain(
-      "codex_hooks = true",
-    );
-    await expect(fs.access(path.join(codexHome, "skills", "groundwork", "SKILL.md"))).rejects.toThrow();
-  });
-
-  it("installs user-level Codex hooks with an explicit hook command", async () => {
-    const codexHome = await fs.mkdtemp(path.join(os.tmpdir(), "groundwork-codex-home-command-"));
-    const hookCommand = "/opt/groundwork/bin/groundwork codex hook";
-    const result = await runGroundwork([
-      "codex",
-      "install-user",
-      JSON.stringify({ codex_home: codexHome, hook_command: hookCommand }),
-    ]);
-    expect(result.exitCode).toBe(0);
-    expect(parseJson(result.stdout)).toMatchObject({
-      ok: true,
-      command: "codex install-user",
-      data: {
-        hook_command: hookCommand,
-      },
-    });
-    await expect(fs.readFile(path.join(codexHome, "hooks.json"), "utf8")).resolves.toContain(
-      hookCommand,
-    );
-  });
-
-  it("emits Codex SessionStart hook context", async () => {
-    const result = await runGroundwork(
-      ["codex", "hook"],
-      JSON.stringify({
-        hook_event_name: "SessionStart",
-        source: "startup",
-        cwd: process.cwd(),
-      }),
-    );
-    expect(result.exitCode).toBe(0);
-    expect(result.stderr).toBe("");
-    expect(parseJson(result.stdout)).toMatchObject({
-      hookSpecificOutput: {
-        hookEventName: "SessionStart",
-        additionalContext: expect.stringContaining("Groundwork is available"),
-      },
-    });
-  });
-
-  it("denies risky Bash commands from Codex PreToolUse hooks", async () => {
-    const result = await runGroundwork(
-      ["codex", "hook"],
-      JSON.stringify({
-        hook_event_name: "PreToolUse",
-        tool_name: "Bash",
-        tool_input: {
-          command: "git reset --hard",
-        },
-      }),
-    );
-    expect(result.exitCode).toBe(0);
-    expect(result.stderr).toBe("");
-    expect(parseJson(result.stdout)).toMatchObject({
-      hookSpecificOutput: {
-        hookEventName: "PreToolUse",
-        permissionDecision: "deny",
-        permissionDecisionReason: expect.stringContaining("[groundwork:risk]"),
-      },
-    });
-  });
-
-  it("reports but does not deny risky Bash commands from Codex hooks in warn mode", async () => {
-    const result = await runGroundworkWithEnv(
-      ["codex", "hook"],
-      JSON.stringify({
-        hook_event_name: "PreToolUse",
-        tool_name: "Bash",
-        tool_input: {
-          command: "git reset --hard",
-        },
-      }),
-      { GROUNDWORK_DESTRUCTIVE_GUARD_MODE: "warn" },
-    );
-    expect(result.exitCode).toBe(0);
-    expect(result.stderr).toBe("");
-    expect(parseJson(result.stdout)).toMatchObject({
-      systemMessage: expect.stringContaining("Warn mode matched git.reset-hard"),
-    });
-  });
-
-  it("does not deny risky Bash commands from Codex hooks in off mode", async () => {
-    const result = await runGroundworkWithEnv(
-      ["codex", "hook"],
-      JSON.stringify({
-        hook_event_name: "PreToolUse",
-        tool_name: "Bash",
-        tool_input: {
-          command: "git reset --hard",
-        },
-      }),
-      { GROUNDWORK_DESTRUCTIVE_GUARD_MODE: "off" },
-    );
-    expect(result.exitCode).toBe(0);
-    expect(result.stderr).toBe("");
-    expect(result.stdout).toBe("");
-  });
-
-  it("ignores unsupported Codex PreToolUse hooks without policy config", async () => {
-    const result = await runGroundwork(
-      ["codex", "hook"],
-      JSON.stringify({
-        hook_event_name: "PreToolUse",
-        tool_name: "apply_patch",
-        tool_input: {
-          command: "git reset --hard",
-        },
-      }),
-    );
-    expect(result.exitCode).toBe(0);
-    expect(result.stdout).toBe("");
-    expect(result.stderr).toBe("");
-  });
-
-  it("denies policy violations from Codex PreToolUse hooks", async () => {
-    const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "groundwork-codex-policy-"));
-    await fs.writeFile(
-      path.join(rootDir, "groundwork.toml"),
-      `version = 1
-
-[[rules]]
-id = "block-src"
-match = ["src/**"]
-
-[[rules.actions]]
-type = "block_tool"
-message = "src edits require review"
-`,
-      "utf8",
-    );
-
-    const result = await runGroundwork(
-      ["codex", "hook"],
-      JSON.stringify({
-        hook_event_name: "PreToolUse",
-        session_id: "codex-policy-session",
-        cwd: rootDir,
-        tool_name: "apply_patch",
-        tool_use_id: "codex-call-1",
-        tool_input: {
-          command: "patch",
-          patchText: "*** Begin Patch\n*** Update File: src/index.ts\n@@\n+x\n*** End Patch\n",
-        },
-      }),
-    );
-    expect(result.exitCode).toBe(0);
-    expect(parseJson(result.stdout)).toMatchObject({
-      hookSpecificOutput: {
-        hookEventName: "PreToolUse",
-        permissionDecision: "deny",
-        permissionDecisionReason: expect.stringContaining("src edits require review"),
-      },
-    });
-  });
-
-  it("still applies policy denial when Bash risk is warn-only", async () => {
-    const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "groundwork-codex-risk-policy-"));
-    await fs.writeFile(
-      path.join(rootDir, "groundwork.toml"),
-      `version = 1
-
-[[rules]]
-id = "block-any-bash"
-match = ["blocked.txt"]
-tools_include = ["bash"]
-
-[[rules.actions]]
-type = "block_tool"
-message = "bash command blocked by policy"
-`,
-      "utf8",
-    );
-
-    const result = await runGroundworkWithEnv(
-      ["codex", "hook"],
-      JSON.stringify({
-        hook_event_name: "PreToolUse",
-        session_id: "risk-policy-session",
-        cwd: rootDir,
-        tool_name: "Bash",
-        tool_use_id: "risk-policy-call",
-        tool_input: {
-          command: "git reset --hard",
-          path: "blocked.txt",
-        },
-      }),
-      { GROUNDWORK_DESTRUCTIVE_GUARD_MODE: "warn" },
-    );
-    expect(result.exitCode).toBe(0);
-    expect(parseJson(result.stdout)).toMatchObject({
-      hookSpecificOutput: {
-        hookEventName: "PreToolUse",
-        permissionDecision: "deny",
-        permissionDecisionReason: expect.stringContaining("bash command blocked by policy"),
-      },
-    });
-  });
-
-  it("records Codex user prompt policy commands", async () => {
-    const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "groundwork-codex-prompt-"));
-    const result = await runGroundwork(
-      ["codex", "hook"],
-      JSON.stringify({
-        hook_event_name: "UserPromptSubmit",
-        session_id: "codex-prompt-session",
-        cwd: rootDir,
-        prompt: "/policy skill-loaded release-readiness\n/policy override reviewed by human",
-      }),
-    );
-    expect(result.exitCode).toBe(0);
-    expect(parseJson(result.stdout)).toMatchObject({
-      hookSpecificOutput: {
-        hookEventName: "UserPromptSubmit",
-        additionalContext: expect.stringContaining("Policy command state was recorded"),
-      },
-    });
-
-    const state = await runGroundwork([
-      "session",
-      "get",
-      JSON.stringify({ root_dir: rootDir, session_id: "codex-prompt-session" }),
-    ]);
-    expect(parseJson(state.stdout)).toMatchObject({
-      data: {
-        state: {
-          policy: {
-            confirmedSkills: ["release-readiness"],
-            overrides: [expect.objectContaining({ reason: "reviewed by human" })],
-          },
-        },
-      },
-    });
-  });
-
-  it("denies risky Codex PermissionRequest hooks", async () => {
-    const result = await runGroundwork(
-      ["codex", "hook"],
-      JSON.stringify({
-        hook_event_name: "PermissionRequest",
-        tool_name: "Bash",
-        tool_input: {
-          command: "git reset --hard",
-        },
-      }),
-    );
-    expect(result.exitCode).toBe(0);
-    expect(parseJson(result.stdout)).toMatchObject({
-      hookSpecificOutput: {
-        hookEventName: "PermissionRequest",
-        decision: {
-          behavior: "deny",
-          message: expect.stringContaining("[groundwork:risk]"),
-        },
-      },
-    });
-  });
-
-  it("reports Codex PostToolUse policy feedback without prevention claims", async () => {
-    const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "groundwork-codex-post-"));
-    await fs.mkdir(path.join(rootDir, "src"), { recursive: true });
-    await fs.writeFile(path.join(rootDir, "src", "main.ts"), "const before = true;\n", "utf8");
-    await fs.writeFile(
-      path.join(rootDir, "groundwork.toml"),
-      `version = 1
-
-[[rules]]
-id = "no-console"
-match = ["src/**"]
-content_scope = "changed_lines"
-
-[[rules.content]]
-type = "ast_grep"
-language = "ts"
-pattern = "console.log($A)"
-
-[[rules.actions]]
-type = "block_tool"
-message = "console logging is blocked"
-`,
-      "utf8",
-    );
-
-    const patchText = "*** Begin Patch\n*** Update File: src/main.ts\n@@\n-const before = true;\n+console.log(\"after\");\n*** End Patch\n";
-    const pre = await runGroundwork(
-      ["codex", "hook"],
-      JSON.stringify({
-        hook_event_name: "PreToolUse",
-        session_id: "codex-post-session",
-        cwd: rootDir,
-        tool_name: "apply_patch",
-        tool_use_id: "post-call",
-        tool_input: { patchText },
-      }),
-    );
-    expect(pre.exitCode).toBe(0);
-    expect(pre.stdout).toBe("");
-    await fs.writeFile(path.join(rootDir, "src", "main.ts"), 'console.log("after");\n', "utf8");
-
-    const post = await runGroundwork(
-      ["codex", "hook"],
-      JSON.stringify({
-        hook_event_name: "PostToolUse",
-        session_id: "codex-post-session",
-        cwd: rootDir,
-        tool_name: "apply_patch",
-        tool_use_id: "post-call",
-        tool_input: { patchText },
-        tool_response: { ok: true },
-      }),
-    );
-    expect(parseJson(post.stdout)).toMatchObject({
-      decision: "block",
-      reason: expect.stringContaining("Side effects may already have happened"),
-      hookSpecificOutput: {
-        hookEventName: "PostToolUse",
-        additionalContext: expect.stringContaining("cannot undo side effects"),
-      },
-    });
-  }, 120_000);
-
-  it("keeps Codex PostToolUse warnings non-blocking", async () => {
-    const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "groundwork-codex-post-warn-"));
-    await fs.mkdir(path.join(rootDir, "src"), { recursive: true });
-    await fs.writeFile(path.join(rootDir, "src", "main.ts"), "const before = true;\n", "utf8");
-    await fs.writeFile(
-      path.join(rootDir, "groundwork.toml"),
-      `version = 1
-
-[[rules]]
-id = "warn-console"
-match = ["src/**"]
-severity = "warn"
-content_scope = "changed_lines"
-
-[[rules.content]]
-type = "ast_grep"
-language = "ts"
-pattern = "console.log($A)"
-
-[[rules.actions]]
-type = "block_tool"
-message = "console logging should be reviewed"
-`,
-      "utf8",
-    );
-
-    const patchText = "*** Begin Patch\n*** Update File: src/main.ts\n@@\n-const before = true;\n+console.log(\"after\");\n*** End Patch\n";
-    await runGroundwork(
-      ["codex", "hook"],
-      JSON.stringify({
-        hook_event_name: "PreToolUse",
-        session_id: "codex-post-warn-session",
-        cwd: rootDir,
-        tool_name: "apply_patch",
-        tool_use_id: "post-warn-call",
-        tool_input: { patchText },
-      }),
-    );
-    await fs.writeFile(path.join(rootDir, "src", "main.ts"), 'console.log("after");\n', "utf8");
-
-    const post = await runGroundwork(
-      ["codex", "hook"],
-      JSON.stringify({
-        hook_event_name: "PostToolUse",
-        session_id: "codex-post-warn-session",
-        cwd: rootDir,
-        tool_name: "apply_patch",
-        tool_use_id: "post-warn-call",
-        tool_response: { ok: true },
-      }),
-    );
-    const parsed = parseJson(post.stdout) as Record<string, unknown>;
-    expect(parsed).not.toHaveProperty("decision");
-    expect(parsed).toMatchObject({
-      systemMessage: expect.stringContaining("console logging should be reviewed"),
-      hookSpecificOutput: {
-        hookEventName: "PostToolUse",
-        additionalContext: expect.stringContaining("non-blocking"),
-      },
-    });
-  }, 120_000);
-
-  it("combines Codex PostToolUse policy warnings with context reminders", async () => {
-    const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "groundwork-codex-warn-context-"));
-    await fs.mkdir(path.join(rootDir, "src", "feature"), { recursive: true });
-    await fs.writeFile(path.join(rootDir, "src", "AGENTS.md"), "Use combined context.\n", "utf8");
-    await fs.writeFile(path.join(rootDir, "src", "feature", "main.ts"), "const before = true;\n", "utf8");
-    await fs.writeFile(
-      path.join(rootDir, "groundwork.toml"),
-      `version = 1
-
-[[rules]]
-id = "warn-console"
-match = ["src/**"]
-severity = "warn"
-content_scope = "changed_lines"
-
-[[rules.content]]
-type = "ast_grep"
-language = "ts"
-pattern = "console.log($A)"
-
-[[rules.actions]]
-type = "block_tool"
-message = "console logging should be reviewed"
-`,
-      "utf8",
-    );
-
-    const patchText = "*** Begin Patch\n*** Update File: src/feature/main.ts\n@@\n-const before = true;\n+console.log(\"after\");\n*** End Patch\n";
-    await runGroundwork(
-      ["codex", "hook"],
-      JSON.stringify({
-        hook_event_name: "PreToolUse",
-        session_id: "warn-context-session",
-        cwd: rootDir,
-        tool_name: "apply_patch",
-        tool_use_id: "warn-context-call",
-        tool_input: { patchText },
-      }),
-    );
-    await fs.writeFile(path.join(rootDir, "src", "feature", "main.ts"), 'console.log("after");\n', "utf8");
-
-    const post = await runGroundwork(
-      ["codex", "hook"],
-      JSON.stringify({
-        hook_event_name: "PostToolUse",
-        session_id: "warn-context-session",
-        cwd: rootDir,
-        tool_name: "apply_patch",
-        tool_use_id: "warn-context-call",
-        tool_input: { patchText },
-      }),
-    );
-    const parsed = parseJson(post.stdout) as Record<string, unknown>;
-    expect(parsed).not.toHaveProperty("decision");
-    expect(parsed.systemMessage).toEqual(expect.stringContaining("console logging should be reviewed"));
-    expect(parsed.systemMessage).toEqual(expect.stringContaining("Use combined context."));
-  }, 60_000);
-
-  it("reports Codex PostToolUse context reminders with dedupe", async () => {
-    const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "groundwork-codex-context-"));
-    await fs.mkdir(path.join(rootDir, "src", "feature"), { recursive: true });
-    await fs.writeFile(path.join(rootDir, "src", "AGENTS.md"), "Use Codex context guidance.\n", "utf8");
-
-    const payload = {
-      hook_event_name: "PostToolUse",
-      session_id: "codex-context-session",
-      cwd: rootDir,
-      tool_name: "apply_patch",
-      tool_use_id: "context-call",
-      tool_input: {
-        patchText:
-          "*** Begin Patch\n*** Add File: src/feature/main.ts\n+export {}\n*** End Patch\n",
-      },
-    };
-    const first = await runGroundwork(["codex", "hook"], JSON.stringify(payload));
-    expect(parseJson(first.stdout)).toMatchObject({
-      systemMessage: expect.stringContaining("Use Codex context guidance."),
-      hookSpecificOutput: {
-        hookEventName: "PostToolUse",
-        additionalContext: expect.stringContaining("not synthetic prompt injection"),
-      },
-    });
-
-    const second = await runGroundwork(
-      ["codex", "hook"],
-      JSON.stringify({ ...payload, tool_use_id: "context-call-2" }),
-    );
-    expect(second.exitCode).toBe(0);
-    expect(second.stdout).toBe("");
-  });
-
-  it("returns JSON feedback for invalid Codex hook payloads", async () => {
-    const result = await runGroundwork(["codex", "hook"], "{");
-    expect(result.exitCode).toBe(0);
-    expect(result.stderr).toBe("");
-    expect(parseJson(result.stdout)).toMatchObject({
-      systemMessage: expect.stringContaining("invalid Codex hook JSON"),
     });
   });
 
@@ -1612,7 +841,8 @@ message = "console logging should be reviewed"
 
   it("normalizes absolute file-state paths consistently across direct and registry commands", async () => {
     const rootDir = process.cwd();
-    const absolutePath = path.join(rootDir, "src", "provenance", "tooling", "state", "index.ts");
+    const packagePath = path.join("packages", "core", "src", "provenance", "tooling", "state", "index.ts");
+    const absolutePath = path.join(rootDir, packagePath);
     const directResult = await runGroundwork([
       "provenance",
       "file-state",
@@ -1633,17 +863,18 @@ message = "console logging should be reviewed"
     const registryData = (parseJson(registryResult.stdout) as { data: { data: Record<string, unknown> } })
       .data.data;
 
-    expect(directData.requestedPath).toBe("src/provenance/tooling/state/index.ts");
-    expect(registryData.requestedPath).toBe("src/provenance/tooling/state/index.ts");
+    expect(directData.requestedPath).toBe(packagePath);
+    expect(registryData.requestedPath).toBe(packagePath);
     expect(directData.resolvedPath).toBe(registryData.resolvedPath);
     expect(directData.comparisons).toEqual(registryData.comparisons);
   });
 
   it("runs full provenance registry tools through direct CLI commands", async () => {
+    const rootDir = await createProvenanceFixtureRepo();
     const result = await runGroundwork([
       "provenance",
       "worktree-overview",
-      JSON.stringify({ limit: 1 }),
+      JSON.stringify({ root_dir: rootDir, limit: 1 }),
     ]);
     expect(result.exitCode).toBe(0);
     expect(result.stderr).toBe("");
@@ -1734,6 +965,7 @@ message = "console logging should be reviewed"
   });
 
   it("matches representative OpenCode provenance registry outputs", async () => {
+    const rootDir = await createProvenanceFixtureRepo();
     const cases: Array<{
       command: string;
       tool: FrameworkProvenanceToolID;
@@ -1760,12 +992,12 @@ message = "console logging should be reviewed"
       const cliResult = await runGroundwork([
         "provenance",
         testCase.command,
-        JSON.stringify(testCase.args),
+        JSON.stringify({ ...testCase.args, root_dir: rootDir }),
       ]);
       expect(cliResult.exitCode).toBe(0);
       expect(cliResult.stderr).toBe("");
       const cliOutput = parseJson(cliResult.stdout) as { data: unknown };
-      await expect(runRegistryProvenanceTool(testCase.tool, testCase.args)).resolves.toEqual(
+      await expect(runRegistryProvenanceTool(testCase.tool, testCase.args, rootDir)).resolves.toEqual(
         cliOutput.data,
       );
     }
@@ -1808,7 +1040,7 @@ message = "console logging should be reviewed"
 
   it("persists and cleans up durable session artifacts", async () => {
     const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "groundwork-session-"));
-    const sessionId = "codex-session-1";
+    const sessionId = "agent-session-1";
 
     const skillResult = await runGroundwork([
       "session",
@@ -2128,15 +1360,6 @@ message = "infra needs override"
         removed: [sessionId],
       },
     });
-  });
-
-  it("keeps Codex Stop hook non-continuing", async () => {
-    const result = await runGroundwork(
-      ["codex", "hook"],
-      JSON.stringify({ hook_event_name: "Stop", stop_hook_active: false }),
-    );
-    expect(result.exitCode).toBe(0);
-    expect(parseJson(result.stdout)).toEqual({});
   });
 
   it("evaluates policy prompt guidance and blocks strict skill gates", async () => {

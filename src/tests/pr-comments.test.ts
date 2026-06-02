@@ -4,7 +4,7 @@ import {
   PROCESS_RUNNER,
   type ProcessCommand,
   type ProcessRunnerCarrier,
-} from "../../shared/effect-runtime.ts";
+} from "../../packages/core/src/shared/effect-runtime.ts";
 import { PRCommentsManager, type Shell } from "../../review/pr-comments.ts";
 import { logger } from "../../review/utils/logger.ts";
 
@@ -43,7 +43,7 @@ function createShellStub(responses: MockResponse[], seenCommands?: string[]) {
     return {
       text: () => executeCommand(command),
     };
-  }) as Shell & ProcessRunnerCarrier;
+  }) as unknown as Shell & ProcessRunnerCarrier;
 
   shell.braces = (_pattern: string) => [];
   shell.escape = (input: string) => input;

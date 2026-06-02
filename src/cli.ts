@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
 
+import { pathToFileURL } from "node:url";
 import { Command } from "@effect/cli";
 import { BunContext, BunRuntime } from "@effect/platform-bun";
 import { Effect } from "effect";
@@ -19,7 +20,6 @@ const ROOT_LOG_LEVELS = [
 
 const SIMPLE_TOP_LEVEL_COMMANDS = ["capabilities", "doctor"] as const;
 const DISCOVERY_COMMAND_GROUPS = ["schema", "examples"] as const;
-const CODEX_SUBCOMMANDS = ["doctor", "hook", "install-project", "install-user"] as const;
 
 const INPUT_COMMAND_SPECS = {
   context: {
@@ -88,24 +88,35 @@ const cli = Command.run(rootCommand, {
   version: "0.1.0",
 });
 
-const preflightError = validateCommandShape(Bun.argv.slice(2));
-if (preflightError) {
-  process.exitCode = 1;
-  process.stderr.write(`${renderFailure(preflightError.command, preflightError.error)}\n`);
-  process.exit();
+export function runGroundworkCli(argv: string[] = Bun.argv): void {
+  const preflightError = validateCommandShape(argv.slice(2));
+  if (preflightError) {
+    process.exitCode = 1;
+    process.stderr.write(`${renderFailure(preflightError.command, preflightError.error)}\n`);
+    process.exit();
+  }
+
+  BunRuntime.runMain(
+    cli(argv).pipe(
+      Effect.catchAllCause((cause) =>
+        Effect.sync(() => {
+          process.exitCode = 1;
+          process.stderr.write(`${renderFailure(undefined, new Error(String(cause)))}\n`);
+        }),
+      ),
+      Effect.provide(BunContext.layer),
+    ),
+  );
 }
 
-BunRuntime.runMain(
-  cli(Bun.argv).pipe(
-    Effect.catchAllCause((cause) =>
-      Effect.sync(() => {
-        process.exitCode = 1;
-        process.stderr.write(`${renderFailure(undefined, new Error(String(cause)))}\n`);
-      }),
-    ),
-    Effect.provide(BunContext.layer),
-  ),
-);
+function isDirectEntrypoint(): boolean {
+  const entrypoint = Bun.argv[1];
+  return entrypoint ? import.meta.url === pathToFileURL(entrypoint).href : false;
+}
+
+if (isDirectEntrypoint()) {
+  runGroundworkCli();
+}
 
 interface CommandShapeFailure {
   command?: string;
@@ -143,10 +154,6 @@ function validateTopLevelCommand(commandArgs: string[]): CommandShapeFailure | u
   const [group, subcommand, input] = commandArgs;
   if (isSimpleTopLevelCommand(group)) {
     return rejectUnexpectedArgs(group, commandArgs, 1);
-  }
-
-  if (group === "codex") {
-    return validateCodexCommand(subcommand, input, commandArgs);
   }
 
   if (isDiscoveryCommandGroup(group)) {
@@ -242,33 +249,6 @@ function invalidLogLevelFailure(value: string | undefined): CommandShapeFailure 
   });
 }
 
-function validateCodexCommand(
-  subcommand: string | undefined,
-  input: string | undefined,
-  args: string[],
-): CommandShapeFailure | undefined {
-  if (subcommand === undefined) {
-    return shapeFailure("codex", "Missing codex subcommand", {
-      expected: CODEX_SUBCOMMANDS,
-    });
-  }
-
-  if (subcommand === "doctor" || subcommand === "hook") {
-    return rejectUnexpectedArgs(`codex ${subcommand}`, args, 2);
-  }
-
-  if (subcommand === "install-project" || subcommand === "install-user") {
-    if (input === undefined) {
-      return shapeFailure(`codex ${subcommand}`, "Missing required argument 'input'");
-    }
-    return rejectUnexpectedArgs(`codex ${subcommand}`, args, 3);
-  }
-
-  return shapeFailure("codex", `Unknown codex subcommand '${subcommand}'`, {
-    expected: CODEX_SUBCOMMANDS,
-  });
-}
-
 function validateDiscoveryCommand(
   group: "schema" | "examples",
   subcommand: string | undefined,
@@ -347,7 +327,6 @@ function shapeFailure(
 function knownTopLevelCommands(): string[] {
   return [
     "capabilities",
-    "codex",
     "context",
     "doctor",
     "examples",

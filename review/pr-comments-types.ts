@@ -1,6 +1,6 @@
-import { type PluginInput } from "@opencode-ai/plugin";
+import type { Shell as GroundworkShell } from "../packages/core/src/provenance/tooling/state/internal.ts";
 
-export type Shell = PluginInput["$"];
+export type Shell = GroundworkShell;
 
 export type Result<T> = { success: true; data: T } | { success: false; error: string };
 

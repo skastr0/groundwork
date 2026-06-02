@@ -1,5 +1,8 @@
 import { z } from "zod";
-import { FRAMEWORK_PROVENANCE_TOOL_IDS } from "../provenance/registry.ts";
+import {
+  FRAMEWORK_PROVENANCE_TOOL_IDS,
+  type FrameworkProvenanceToolID,
+} from "@skastr0/groundwork-core/cli-support";
 
 const RootDirSchema = z.string().min(1).optional();
 const DirectorySchema = z.string().min(1).optional();
@@ -270,38 +273,6 @@ export const PolicySkillLoadedInputSchema = PolicyBaseInputSchema.extend({
   skills: z.array(z.string().min(1)).min(1),
 }).strict();
 
-export const CodexInstallProjectInputSchemaContract = {
-  schema_id: "groundwork.codex.install-project.input/v1",
-  command_id: "codex.install-project",
-  command: "codex install-project",
-  description: "Install Groundwork hooks and config into a project .codex/ directory.",
-  schema: {
-    type: "object",
-    additionalProperties: false,
-    properties: {
-      target_dir: { type: "string", minLength: 1 },
-      hook_command: { type: "string", minLength: 1 },
-      force: { type: "boolean" },
-    },
-  },
-} as const;
-
-export const CodexInstallUserInputSchemaContract = {
-  schema_id: "groundwork.codex.install-user.input/v1",
-  command_id: "codex.install-user",
-  command: "codex install-user",
-  description: "Install Groundwork hooks and config into CODEX_HOME.",
-  schema: {
-    type: "object",
-    additionalProperties: false,
-    properties: {
-      codex_home: { type: "string", minLength: 1 },
-      hook_command: { type: "string", minLength: 1 },
-      force: { type: "boolean" },
-    },
-  },
-} as const;
-
 const SessionBaseProperties = {
   session_id: { type: "string", minLength: 1 },
   root_dir: { type: "string", minLength: 1 },
@@ -429,20 +400,80 @@ const SessionRenderCompactionInputSchemaContract = {
   },
 } as const;
 
-export type RiskEvaluateCommandInput = z.infer<typeof RiskEvaluateCommandInputSchema>;
-export type ContextDiscoverInput = z.infer<typeof ContextDiscoverInputSchema>;
-export type ContextTouchedPathsInput = z.infer<typeof ContextTouchedPathsInputSchema>;
-export type ProvenanceRepoStateInput = z.infer<typeof ProvenanceRepoStateInputSchema>;
-export type ProvenanceFileStateInput = z.infer<typeof ProvenanceFileStateInputSchema>;
-export type ProvenanceToolInput = z.infer<typeof ProvenanceToolInputSchema>;
-export type PolicyEvaluateToolCallInput = z.infer<typeof PolicyEvaluateToolCallInputSchema>;
-export type PolicyEvaluateToolResultInput = z.infer<typeof PolicyEvaluateToolResultInputSchema>;
-export type PolicyOverrideInput = z.infer<typeof PolicyOverrideInputSchema>;
-export type PolicySkillLoadedInput = z.infer<typeof PolicySkillLoadedInputSchema>;
+export interface RiskEvaluateCommandInput {
+  command: string;
+  config?: {
+    mode?: "block" | "warn" | "off";
+    includeExtendedRules?: boolean;
+    allowTempRecursiveForceRm?: boolean;
+  };
+}
+
+export interface ContextDiscoverInput {
+  target_path: string;
+  directory?: string;
+  root_dir?: string;
+  include_root?: boolean;
+  include_content?: boolean;
+}
+
+export interface ContextTouchedPathsInput {
+  root_dir?: string;
+  directory?: string;
+  session_id: string;
+  include_root?: boolean;
+  tool?: string;
+  args?: Record<string, unknown>;
+  targets?: Record<string, unknown>[];
+}
+
+export interface ProvenanceRepoStateInput {
+  root_dir?: string;
+  base?: string;
+  limit?: number;
+}
+
+export interface ProvenanceFileStateInput {
+  path: string;
+  root_dir?: string;
+  base?: string;
+}
+
+export interface ProvenanceToolInput {
+  root_dir?: string;
+  tool: FrameworkProvenanceToolID;
+  args?: Record<string, unknown>;
+}
+
+interface PolicyBaseInput {
+  root_dir?: string;
+  session_id: string;
+}
+
+export interface PolicyEvaluateToolCallInput extends PolicyBaseInput {
+  directory?: string;
+  tool: string;
+  call_id?: string;
+  args?: Record<string, unknown>;
+  targets?: Record<string, unknown>[];
+}
+
+export interface PolicyEvaluateToolResultInput extends PolicyBaseInput {
+  call_id: string;
+  tool?: string;
+}
+
+export interface PolicyOverrideInput extends PolicyBaseInput {
+  reason: string;
+  rule_id?: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface PolicySkillLoadedInput extends PolicyBaseInput {
+  skills: string[];
+}
 
 export const SCHEMA_CONTRACTS = [
-  CodexInstallProjectInputSchemaContract,
-  CodexInstallUserInputSchemaContract,
   SessionGetInputSchemaContract,
   SessionSkillLoadedInputSchemaContract,
   SessionOverrideInputSchemaContract,

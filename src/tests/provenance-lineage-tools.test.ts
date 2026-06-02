@@ -2,25 +2,13 @@ import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { z } from "zod";
 import {
   PROCESS_RUNNER,
   type ProcessCommand,
   type ProcessRunnerCarrier,
-} from "../../shared/effect-runtime.ts";
-import { logger } from "../provenance/tooling/utils/logger.ts";
-import type { Shell } from "../provenance/tooling/state/index.ts";
-
-vi.mock("@opencode-ai/plugin", () => {
-  const mockTool = ((input: unknown) => input) as {
-    (input: unknown): unknown;
-    schema: typeof z;
-  };
-  mockTool.schema = z;
-  return {
-    tool: mockTool,
-  };
-});
+} from "../../packages/core/src/shared/effect-runtime.ts";
+import { logger } from "../../packages/core/src/provenance/tooling/utils/logger.ts";
+import type { Shell } from "../../packages/core/src/provenance/tooling/state/internal.ts";
 
 type MockResponse = {
   pattern: string;
@@ -51,7 +39,7 @@ function createShellStub(responses: MockResponse[], seenCommands?: string[]) {
     return {
       text: () => executeCommand(command),
     };
-  }) as Shell & ProcessRunnerCarrier;
+  }) as unknown as Shell & ProcessRunnerCarrier;
 
   shell.braces = (_pattern: string) => [];
   shell.escape = (input: string) => input;
@@ -237,7 +225,7 @@ describe("lineage provenance tools", () => {
 });
 
 async function createSpanHistoryTool(shell: Shell, rootDir: string) {
-  const tools = (await import("../provenance/tooling/lineage/index.ts")).createLineageTools({
+  const tools = (await import("../../packages/core/src/provenance/tooling/lineage/tool.ts")).createLineageTools({
     shell,
     rootDir,
   });

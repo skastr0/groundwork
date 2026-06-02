@@ -18,18 +18,18 @@ describe("GroundworkPlugin", () => {
     vi.restoreAllMocks();
   });
 
-  it("keeps the empty framework helper inert while the discovery barrel initializes the unified runtime layers", async () => {
+  it("keeps the core helper inert while the OpenCode package composes runtime layers", async () => {
     const {
-      EMPTY_GROUNDWORK_LAYER,
-      GROUNDWORK_HOOK_SURFACE,
       GROUNDWORK_LAYER_META,
-      GROUNDWORK_LAYER_ORDER,
-      GroundworkPlugin: directGroundworkPlugin,
-      FRAMEWORK_SYSTEM_TRANSFORM_GUIDANCE,
       createGroundworkLayer,
-    } = await import("../index.ts");
-    const { GroundworkPlugin } = await import("../../groundwork.ts");
-    const { FRAMEWORK_PROVENANCE_TOOL_IDS } = await import("../provenance/registry.ts");
+    } = await import("../../packages/core/src/index.ts");
+    const { EMPTY_GROUNDWORK_LAYER } = await import("../../packages/core/src/layer/index.ts");
+    const { GROUNDWORK_HOOK_SURFACE, GROUNDWORK_LAYER_ORDER } =
+      await import("../../packages/core/src/layer/dispatcher.ts");
+    const { FRAMEWORK_SYSTEM_TRANSFORM_GUIDANCE } =
+      await import("../../packages/core/src/provenance/runtime.ts");
+    const { GroundworkPlugin } = await import("../../packages/opencode-plugin/src/index.ts");
+    const { FRAMEWORK_PROVENANCE_TOOL_IDS } = await import("../../packages/core/src/provenance/registry.ts");
     const previousGlobalConfig = process.env.GROUNDWORK_POLICY_GLOBAL_CONFIG;
     process.env.GROUNDWORK_POLICY_GLOBAL_CONFIG = path.join(
       os.tmpdir(),
@@ -44,12 +44,11 @@ describe("GroundworkPlugin", () => {
     try {
       expect(GROUNDWORK_LAYER_META).toEqual({
         pluginId: "groundwork",
-        activeDiscoveryBarrel: true,
-        migrationStatus: "single-home",
+        packageId: "@skastr0/groundwork-core",
+        runtimeSurfaces: ["cli", "codex", "opencode"],
         hookSurface: GROUNDWORK_HOOK_SURFACE,
         layerOrder: GROUNDWORK_LAYER_ORDER,
       });
-      expect(GroundworkPlugin).toBe(directGroundworkPlugin);
       expect(createGroundworkLayer()).toBe(EMPTY_GROUNDWORK_LAYER);
       expect(Object.isFrozen(EMPTY_GROUNDWORK_LAYER)).toBe(true);
       expect(Object.keys(harness.hooks.tool ?? {})).toEqual(FRAMEWORK_PROVENANCE_TOOL_IDS);
@@ -194,17 +193,15 @@ message = "patch blocked by policy"
     }
   });
 
-  it("loads the unified composition root through the discovery barrel", async () => {
-    const { GroundworkPlugin: directGroundworkPlugin } =
-      await import("../index.ts");
-    const { GroundworkPlugin } = await import("../../groundwork.ts");
+  it("loads the OpenCode package entrypoint", async () => {
+    const { GroundworkPlugin } = await import("../../packages/opencode-plugin/src/index.ts");
 
-    expect(GroundworkPlugin).toBe(directGroundworkPlugin);
+    expect(typeof GroundworkPlugin).toBe("function");
   });
 });
 
 async function createFrameworkPluginHarness(options: { policyToml?: string } = {}) {
-  const { GroundworkPlugin } = await import("../../groundwork.ts");
+  const { GroundworkPlugin } = await import("../../packages/opencode-plugin/src/index.ts");
   const globalConfig = path.join(
     os.tmpdir(),
     `groundwork-global-${Date.now()}-${Math.random().toString(16).slice(2)}.toml`,

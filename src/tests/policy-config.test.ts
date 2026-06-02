@@ -6,27 +6,26 @@ import {
   cloneLineRanges,
   collectPatchPayloads,
   mergeChangeTarget,
-  mergeLineRanges,
-} from "../policy/change-targets.ts";
+} from "../../packages/core/src/policy/change-targets.ts";
+import { mergeLineRanges } from "../../packages/core/src/kernel/line-ranges.ts";
 import {
-  extractCandidatePaths,
   extractChangeTargets,
   filterPathsByRuleContent,
   findMatchingRules,
   loadMergedPolicyConfig,
   mergePolicyConfigs,
-  normalizePathForMatching,
   parsePolicyConfig,
   resolveRuleScope,
   resolveGlobalPolicyConfigPath,
   resolveGlobalPolicyConfigPaths,
   resolveProjectPolicyConfigPath,
   resolveProjectPolicyConfigPaths,
-  runContentMatcher,
   ruleMatchesTool,
   type GuardrailChangeTarget,
-} from "../policy/config.ts";
-import { ruleAppliesToPhase } from "../policy/evaluation.ts";
+} from "../../packages/core/src/policy/config.ts";
+import { runContentMatcher } from "../../packages/core/src/policy/content/matcher.ts";
+import { normalizePathForMatching } from "../../packages/core/src/policy/paths.ts";
+import { ruleAppliesToPhase } from "../../packages/core/src/policy/evaluation.ts";
 
 const tempRoots: string[] = [];
 
@@ -381,32 +380,33 @@ describe("policy config parser", () => {
 
 describe("path matching", () => {
   it("extracts candidate paths from nested args", () => {
-    const paths = extractCandidatePaths({
+    const targets = extractChangeTargets("/Users/me/project", {
       filePath: "plugin/review/index.ts",
       output_path: "artifacts/local-stories/out.artifact",
       nested: {
         items: [{ path: "./plugin/review/local-story.ts" }],
       },
     });
+    const paths = targets.map((target) => target.normalizedPath);
 
     expect(paths).toContain("plugin/review/index.ts");
     expect(paths).toContain("artifacts/local-stories/out.artifact");
-    expect(paths).toContain("./plugin/review/local-story.ts");
+    expect(paths).toContain("plugin/review/local-story.ts");
   });
 
   it("does not treat generic multiline strings as paths", () => {
-    const paths = extractCandidatePaths({
+    const targets = extractChangeTargets("/Users/me/project", {
       content: "line one\nline two",
       nested: {
         body: "another\nmultiline\nvalue",
       },
     });
 
-    expect(paths).toEqual([]);
+    expect(targets).toEqual([]);
   });
 
-  it("extracts file paths from apply_patch patchText", () => {
-    const paths = extractCandidatePaths({
+  it("extracts change target paths from apply_patch patchText", () => {
+    const targets = extractChangeTargets("/Users/me/project", {
       patchText: `*** Begin Patch
 *** Update File: src/main.ts
 *** Move to: src/renamed.ts
@@ -418,8 +418,9 @@ describe("path matching", () => {
 *** Delete File: src/old.ts
 *** End Patch`,
     });
+    const paths = targets.map((target) => target.normalizedPath);
 
-    expect(paths).toEqual(["src/main.ts", "src/renamed.ts", "src/new.ts", "src/old.ts"]);
+    expect(paths).toEqual(["src/renamed.ts", "src/new.ts", "src/old.ts"]);
   });
 
   it("extracts changed line targets from apply_patch hunks", () => {
@@ -542,7 +543,7 @@ describe("path matching", () => {
   });
 
   it("ignores malformed patch headers", () => {
-    const paths = extractCandidatePaths({
+    const targets = extractChangeTargets("/Users/me/project", {
       patchText: `*** Begin Patch
 *** Update File src/main.ts
 *** Move to src/renamed.ts
@@ -551,7 +552,7 @@ describe("path matching", () => {
 *** End Patch`,
     });
 
-    expect(paths).toEqual([]);
+    expect(targets).toEqual([]);
   });
 
   it("matches rules with glob patterns", () => {

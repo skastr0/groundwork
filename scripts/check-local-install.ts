@@ -72,16 +72,9 @@ const readData = (label: string, parsed: Record<string, unknown>): Record<string
   return data as Record<string, unknown>;
 };
 
-const expectHookCommand = (label: string, value: unknown, expected: string): void => {
-  if (value !== expected) {
-    fail(`${label} hook command mismatch.\nExpected: ${expected}\nReceived: ${String(value)}`);
-  }
-};
-
 const platformArch = detectPlatform();
 const standaloneBinary = join(REPO_ROOT, "dist", `${BINARY_NAME}-${platformArch}`);
 const installRoot = await mkdtemp(join(tmpdir(), "groundwork-local-install-"));
-const projectRoot = await mkdtemp(join(tmpdir(), "groundwork-local-install-project-"));
 const contextRoot = await mkdtemp(join(tmpdir(), "groundwork-local-install-context-"));
 
 try {
@@ -132,46 +125,25 @@ try {
     fail("installed binary context discover did not include root AGENTS.md with include_root.");
   }
 
-  const installResult = await run(
-    "installed binary codex install-project",
-    [installedBinary, "codex", "install-project", JSON.stringify({ target_dir: projectRoot, force: true })],
+  const riskResult = await run(
+    "installed binary risk evaluate-command",
+    [installedBinary, "risk", "evaluate-command", JSON.stringify({ command: "git reset --hard" })],
   );
-  const installData = readData(
-    "installed binary codex install-project",
-    parseJson("installed binary codex install-project", installResult.stdout),
+  const riskData = readData(
+    "installed binary risk evaluate-command",
+    parseJson("installed binary risk evaluate-command", riskResult.stdout),
   );
-  const expectedHookCommand = `'${installedBinary}' codex hook`;
-  expectHookCommand(
-    "installed binary codex install-project",
-    installData["hook_command"],
-    expectedHookCommand,
-  );
-
-  const hookResult = await run(
-    "installed binary codex hook",
-    [installedBinary, "codex", "hook"],
-    {
-      stdin: JSON.stringify({
-        hook_event_name: "PreToolUse",
-        tool_name: "Bash",
-        tool_input: { command: "git reset --hard" },
-      }),
-    },
-  );
-  const hookPayload = parseJson("installed binary codex hook", hookResult.stdout);
-  const hookSpecificOutput = hookPayload["hookSpecificOutput"];
   if (
-    !hookSpecificOutput ||
-    typeof hookSpecificOutput !== "object" ||
-    Array.isArray(hookSpecificOutput) ||
-    (hookSpecificOutput as Record<string, unknown>)["permissionDecision"] !== "deny"
+    riskData["decision"] !== "block" ||
+    !riskData["violation"] ||
+    typeof riskData["violation"] !== "object" ||
+    Array.isArray(riskData["violation"])
   ) {
-    fail("installed binary codex hook did not deny risky Bash command.");
+    fail("installed binary risk evaluate-command did not block a risky shell command.");
   }
 
   console.log(`Local install check passed for ${platformArch}.`);
 } finally {
   await rm(installRoot, { recursive: true, force: true });
-  await rm(projectRoot, { recursive: true, force: true });
   await rm(contextRoot, { recursive: true, force: true });
 }

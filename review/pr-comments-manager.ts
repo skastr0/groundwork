@@ -1,5 +1,5 @@
 import { Effect } from "effect";
-import { runProcessText } from "../shared/effect-runtime.ts";
+import { runProcessText } from "../packages/core/src/shared/effect-runtime.ts";
 import { logger } from "./utils/logger.ts";
 import {
   applyReviewThreadState,

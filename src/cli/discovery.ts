@@ -41,32 +41,6 @@ export const COMMAND_CAPABILITIES = [
     description: "Show command examples by command id or command.",
   },
   {
-    command_id: "codex.doctor",
-    command: "codex doctor",
-    category: "diagnostic",
-    description: "Inspect Codex plugin/config integration readiness.",
-  },
-  {
-    command_id: "codex.install-project",
-    command: "codex install-project",
-    category: "integration",
-    description: "Install Groundwork hooks and config into a project .codex/ directory.",
-    schemas: ["groundwork.codex.install-project.input/v1"],
-  },
-  {
-    command_id: "codex.install-user",
-    command: "codex install-user",
-    category: "integration",
-    description: "Install Groundwork hooks and config into CODEX_HOME.",
-    schemas: ["groundwork.codex.install-user.input/v1"],
-  },
-  {
-    command_id: "codex.hook",
-    command: "codex hook",
-    category: "integration",
-    description: "Codex lifecycle hook entrypoint used by hooks.json.",
-  },
-  {
     command_id: "risk.evaluate-command",
     command: "risk evaluate-command",
     category: "workflow",
@@ -238,58 +212,10 @@ export const EXAMPLES = [
     args: ["risk.evaluate-command"],
   },
   {
-    command_id: "codex.doctor",
-    command: "codex doctor",
-    name: "Inspect Codex integration readiness",
-    args: [],
-  },
-  {
     command_id: "risk.evaluate-command",
     command: "risk evaluate-command",
     name: "Block risky git checkout",
     args: [`{"command":"git checkout -- src/index.ts"}`],
-  },
-  {
-    command_id: "codex.install-project",
-    command: "codex install-project",
-    name: "Install project-local Codex integration",
-    args: [`{"target_dir":".","hook_command":"/absolute/path/to/groundwork codex hook","force":false}`],
-  },
-  {
-    command_id: "codex.install-user",
-    command: "codex install-user",
-    name: "Install user-level Codex integration",
-    args: [
-      `{"codex_home":"/tmp/example-codex-home","hook_command":"/absolute/path/to/groundwork codex hook","force":false}`,
-    ],
-  },
-  {
-    command_id: "codex.hook",
-    command: "codex hook",
-    name: "Run Codex hook stdin payloads for SessionStart, PreToolUse, PostToolUse, and Stop",
-    args: [],
-    stdin: `{"hook_event_name":"SessionStart","cwd":"/path/to/project","session_id":"example"}`,
-  },
-  {
-    command_id: "codex.hook",
-    command: "codex hook",
-    name: "Run a Codex PreToolUse risk check from stdin",
-    args: [],
-    stdin: `{"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"git reset --hard"}}`,
-  },
-  {
-    command_id: "codex.hook",
-    command: "codex hook",
-    name: "Run a Codex PostToolUse context check from stdin",
-    args: [],
-    stdin: `{"hook_event_name":"PostToolUse","cwd":"/path/to/project","session_id":"example","tool_name":"apply_patch","tool_use_id":"call-1","tool_input":{"patchText":"*** Begin Patch\\n*** Update File: src/index.ts\\n@@\\n-old\\n+new\\n*** End Patch\\n"},"tool_response":{"ok":true}}`,
-  },
-  {
-    command_id: "codex.hook",
-    command: "codex hook",
-    name: "Run a Codex Stop hook payload from stdin",
-    args: [],
-    stdin: `{"hook_event_name":"Stop","stop_hook_active":false}`,
   },
   {
     command_id: "context.discover",
@@ -461,7 +387,7 @@ export const EXAMPLES = [
     command_id: "session.remember-action",
     command: "session remember-action",
     name: "Remember an action dedupe key",
-    args: [`{"session_id":"example","key":"call-1","source":"codex","action":"context-reminder"}`],
+    args: [`{"session_id":"example","key":"call-1","source":"agent","action":"context-reminder"}`],
   },
   {
     command_id: "session.put-pending-tool",
@@ -504,9 +430,11 @@ export function renderCapabilities() {
       },
     },
     commands: COMMAND_CAPABILITIES,
-    ambient_integrations: {
-      codex_hooks: "best-effort guardrails; not a complete enforcement boundary",
-      opencode_hooks: "runtime wrapper can preserve before/after hook semantics",
+    package_surfaces: {
+      cli: "JSON-first commands for policy, context, provenance, risk, and session artifacts.",
+      core: "Reusable library package for shared Groundwork foundations.",
+      opencode: "OpenCode plugin package that composes the shared foundations into runtime hooks.",
+      codex: "Codex plugin package that ships precompiled lifecycle hook commands.",
     },
   };
 }

@@ -3,8 +3,7 @@ import {
   PROCESS_RUNNER,
   type ProcessCommand,
   type ProcessRunnerCarrier,
-} from "../../shared/effect-runtime.ts";
-import { z } from "zod";
+} from "../../packages/core/src/shared/effect-runtime.ts";
 import {
   detectLocalBaseState,
   getCurrentBranchState,
@@ -15,18 +14,7 @@ import {
   resolveLocalFileState,
   resolveLocalRepoState,
   type Shell,
-} from "../provenance/tooling/state/index.ts";
-
-vi.mock("@opencode-ai/plugin", () => {
-  const mockTool = ((input: unknown) => input) as {
-    (input: unknown): unknown;
-    schema: typeof z;
-  };
-  mockTool.schema = z;
-  return {
-    tool: mockTool,
-  };
-});
+} from "../../packages/core/src/provenance/tooling/state/internal.ts";
 
 const HEAD_HASH = "abcdef1234567890abcdef1234567890abcdef12";
 
@@ -61,7 +49,7 @@ const makeShellStub = (
     return {
       text: () => executeCommand(command),
     };
-  }) as Shell & ProcessRunnerCarrier;
+  }) as unknown as Shell & ProcessRunnerCarrier;
 
   shell.braces = (_pattern: string) => [];
   shell.escape = (input: string) => input;

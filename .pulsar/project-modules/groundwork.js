@@ -16,10 +16,10 @@ const SCORE_REPAIR_REASON =
 
 const SCORE_REPAIR_FILE_MARKERS = [
   "review/pr-comments-manager.ts",
-  "src/cli/codex.ts",
   "src/cli/commands.ts",
   "src/cli/protocol.ts",
-  "src/provenance/tooling/expand/pr-local-context.ts",
+  "packages/codex/src/hook.ts",
+  "packages/core/src/provenance/tooling/expand/pr-local-context.ts",
 ];
 
 const migrationEvidence = (current) => [

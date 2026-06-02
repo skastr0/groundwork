@@ -2,29 +2,39 @@ import path from "node:path";
 import { Args, Command } from "@effect/cli";
 import { Effect, Either } from "effect";
 import type { ZodType } from "zod";
-import { attachProcessRunner } from "../../shared/effect-runtime.ts";
-import { discoverFrameworkContextFiles } from "../context/discovery.ts";
-import { evaluateContextTouchedPaths } from "../context/cli-service.ts";
-import { evaluateRiskCommand } from "../risk/service.ts";
 import {
+  PROVENANCE_CLI_COMMANDS,
+  SessionCleanupInputSchema,
+  SessionGetInputSchema,
+  SessionOverrideInputSchema,
+  SessionPutPendingToolInputSchema,
+  SessionRememberActionInputSchema,
+  SessionRenderCompactionInputSchema,
+  SessionSkillLoadedInputSchema,
   acceptPolicyOverride,
+  attachProcessRunner,
+  cleanupSessionArtifacts,
   confirmPolicySkillsLoadedEffect,
+  discoverFrameworkContextFiles,
+  evaluateContextTouchedPaths,
   evaluatePolicyToolCall,
   evaluatePolicyToolResult,
-} from "../policy/cli-service.ts";
-import {
+  evaluateRiskCommand,
+  getSessionArtifact,
+  isProvenanceToolID,
+  markSessionSkillsLoaded,
   normalizeRequestedPath,
+  putPendingSessionTool,
+  recordSessionOverride,
+  rememberSessionAction,
+  renderSessionCompaction,
   resolveLocalFileState,
   resolveLocalRepoState,
+  runProvenanceTool,
   toProvFileStateData,
   toProvRepoStateData,
   type Shell,
-} from "../provenance/tooling/state/index.ts";
-import {
-  isProvenanceToolID,
-  PROVENANCE_CLI_COMMANDS,
-  runProvenanceTool,
-} from "../provenance/cli-service.ts";
+} from "@skastr0/groundwork-core/cli-support";
 import {
   COMMAND_CAPABILITIES,
   listExamples,
@@ -34,14 +44,6 @@ import {
   showExamples,
   showSchema,
 } from "./discovery.ts";
-import {
-  CodexInstallProjectInputSchema,
-  CodexInstallUserInputSchema,
-  installCodexProject,
-  installCodexUser,
-  renderCodexDoctor,
-  runCodexHook,
-} from "./codex.ts";
 import {
   ContextDiscoverInputSchema,
   ContextTouchedPathsInputSchema,
@@ -55,22 +57,6 @@ import {
   ProvenanceToolInputSchema,
   RiskEvaluateCommandInputSchema,
 } from "./schemas.ts";
-import {
-  SessionCleanupInputSchema,
-  SessionGetInputSchema,
-  SessionOverrideInputSchema,
-  SessionPutPendingToolInputSchema,
-  SessionRememberActionInputSchema,
-  SessionRenderCompactionInputSchema,
-  SessionSkillLoadedInputSchema,
-  cleanupSessionArtifacts,
-  getSessionArtifact,
-  markSessionSkillsLoaded,
-  putPendingSessionTool,
-  recordSessionOverride,
-  rememberSessionAction,
-  renderSessionCompaction,
-} from "../session/index.ts";
 import { decodeJsonInputEffect, executeJsonCommand } from "./protocol.ts";
 
 const inputArg = Args.text({ name: "input" }).pipe(
@@ -259,39 +245,6 @@ const policyCommand = Command.make("policy").pipe(
   ]),
 );
 
-const codexDoctorCommand = Command.make("doctor", {}, () =>
-  jsonEffect("codex doctor", () => renderCodexDoctor()),
-).pipe(Command.withDescription(commandDescription("codex doctor")));
-
-const codexInstallProjectCommand = Command.make(
-  "install-project",
-  { input: inputArg },
-  ({ input }) =>
-    decodedJsonEffect("codex install-project", input, CodexInstallProjectInputSchema, (payload) =>
-      installCodexProject(payload),
-    ),
-).pipe(Command.withDescription(commandDescription("codex install-project")));
-
-const codexInstallUserCommand = Command.make("install-user", { input: inputArg }, ({ input }) =>
-  decodedJsonEffect("codex install-user", input, CodexInstallUserInputSchema, (payload) =>
-    installCodexUser(payload),
-  ),
-).pipe(Command.withDescription(commandDescription("codex install-user")));
-
-const codexHookCommand = Command.make("hook", {}, () => toEffect(() => runCodexHook())).pipe(
-  Command.withDescription(commandDescription("codex hook")),
-);
-
-const codexCommand = Command.make("codex").pipe(
-  Command.withDescription("Codex integration commands"),
-  Command.withSubcommands([
-    codexDoctorCommand,
-    codexHookCommand,
-    codexInstallProjectCommand,
-    codexInstallUserCommand,
-  ]),
-);
-
 const provenanceRepoStateCommand = Command.make("repo-state", { input: inputArg }, ({ input }) =>
   toEffect(() =>
     executeJsonCommand("provenance repo-state", async () => {
@@ -434,7 +387,6 @@ export const rootCommand = Command.make("groundwork").pipe(
   ),
   Command.withSubcommands([
     capabilitiesCommand,
-    codexCommand,
     contextCommand,
     doctorCommand,
     examplesCommand,

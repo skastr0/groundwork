@@ -1,0 +1,100 @@
+{
+  "name": "@skastr0/groundwork-core",
+  "version": "0.1.0",
+  "description": "Groundwork policy, provenance, context, risk, and session foundations",
+  "type": "module",
+  "author": "Guilherme Castro <skastr052@gmail.com>",
+  "license": "MIT",
+  "homepage": "https://github.com/skastr0/groundwork#readme",
+  "bugs": {
+    "url": "https://github.com/skastr0/groundwork/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/skastr0/groundwork.git",
+    "directory": "packages/core"
+  },
+  "main": "./dist/index.js",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "development": "./src/index.ts",
+      "import": "./dist/index.js"
+    },
+    "./cli-support": {
+      "types": "./src/cli-support.ts",
+      "development": "./src/cli-support.ts",
+      "import": "./dist/cli-support.js"
+    },
+    "./context": {
+      "types": "./src/context/index.ts",
+      "development": "./src/context/index.ts",
+      "import": "./dist/context/index.js"
+    },
+    "./kernel": {
+      "types": "./src/kernel/index.ts",
+      "development": "./src/kernel/index.ts",
+      "import": "./dist/kernel/index.js"
+    },
+    "./layer": {
+      "types": "./src/layer/index.ts",
+      "development": "./src/layer/index.ts",
+      "import": "./dist/layer/index.js"
+    },
+    "./logger": {
+      "types": "./src/logger/index.ts",
+      "development": "./src/logger/index.ts",
+      "import": "./dist/logger/index.js"
+    },
+    "./policy": {
+      "types": "./src/policy/index.ts",
+      "development": "./src/policy/index.ts",
+      "import": "./dist/policy/index.js"
+    },
+    "./provenance": {
+      "types": "./src/provenance/index.ts",
+      "development": "./src/provenance/index.ts",
+      "import": "./dist/provenance/index.js"
+    },
+    "./risk": {
+      "types": "./src/risk/index.ts",
+      "development": "./src/risk/index.ts",
+      "import": "./dist/risk/index.js"
+    },
+    "./session": {
+      "types": "./src/session/index.ts",
+      "development": "./src/session/index.ts",
+      "import": "./dist/session/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "bun build ./src/index.ts ./src/cli-support.ts ./src/context/index.ts ./src/kernel/index.ts ./src/layer/index.ts ./src/logger/index.ts ./src/policy/index.ts ./src/provenance/index.ts ./src/risk/index.ts ./src/session/index.ts --root ./src --outdir ./dist --target node --format esm",
+    "pack:dry-run": "npm pack --dry-run"
+  },
+  "keywords": [
+    "groundwork",
+    "policy",
+    "context",
+    "provenance",
+    "risk",
+    "session",
+    "agent"
+  ],
+  "dependencies": {
+    "@iarna/toml": "^2.2.5",
+    "effect": "^3.21.2",
+    "zod": "4.1.8"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}

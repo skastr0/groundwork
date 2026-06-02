@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-import { resolveSessionPromptContext, toSessionPromptContext } from "../index.ts";
+import {
+  resolveSessionPromptContext,
+  toSessionPromptContext,
+} from "../../packages/core/src/kernel/prompt-context.ts";
 
 describe("session prompt context resolver", () => {
   it("selects the first user message and preserves prompt context safely", async () => {

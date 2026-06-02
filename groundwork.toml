@@ -4,7 +4,7 @@ plugins = ["groundwork-effect"]
 [[rules]]
 id = "groundwork-policy-config-edits"
 description = "Groundwork policy config changes should use the canonical Groundwork guidance"
-match = ["groundwork.toml", ".groundwork/*.toml", "src/policy/**"]
+match = ["groundwork.toml", ".groundwork/*.toml", "packages/core/src/policy/**"]
 
 [[rules.actions]]
 type = "ensure_skill_loaded"
@@ -31,7 +31,7 @@ once_per_session = true
 [[rules]]
 id = "groundwork-risk-policy-core-edits"
 description = "Policy and risk core changes have high guardrail blast radius"
-match = ["src/policy/**", "src/risk/**"]
+match = ["packages/core/src/policy/**", "packages/core/src/risk/**"]
 
 [[rules.actions]]
 type = "inject_prompt"
@@ -41,7 +41,7 @@ once_per_session = true
 [[rules]]
 id = "groundwork-codex-opencode-integration-edits"
 description = "Harness integration changes should stay thin over the shared CLI/runtime foundations"
-match = ["src/server.ts", "src/groundwork.ts", "src/cli/codex.ts", ".codex-plugin/**", "hooks/**", "docs/codex-integration.md"]
+match = ["packages/opencode-plugin/**", "packages/codex/.codex-plugin/**", "packages/codex/hooks/**", "packages/codex/src/**", "docs/codex-integration.md"]
 
 [[rules.actions]]
 type = "inject_prompt"

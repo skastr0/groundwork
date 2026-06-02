@@ -4,7 +4,7 @@ import {
   cleanupSessionKernelStates,
   createSessionKernelState,
   createSessionKernelStore,
-} from "../index.ts";
+} from "../../packages/core/src/kernel/state.ts";
 
 describe("session kernel state", () => {
   it("captures prompt context, locks, caches, budgets, and pending tool data in a neutral shape", () => {

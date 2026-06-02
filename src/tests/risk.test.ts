@@ -2,8 +2,8 @@ import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createGroundworkLayer } from "../index.ts";
-import { createFrameworkRiskLayer } from "../risk/index.ts";
+import { createGroundworkLayer } from "../../packages/core/src/index.ts";
+import { createFrameworkRiskLayer } from "../../packages/core/src/risk/index.ts";
 import { createFrameworkHookHarness } from "./framework-test-harness.ts";
 
 afterEach(() => {
@@ -43,7 +43,7 @@ async function runGroundwork(args: string[]): Promise<CommandResult> {
 
 describe("framework risk layer", () => {
   it("blocks destructive bash commands through the framework plugin without standalone activation", async () => {
-    const { GroundworkPlugin } = await import("../index.ts");
+    const { GroundworkPlugin } = await import("../../packages/opencode-plugin/src/index.ts");
     const previousGlobalConfig = process.env.GROUNDWORK_POLICY_GLOBAL_CONFIG;
     process.env.GROUNDWORK_POLICY_GLOBAL_CONFIG = path.join(
       os.tmpdir(),
@@ -99,7 +99,7 @@ describe("framework risk layer", () => {
               GROUNDWORK_DESTRUCTIVE_GUARD_MODE: "warn",
             },
           }),
-        }),
+        }) as never,
     });
 
     try {
@@ -163,7 +163,7 @@ describe("framework risk layer", () => {
               GROUNDWORK_DESTRUCTIVE_GUARD_MODE: "block",
             },
           }),
-        }),
+        }) as never,
     });
 
     try {
@@ -226,7 +226,7 @@ describe("framework risk layer", () => {
               GROUNDWORK_DESTRUCTIVE_GUARD_MODE: "warn",
             },
           }),
-        }),
+        }) as never,
     });
 
     try {
@@ -282,7 +282,7 @@ describe("framework risk layer", () => {
               GROUNDWORK_DESTRUCTIVE_GUARD_MODE: "off",
             },
           }),
-        }),
+        }) as never,
     });
 
     try {

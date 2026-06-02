@@ -3,11 +3,11 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  createFrameworkContextLayer,
   FRAMEWORK_CONTEXT_INJECTION_MAX_BYTES,
   FRAMEWORK_CONTEXT_INJECTION_MAX_ITEMS,
-} from "../index.ts";
-import { createFrameworkContextLayer } from "../context/runtime.ts";
-import { createSessionKernelStore } from "../kernel/index.ts";
+} from "../../packages/core/src/context/runtime.ts";
+import { createSessionKernelStore } from "../../packages/core/src/kernel/state.ts";
 import { createFrameworkHookHarness, createFrameworkMockClient } from "./framework-test-harness.ts";
 
 describe("framework context runtime", () => {
@@ -228,14 +228,14 @@ describe("framework context runtime", () => {
     const sessionStore = createSessionKernelStore();
     const harness = await createFrameworkHookHarness({
       createHooks: async (context) =>
-        (
+        ((
           await createFrameworkContextLayer({
             client: context.client,
             directory: context.directory,
             sessionStore,
             worktree: context.worktree,
           })
-        ).hooks ?? {},
+        ).hooks ?? {}) as never,
     });
 
     try {
@@ -326,7 +326,7 @@ async function createContextPluginHarness(
     >["sessionMessages"];
   } = {},
 ) {
-  const { GroundworkPlugin } = await import("../index.ts");
+  const { GroundworkPlugin } = await import("../../packages/opencode-plugin/src/index.ts");
   const globalConfig = path.join(
     os.tmpdir(),
     `groundwork-global-${Date.now()}-${Math.random().toString(16).slice(2)}.toml`,

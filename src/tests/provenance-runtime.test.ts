@@ -5,32 +5,22 @@ import { describe, expect, it, vi } from "vitest";
 import {
   createFrameworkCompactionContextHook,
   createFrameworkProvenanceLayer,
-  createSessionKernelState,
-  createSessionKernelStore,
-  rememberFrameworkAction,
   renderFrameworkCompactionContext,
-  GroundworkPlugin,
   FRAMEWORK_COMPACTION_CONTEXT_MAX_BYTES,
   FRAMEWORK_SYSTEM_TRANSFORM_GUIDANCE,
-	  FRAMEWORK_SYSTEM_TRANSFORM_MAX_BYTES,
-	  renderFrameworkSystemTransformGuidance,
-	  type GroundworkLayerHooks,
-	} from "../index.ts";
+  FRAMEWORK_SYSTEM_TRANSFORM_MAX_BYTES,
+  renderFrameworkSystemTransformGuidance,
+} from "../../packages/core/src/provenance/runtime.ts";
+import {
+  createSessionKernelState,
+  createSessionKernelStore,
+} from "../../packages/core/src/kernel/state.ts";
+import { rememberFrameworkAction } from "../../packages/core/src/kernel/helpers.ts";
+import {
+  type GroundworkLayerHooks,
+} from "../../packages/core/src/layer/dispatcher.ts";
+import { GroundworkPlugin } from "../../packages/opencode-plugin/src/index.ts";
 import { createFrameworkHookHarness } from "./framework-test-harness.ts";
-
-vi.mock("@opencode-ai/plugin", async () => {
-  const { z } = await import("zod");
-
-  const mockTool = ((input: unknown) => input) as {
-    (input: unknown): unknown;
-    schema: typeof z;
-  };
-  mockTool.schema = z;
-
-  return {
-    tool: mockTool,
-  };
-});
 
 describe("framework provenance runtime", () => {
   it("keeps the system transform guidance stable and within budget", () => {
@@ -80,7 +70,7 @@ describe("framework provenance runtime", () => {
 
   it("exports the gw_* surface from one framework registry path", async () => {
     const { createFrameworkProvenanceTools, FRAMEWORK_PROVENANCE_TOOL_IDS } =
-      await import("../provenance/registry.ts");
+      await import("../../packages/core/src/provenance/registry.ts");
     const tools = createFrameworkProvenanceTools({
       shell: {} as never,
       rootDir: "/tmp",
@@ -175,13 +165,13 @@ describe("framework provenance runtime", () => {
     const harness = await createFrameworkHookHarness({
       createHooks: async (context) => {
         const layer = await createFrameworkProvenanceLayer({
-            directory: context.directory,
-            rootDir: context.worktree,
-            now,
-            sessionStore,
+          directory: context.directory,
+          rootDir: context.worktree,
+          now,
+          sessionStore,
         });
         provenanceHooks = layer.hooks;
-        return layer.hooks ?? {};
+        return (layer.hooks ?? {}) as never;
       },
     });
     try {

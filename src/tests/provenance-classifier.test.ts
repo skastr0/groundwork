@@ -2,11 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
   applyFrameworkAmbientBudget,
   classifyFrameworkAmbientTool,
-  createSessionKernelState,
   FRAMEWORK_AMBIENT_BUDGET_LEDGER_KEYS,
   FRAMEWORK_AMBIENT_PROVENANCE_TOOL_VALUES,
-  truncateFrameworkTextByBytes,
-} from "../index.ts";
+} from "../../packages/core/src/provenance/classifier.ts";
+import { truncateFrameworkTextByBytes } from "../../packages/core/src/kernel/helpers.ts";
+import { createSessionKernelState } from "../../packages/core/src/kernel/state.ts";
 
 describe("framework ambient provenance classifier", () => {
   const inheritedToolNamesForClassification = ["__proto__", "constructor", "toString"];

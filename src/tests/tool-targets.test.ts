@@ -1,6 +1,6 @@
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { extractFrameworkToolTargets } from "../index.ts";
+import { extractFrameworkToolTargets } from "../../packages/core/src/kernel/tool-targets.ts";
 
 describe("framework tool target extractor", () => {
   const rootDir = path.join(path.sep, "repo", "workspace");
@@ -16,7 +16,7 @@ describe("framework tool target extractor", () => {
     );
     const result = extractFrameworkToolTargets(
       {
-        filePath: "./kernel/index.ts",
+        filePath: "./kernel/internal.ts",
         nested: {
           path: "tests/index.test.ts",
         },
@@ -33,10 +33,10 @@ describe("framework tool target extractor", () => {
       toolName: "edit",
       targets: [
         {
-          path: "./kernel/index.ts",
-          normalizedPath: "plugin/groundwork/kernel/index.ts",
-          beforePath: "plugin/groundwork/kernel/index.ts",
-          afterPath: "plugin/groundwork/kernel/index.ts",
+          path: "./kernel/internal.ts",
+          normalizedPath: "plugin/groundwork/kernel/internal.ts",
+          beforePath: "plugin/groundwork/kernel/internal.ts",
+          afterPath: "plugin/groundwork/kernel/internal.ts",
           source: {
             kind: "argument",
             key: "filePath",

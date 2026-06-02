@@ -13,62 +13,59 @@
     "type": "git",
     "url": "git+https://github.com/skastr0/groundwork.git"
   },
-  "main": "./dist/server.js",
+  "main": "./dist/cli.js",
   "bin": {
     "groundwork": "dist/cli.js"
   },
   "exports": {
-    ".": "./dist/server.js",
-    "./server": "./dist/server.js",
+    ".": "./dist/cli.js",
     "./metadata": "./dist/metadata.js",
     "./cli": "./dist/cli.js"
   },
   "files": [
-    ".codex-plugin",
     "CHANGELOG.md",
     "docs",
     "dist/cli.js",
     "dist/metadata.js",
-    "dist/server.js",
-    "hooks",
     "README.md"
+  ],
+  "workspaces": [
+    "packages/*"
   ],
   "packageManager": "bun@1.3.14",
   "publishConfig": {
     "access": "public"
   },
   "scripts": {
-    "build": "bun run build:cli && bun run build:js",
-    "build:js": "bun build ./src/server.ts ./src/cli.ts ./src/metadata.ts --outdir ./dist --target bun --format esm --external @opencode-ai/plugin",
+    "build": "bun run build:packages && bun run build:cli && bun run build:js",
+    "build:packages": "bun run --cwd packages/core build && bun run --cwd packages/opencode-plugin build && bun run --cwd packages/codex build",
+    "build:js": "bun build ./src/cli.ts ./src/metadata.ts --outdir ./dist --target bun --format esm",
     "build:cli": "bun scripts/build-cli.ts",
     "install:local": "bun scripts/install.ts",
-    "check:imports": "bun -e \"await import('./dist/server.js')\"",
+    "check:imports": "bun -e \"await import('./dist/cli.js'); await import('./dist/metadata.js'); await import('./packages/core/dist/index.js'); await import('./packages/core/dist/cli-support.js'); await import('./packages/opencode-plugin/dist/server.js'); await import('./packages/codex/dist/groundwork-codex-hook.mjs')\"",
     "check:cli": "bun ./dist/cli.js doctor",
     "check:local-install": "bun scripts/check-local-install.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "verify": "bun run typecheck && bun run test && bun run build && bun run check:imports && bun run check:cli && bun run check:local-install",
-    "pack:dry-run": "npm pack --dry-run"
+    "pack:dry-run": "npm pack --dry-run",
+    "pack:dry-run:all": "bun run pack:dry-run && bun run --cwd packages/core pack:dry-run && bun run --cwd packages/opencode-plugin pack:dry-run && bun run --cwd packages/codex pack:dry-run",
+    "pack:install-smoke": "bun scripts/check-packed-installs.ts",
+    "pack:verify": "bun run pack:dry-run:all && bun run pack:install-smoke"
   },
   "keywords": [
-    "opencode",
-    "opencode-plugin",
-    "codex",
-    "codex-plugin",
     "groundwork",
+    "cli",
     "context",
     "risk",
     "framework",
     "provenance",
     "policy"
   ],
-  "peerDependencies": {
-    "@opencode-ai/plugin": ">=1.3.17"
-  },
   "dependencies": {
+    "@skastr0/groundwork-core": "0.1.0",
     "@effect/cli": "^0.75.1",
     "@effect/platform-bun": "^0.89.0",
-    "@iarna/toml": "^2.2.5",
     "effect": "^3.21.2",
     "zod": "4.1.8"
   },
@@ -83,6 +80,6 @@
     "vitest": "^4.0.15"
   },
   "engines": {
-    "opencode": ">=1.3.17"
+    "bun": ">=1.3.0"
   }
 }

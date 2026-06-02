@@ -6,21 +6,9 @@ import {
   PROCESS_RUNNER,
   type ProcessCommand,
   type ProcessRunnerCarrier,
-} from "../../shared/effect-runtime.ts";
-import { z } from "zod";
-import type { Shell } from "../provenance/tooling/state/index.ts";
-import { logger } from "../provenance/tooling/utils/logger.ts";
-
-vi.mock("@opencode-ai/plugin", () => {
-  const mockTool = ((input: unknown) => input) as {
-    (input: unknown): unknown;
-    schema: typeof z;
-  };
-  mockTool.schema = z;
-  return {
-    tool: mockTool,
-  };
-});
+} from "../../packages/core/src/shared/effect-runtime.ts";
+import type { Shell } from "../../packages/core/src/provenance/tooling/state/internal.ts";
+import { logger } from "../../packages/core/src/provenance/tooling/utils/logger.ts";
 
 const HEAD_HASH = "abcdef1234567890abcdef1234567890abcdef12";
 const QUERY_TOOL_PATH = "plugin/groundwork/provenance/tooling/query/index.ts";
@@ -49,7 +37,7 @@ function makeShellStub(responses: Array<[pattern: string, output: string | Error
     return {
       text: () => executeCommand(command),
     };
-  }) as Shell & ProcessRunnerCarrier;
+  }) as unknown as Shell & ProcessRunnerCarrier;
 
   shell.braces = (_pattern: string) => [];
   shell.escape = (input: string) => input;
@@ -122,7 +110,7 @@ describe("query provenance tools", () => {
       ],
     ]);
 
-    const tools = (await import("../provenance/tooling/query/index.ts")).createQueryTools({
+    const tools = (await import("../../packages/core/src/provenance/tooling/query/index.ts")).createQueryTools({
       shell,
       rootDir: tempRoot,
     });
@@ -203,7 +191,7 @@ describe("query provenance tools", () => {
       ["git log --no-patch", `${rangeCommit}\n`],
     ]);
 
-    const tools = (await import("../provenance/tooling/query/index.ts")).createQueryTools({
+    const tools = (await import("../../packages/core/src/provenance/tooling/query/index.ts")).createQueryTools({
       shell,
       rootDir: tempRoot,
     });
@@ -291,7 +279,7 @@ describe("query provenance tools", () => {
   it("rejects unsupported block-read modes before local state loading", async () => {
     const warn = vi.spyOn(logger, "warn");
     const info = vi.spyOn(logger, "info");
-    const tools = (await import("../provenance/tooling/query/index.ts")).createQueryTools({
+    const tools = (await import("../../packages/core/src/provenance/tooling/query/index.ts")).createQueryTools({
       shell: makeShellStub([]),
       rootDir: tempRoot,
     });
@@ -341,7 +329,7 @@ describe("query provenance tools", () => {
   });
 
   it("rejects block-read paths outside the worktree", async () => {
-    const tools = (await import("../provenance/tooling/query/index.ts")).createQueryTools({
+    const tools = (await import("../../packages/core/src/provenance/tooling/query/index.ts")).createQueryTools({
       shell: makeShellStub([]),
       rootDir: tempRoot,
     });
@@ -383,7 +371,7 @@ describe("query provenance tools", () => {
       ["alpha();", "beta();", "gamma();"].join("\n") + "\n",
       "utf8",
     );
-    const tools = (await import("../provenance/tooling/query/index.ts")).createQueryTools({
+    const tools = (await import("../../packages/core/src/provenance/tooling/query/index.ts")).createQueryTools({
       shell: makeShellStub([
         ["git branch --show-current", "feature/prov-block-read"],
         ["git branch -r", "origin/main"],
@@ -495,7 +483,7 @@ describe("query provenance tools", () => {
   it("returns block-read failure envelopes and logs execution failures", async () => {
     const error = vi.spyOn(logger, "error");
     const info = vi.spyOn(logger, "info");
-    const tools = (await import("../provenance/tooling/query/index.ts")).createQueryTools({
+    const tools = (await import("../../packages/core/src/provenance/tooling/query/index.ts")).createQueryTools({
       shell: makeShellStub([
         ["git branch --show-current", new Error("branch lookup failed")],
       ]),

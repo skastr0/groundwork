@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   DEFAULT_GUARD_CONFIG,
   evaluateBashCommand,
-} from "../../groundwork/risk/index.ts";
+} from "../../packages/core/src/risk/rules.ts";
 
 describe("evaluateBashCommand", () => {
   const config = {

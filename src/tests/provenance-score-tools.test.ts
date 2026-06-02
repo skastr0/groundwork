@@ -6,21 +6,9 @@ import {
   PROCESS_RUNNER,
   type ProcessCommand,
   type ProcessRunnerCarrier,
-} from "../../shared/effect-runtime.ts";
-import { z } from "zod";
-import { logger } from "../provenance/tooling/utils/logger.ts";
-import type { Shell } from "../provenance/tooling/state/index.ts";
-
-vi.mock("@opencode-ai/plugin", () => {
-  const mockTool = ((input: unknown) => input) as {
-    (input: unknown): unknown;
-    schema: typeof z;
-  };
-  mockTool.schema = z;
-  return {
-    tool: mockTool,
-  };
-});
+} from "../../packages/core/src/shared/effect-runtime.ts";
+import { logger } from "../../packages/core/src/provenance/tooling/utils/logger.ts";
+import type { Shell } from "../../packages/core/src/provenance/tooling/state/internal.ts";
 
 const HEAD_HASH = "abcdef1234567890abcdef1234567890abcdef12";
 
@@ -58,7 +46,7 @@ function createShellStub(responses: MockResponse[], seenCommands?: string[]) {
     return {
       text: () => executeCommand(command),
     };
-  }) as Shell & ProcessRunnerCarrier;
+  }) as unknown as Shell & ProcessRunnerCarrier;
 
   shell.braces = (_pattern: string) => [];
   shell.escape = (input: string) => input;
@@ -169,7 +157,7 @@ describe("provenance score tools", () => {
 
   it("parses git history logs with renames, binary stats, and separator-bearing summaries", async () => {
     const { parseHistoryLog } = await import(
-      "../provenance/tooling/score/history-loader.ts"
+      "../../packages/core/src/provenance/tooling/score/history-loader.ts"
     );
     const commits = parseHistoryLog(
       [
@@ -203,7 +191,7 @@ describe("provenance score tools", () => {
   });
 
   it("aggregates history windows by directory with deterministic author and churn stats", async () => {
-    const { aggregateWindow } = await import("../provenance/tooling/score/aggregation.ts");
+    const { aggregateWindow } = await import("../../packages/core/src/provenance/tooling/score/aggregation.ts");
     const aggregate = aggregateWindow({
       anchorPath: "src",
       groupBy: "directory",
@@ -262,7 +250,7 @@ describe("provenance score tools", () => {
       ...createHistoryResponses("src", 3, createSrcHistoryLog()),
     ]);
 
-    const { createScoreTools } = await import("../provenance/tooling/score/index.ts");
+    const { createScoreTools } = await import("../../packages/core/src/provenance/tooling/score/index.ts");
     const toolDef = createScoreTools({ shell, rootDir: tempRoot }).gw_hotspots;
     if (!toolDef) {
       throw new Error("expected gw_hotspots tool");
@@ -333,7 +321,7 @@ describe("provenance score tools", () => {
       ...createHistoryResponses("src/missing.ts", 0, ""),
     ]);
 
-    const { createScoreTools } = await import("../provenance/tooling/score/index.ts");
+    const { createScoreTools } = await import("../../packages/core/src/provenance/tooling/score/index.ts");
     const toolDef = createScoreTools({ shell, rootDir: tempRoot }).gw_hotspots;
     if (!toolDef) {
       throw new Error("expected gw_hotspots tool");
@@ -376,7 +364,7 @@ describe("provenance score tools", () => {
       ...createRepoResponses(),
     ], seenCommands);
 
-    const { createScoreTools } = await import("../provenance/tooling/score/index.ts");
+    const { createScoreTools } = await import("../../packages/core/src/provenance/tooling/score/index.ts");
     const toolDef = createScoreTools({ shell, rootDir: tempRoot }).gw_hotspots;
     if (!toolDef) {
       throw new Error("expected gw_hotspots tool");
@@ -423,7 +411,7 @@ describe("provenance score tools", () => {
       ...createHistoryResponses("src", 5, createSrcHistoryLog()),
     ]);
 
-    const { createScoreTools } = await import("../provenance/tooling/score/index.ts");
+    const { createScoreTools } = await import("../../packages/core/src/provenance/tooling/score/index.ts");
     const toolDef = createScoreTools({ shell, rootDir: tempRoot }).gw_hotspots;
     if (!toolDef) {
       throw new Error("expected gw_hotspots tool");
@@ -463,7 +451,7 @@ describe("provenance score tools", () => {
       ...createHistoryResponses("src", 3, createSrcHistoryLog()),
     ]);
 
-    const { createScoreTools } = await import("../provenance/tooling/score/index.ts");
+    const { createScoreTools } = await import("../../packages/core/src/provenance/tooling/score/index.ts");
     const toolDef = createScoreTools({ shell, rootDir: tempRoot }).gw_hotspots;
     if (!toolDef) {
       throw new Error("expected gw_hotspots tool");
@@ -495,7 +483,7 @@ describe("provenance score tools", () => {
   it("reports unsupported hotspots modes and logs the mode rejection", async () => {
     const warn = vi.spyOn(logger, "warn");
     const info = vi.spyOn(logger, "info");
-    const { createScoreTools } = await import("../provenance/tooling/score/index.ts");
+    const { createScoreTools } = await import("../../packages/core/src/provenance/tooling/score/index.ts");
     const toolDef = createScoreTools({ shell: createShellStub([]), rootDir: tempRoot }).gw_hotspots;
     if (!toolDef) {
       throw new Error("expected gw_hotspots tool");
@@ -541,7 +529,7 @@ describe("provenance score tools", () => {
   it("returns hotspots failure envelopes and logs execution failures", async () => {
     const error = vi.spyOn(logger, "error");
     const info = vi.spyOn(logger, "info");
-    const { createScoreTools } = await import("../provenance/tooling/score/index.ts");
+    const { createScoreTools } = await import("../../packages/core/src/provenance/tooling/score/index.ts");
     const toolDef = createScoreTools({
       shell: createShellStub([
         {
@@ -598,7 +586,7 @@ describe("provenance score tools", () => {
   it("returns hotspots failure envelopes for history command failures", async () => {
     const error = vi.spyOn(logger, "error");
     const info = vi.spyOn(logger, "info");
-    const { createScoreTools } = await import("../provenance/tooling/score/index.ts");
+    const { createScoreTools } = await import("../../packages/core/src/provenance/tooling/score/index.ts");
     const toolDef = createScoreTools({
       shell: createShellStub([
         ...createRepoResponses(),
@@ -652,7 +640,7 @@ describe("provenance score tools", () => {
       ...createHistoryResponses("src", 3, createSrcHistoryLog()),
     ]);
 
-    const { createScoreTools } = await import("../provenance/tooling/score/index.ts");
+    const { createScoreTools } = await import("../../packages/core/src/provenance/tooling/score/index.ts");
     const toolDef = createScoreTools({ shell, rootDir: tempRoot }).gw_authority;
     if (!toolDef) {
       throw new Error("expected gw_authority tool");
@@ -693,7 +681,7 @@ describe("provenance score tools", () => {
       ...createHistoryResponses("src/a.ts", 2, createFileHistoryLog()),
     ]);
 
-    const { createScoreTools } = await import("../provenance/tooling/score/index.ts");
+    const { createScoreTools } = await import("../../packages/core/src/provenance/tooling/score/index.ts");
     const toolDef = createScoreTools({ shell, rootDir: tempRoot }).gw_stability_report;
     if (!toolDef) {
       throw new Error("expected gw_stability_report tool");
@@ -740,7 +728,7 @@ describe("provenance score tools", () => {
       ...createHistoryResponses("src/missing.ts", 0, ""),
     ]);
 
-    const { createScoreTools } = await import("../provenance/tooling/score/index.ts");
+    const { createScoreTools } = await import("../../packages/core/src/provenance/tooling/score/index.ts");
     const toolDef = createScoreTools({ shell, rootDir: tempRoot }).gw_stability_report;
     if (!toolDef) {
       throw new Error("expected gw_stability_report tool");
@@ -811,7 +799,7 @@ describe("provenance score tools", () => {
       ...createHistoryResponses("src/a.ts", 2, createFileHistoryLog()),
     ]);
 
-    const { createScoreTools } = await import("../provenance/tooling/score/index.ts");
+    const { createScoreTools } = await import("../../packages/core/src/provenance/tooling/score/index.ts");
     const toolDef = createScoreTools({ shell, rootDir: tempRoot }).gw_stability_report;
     if (!toolDef) {
       throw new Error("expected gw_stability_report tool");
@@ -850,7 +838,7 @@ describe("provenance score tools", () => {
 
   it("reports unsupported stability modes and logs the mode rejection", async () => {
     const warn = vi.spyOn(logger, "warn");
-    const { createScoreTools } = await import("../provenance/tooling/score/index.ts");
+    const { createScoreTools } = await import("../../packages/core/src/provenance/tooling/score/index.ts");
     const toolDef = createScoreTools({ shell: createShellStub([]), rootDir: tempRoot })
       .gw_stability_report;
     if (!toolDef) {
@@ -878,7 +866,7 @@ describe("provenance score tools", () => {
 
   it("returns stability failure envelopes and logs execution failures", async () => {
     const error = vi.spyOn(logger, "error");
-    const { createScoreTools } = await import("../provenance/tooling/score/index.ts");
+    const { createScoreTools } = await import("../../packages/core/src/provenance/tooling/score/index.ts");
     const toolDef = createScoreTools({
       shell: createShellStub([
         {

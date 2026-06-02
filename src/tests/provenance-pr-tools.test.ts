@@ -6,20 +6,8 @@ import {
   PROCESS_RUNNER,
   type ProcessCommand,
   type ProcessRunnerCarrier,
-} from "../../shared/effect-runtime.ts";
-import { z } from "zod";
-import type { Shell } from "../provenance/tooling/state/index.ts";
-
-vi.mock("@opencode-ai/plugin", () => {
-  const mockTool = ((input: unknown) => input) as {
-    (input: unknown): unknown;
-    schema: typeof z;
-  };
-  mockTool.schema = z;
-  return {
-    tool: mockTool,
-  };
-});
+} from "../../packages/core/src/shared/effect-runtime.ts";
+import type { Shell } from "../../packages/core/src/provenance/tooling/state/internal.ts";
 
 const HEAD_HASH = "abcdef1234567890abcdef1234567890abcdef12";
 
@@ -65,7 +53,7 @@ function createShellStub(responses: MockResponse[], seenCommands?: string[]) {
     return {
       text: () => executeCommand(command),
     };
-  }) as Shell & ProcessRunnerCarrier;
+  }) as unknown as Shell & ProcessRunnerCarrier;
 
   shell.braces = (_pattern: string) => [];
   shell.escape = (input: string) => input;
@@ -235,7 +223,7 @@ describe("PR provenance tools", () => {
       ...createRemotePrResponses(42),
     ]);
 
-    const { createPrMaterializeTool } = await import("../provenance/tooling/expand/pr-tools.ts");
+    const { createPrMaterializeTool } = await import("../../packages/core/src/provenance/tooling/expand/pr-tools.ts");
     const toolDef = createPrMaterializeTool({ shell, rootDir: tempRoot });
     const raw = await toolDef.execute(
       {
@@ -303,7 +291,7 @@ describe("PR provenance tools", () => {
       seenCommands,
     );
 
-    const { createPrMaterializeTool } = await import("../provenance/tooling/expand/pr-tools.ts");
+    const { createPrMaterializeTool } = await import("../../packages/core/src/provenance/tooling/expand/pr-tools.ts");
     const toolDef = createPrMaterializeTool({ shell, rootDir: tempRoot });
     const raw = await toolDef.execute(
       {
@@ -378,7 +366,7 @@ describe("PR provenance tools", () => {
       },
     ]);
 
-    const { createPrMaterializeTool } = await import("../provenance/tooling/expand/pr-tools.ts");
+    const { createPrMaterializeTool } = await import("../../packages/core/src/provenance/tooling/expand/pr-tools.ts");
     const toolDef = createPrMaterializeTool({ shell, rootDir: tempRoot });
     const raw = await toolDef.execute(
       {
@@ -472,7 +460,7 @@ describe("PR provenance tools", () => {
       },
     ]);
 
-    const { createPrMaterializeTool } = await import("../provenance/tooling/expand/pr-tools.ts");
+    const { createPrMaterializeTool } = await import("../../packages/core/src/provenance/tooling/expand/pr-tools.ts");
     const toolDef = createPrMaterializeTool({ shell, rootDir: tempRoot });
     const raw = await toolDef.execute(
       {
@@ -522,7 +510,7 @@ describe("PR provenance tools", () => {
       },
     ]);
 
-    const { createPrMaterializeTool } = await import("../provenance/tooling/expand/pr-tools.ts");
+    const { createPrMaterializeTool } = await import("../../packages/core/src/provenance/tooling/expand/pr-tools.ts");
     const toolDef = createPrMaterializeTool({ shell, rootDir: tempRoot });
     const raw = await toolDef.execute(
       {
@@ -579,7 +567,7 @@ describe("PR provenance tools", () => {
       seenCommands,
     );
 
-    const { createPrMaterializeTool } = await import("../provenance/tooling/expand/pr-tools.ts");
+    const { createPrMaterializeTool } = await import("../../packages/core/src/provenance/tooling/expand/pr-tools.ts");
     const toolDef = createPrMaterializeTool({ shell, rootDir: tempRoot });
     const raw = await toolDef.execute(
       {
@@ -620,7 +608,7 @@ describe("PR provenance tools", () => {
       },
     ]);
 
-    const { createPrMaterializeTool } = await import("../provenance/tooling/expand/pr-tools.ts");
+    const { createPrMaterializeTool } = await import("../../packages/core/src/provenance/tooling/expand/pr-tools.ts");
     const toolDef = createPrMaterializeTool({ shell, rootDir: tempRoot });
     const raw = await toolDef.execute(
       {
@@ -648,7 +636,7 @@ describe("PR provenance tools", () => {
       },
     ]);
 
-    const { createPrMaterializeTool } = await import("../provenance/tooling/expand/pr-tools.ts");
+    const { createPrMaterializeTool } = await import("../../packages/core/src/provenance/tooling/expand/pr-tools.ts");
     const toolDef = createPrMaterializeTool({ shell, rootDir: tempRoot });
     const raw = await toolDef.execute(
       {
@@ -709,7 +697,7 @@ describe("PR provenance tools", () => {
       },
     ]);
 
-    const { createPrMaterializeTool } = await import("../provenance/tooling/expand/pr-tools.ts");
+    const { createPrMaterializeTool } = await import("../../packages/core/src/provenance/tooling/expand/pr-tools.ts");
     const toolDef = createPrMaterializeTool({ shell, rootDir: tempRoot });
     const raw = await toolDef.execute(
       {
@@ -763,7 +751,7 @@ describe("PR provenance tools", () => {
       ...createRemotePrResponses(42),
     ]);
 
-    const { createPrExpandTool } = await import("../provenance/tooling/expand/pr-tools.ts");
+    const { createPrExpandTool } = await import("../../packages/core/src/provenance/tooling/expand/pr-tools.ts");
     const toolDef = createPrExpandTool({ shell, rootDir: tempRoot });
     const raw = await toolDef.execute(
       {
@@ -794,7 +782,7 @@ describe("PR provenance tools", () => {
       },
     ]);
 
-    const { createPrMaterializeTool } = await import("../provenance/tooling/expand/pr-tools.ts");
+    const { createPrMaterializeTool } = await import("../../packages/core/src/provenance/tooling/expand/pr-tools.ts");
     const toolDef = createPrMaterializeTool({ shell, rootDir: tempRoot });
     const raw = await toolDef.execute(
       {

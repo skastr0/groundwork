@@ -1,12 +1,12 @@
 import type { Event } from "@opencode-ai/sdk";
 import { describe, expect, it } from "vitest";
-import type { GroundworkToolDefinitions } from "../index.ts";
+import type { GroundworkToolDefinitions } from "../../packages/core/src/layer/dispatcher.ts";
+import { createGroundworkLayer } from "../../packages/core/src/layer/index.ts";
 import {
-  createGroundworkLayer,
   GROUNDWORK_LAYER_ORDER,
   FrameworkEnforcementError,
   materializeGroundworkLayers,
-} from "../index.ts";
+} from "../../packages/core/src/layer/dispatcher.ts";
 import { createFrameworkHookHarness } from "./framework-test-harness.ts";
 
 function createTestToolDefinitions(name: string): GroundworkToolDefinitions {
@@ -112,7 +112,7 @@ describe("framework hook dispatcher", () => {
         },
       },
     });
-    const harness = await createFrameworkHookHarness({ hooks });
+    const harness = await createFrameworkHookHarness({ hooks: hooks as never });
 
     try {
       expect(
@@ -231,7 +231,7 @@ describe("framework hook dispatcher", () => {
         },
       },
     });
-    const harness = await createFrameworkHookHarness({ hooks });
+    const harness = await createFrameworkHookHarness({ hooks: hooks as never });
 
     try {
       await harness.invokeChatMessage(
@@ -317,7 +317,7 @@ describe("framework hook dispatcher", () => {
         },
       },
     });
-    const harness = await createFrameworkHookHarness({ hooks });
+    const harness = await createFrameworkHookHarness({ hooks: hooks as never });
 
     try {
       await harness.invokeToolBefore(
@@ -360,7 +360,7 @@ describe("framework hook dispatcher", () => {
         },
       },
     });
-    const harness = await createFrameworkHookHarness({ hooks });
+    const harness = await createFrameworkHookHarness({ hooks: hooks as never });
 
     try {
       await expect(
