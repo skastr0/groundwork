@@ -13,16 +13,25 @@ For local development, run `bun install` and `bun run build` before installing o
 
 ## Plugin Browser Testing
 
-For a local Codex plugin install from this checkout, build the workspace and use a Codex marketplace snapshot whose plugin source path points at the Codex package bundle:
+This repository includes `.agents/plugins/marketplace.json`, which points the `groundwork` plugin source at `packages/codex`.
+
+For a local Codex plugin install from this checkout, build the workspace and add the repository root as a marketplace snapshot:
 
 ```sh
 bun install
 bun run build
-codex plugin marketplace add /path/to/marketplace
-codex plugin add groundwork@<marketplace-name>
+codex plugin marketplace add /path/to/groundwork
+codex plugin add groundwork@groundwork-local
 ```
 
-The marketplace entry for this package should resolve the `groundwork` plugin source to `/path/to/groundwork/packages/codex`, where `.codex-plugin/plugin.json` and `hooks/hooks.json` live.
+For a Git-backed marketplace snapshot:
+
+```sh
+codex plugin marketplace add skastr0/groundwork --ref main
+codex plugin add groundwork@groundwork-local
+```
+
+The marketplace entry resolves the `groundwork` plugin source to `packages/codex`, where `.codex-plugin/plugin.json`, `hooks/hooks.json`, and `dist/groundwork-codex-hook.mjs` live.
 
 Restart Codex after changing plugin files. Codex copies local plugin sources into its plugin cache, so an already-installed plugin can keep using stale hook definitions until the marketplace/plugin is refreshed. Review and trust the plugin-bundled hooks after install or hook changes.
 

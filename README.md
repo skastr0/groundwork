@@ -97,13 +97,25 @@ message = "src edits require review"
 
 The Codex plugin is published as `@skastr0/groundwork-codex`. Its package root contains `.codex-plugin/plugin.json`, lifecycle hooks in `hooks/hooks.json`, POSIX and Windows hook wrappers in `hooks/`, and the bundled hook runtime at `dist/groundwork-codex-hook.mjs`.
 
-Codex installs plugins from a plugin source directory or marketplace entry. For local development, use the Codex package directory as the plugin source:
+Codex installs plugins from configured marketplace snapshots. This repository includes `.agents/plugins/marketplace.json`, which points at `packages/codex`.
+
+For local development, build the plugin bundle, add this checkout as a marketplace, then install `groundwork` from that marketplace:
 
 ```sh
 bun install
 bun run build
-# point your Codex plugin source at /path/to/groundwork/packages/codex
+codex plugin marketplace add /path/to/groundwork
+codex plugin add groundwork@groundwork-local
 ```
+
+For Git-backed installs, use the same marketplace catalog from the repository:
+
+```sh
+codex plugin marketplace add skastr0/groundwork --ref main
+codex plugin add groundwork@groundwork-local
+```
+
+Codex copies plugin sources into its plugin cache. Restart Codex and reinstall or refresh the marketplace after changing plugin files, then review and trust the plugin-bundled hooks.
 
 Codex plugin hooks run shell commands that invoke `node` on the bundled JavaScript file. Runtime support follows the package engine: Node >= 24.
 
