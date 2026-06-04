@@ -5,6 +5,7 @@ import { Command } from "@effect/cli";
 import { BunContext, BunRuntime } from "@effect/platform-bun";
 import { Effect } from "effect";
 import { rootCommand } from "./cli/commands.ts";
+import { CLI_NAME, CLI_VERSION } from "./cli/discovery.ts";
 import { CliInputError, renderFailure } from "./cli/protocol.ts";
 
 const ROOT_LOG_LEVELS = [
@@ -84,8 +85,8 @@ interface InputCommandSpec {
 }
 
 const cli = Command.run(rootCommand, {
-  name: "groundwork",
-  version: "0.1.0",
+  name: CLI_NAME,
+  version: CLI_VERSION,
 });
 
 export function runGroundworkCli(argv: string[] = Bun.argv): void {

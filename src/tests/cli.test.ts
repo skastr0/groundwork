@@ -454,7 +454,7 @@ describe("groundwork CLI", () => {
     const result = await runGroundwork(["--wizard", "--help"]);
     expect(result.exitCode).toBe(0);
     expect(result.stderr).toBe("");
-    expect(result.stdout).toContain("groundwork 0.1.0");
+    expect(result.stdout).toContain("groundwork 0.1.1");
   });
 
   it("renders discoverable help for agent-facing commands", async () => {

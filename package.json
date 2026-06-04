@@ -1,6 +1,6 @@
 {
   "name": "@skastr0/groundwork",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Groundwork policy, provenance, context, and risk foundations for agentic development tools",
   "type": "module",
   "author": "Guilherme Castro <skastr052@gmail.com>",
@@ -63,7 +63,7 @@
     "policy"
   ],
   "dependencies": {
-    "@skastr0/groundwork-core": "0.1.0",
+    "@skastr0/groundwork-core": "0.1.1",
     "@effect/cli": "^0.75.1",
     "@effect/platform-bun": "^0.89.0",
     "effect": "^3.21.2",

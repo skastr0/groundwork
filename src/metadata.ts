@@ -1,6 +1,6 @@
 export const GROUNDWORK_SDK_INFO = {
   name: "@skastr0/groundwork",
-  version: "0.1.0",
+  version: "0.1.1",
   surfaces: ["cli", "core", "opencode", "codex"] as const,
   packages: {
     core: "@skastr0/groundwork-core",

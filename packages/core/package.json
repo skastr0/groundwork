@@ -1,6 +1,6 @@
 {
   "name": "@skastr0/groundwork-core",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Groundwork policy, provenance, context, risk, and session foundations",
   "type": "module",
   "author": "Guilherme Castro <skastr052@gmail.com>",
