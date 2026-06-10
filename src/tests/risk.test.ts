@@ -103,6 +103,18 @@ describe("framework risk layer", () => {
           body: expect.objectContaining({
             service: "groundwork-risk",
             level: "warn",
+            message: "Warned on destructive command after prior block-once",
+            extra: expect.objectContaining({
+              ruleId: "git.checkout-discard",
+            }),
+          }),
+        }),
+      );
+      expect(harness.client.app.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          body: expect.objectContaining({
+            service: "groundwork-risk",
+            level: "warn",
             message: "Unsafe command executed after prior block-once warning",
             extra: expect.objectContaining({
               ruleId: "git.checkout-discard",
@@ -150,7 +162,7 @@ describe("framework risk layer", () => {
           body: expect.objectContaining({
             service: "groundwork-risk",
             level: "warn",
-            message: "Blocked potentially destructive command",
+            message: "Warned on potentially destructive command",
             extra: expect.objectContaining({
               mode: "warn",
               ruleId: "rm.recursive-force",

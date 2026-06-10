@@ -208,7 +208,7 @@ export const RiskEvaluateCommandInputSchema = z.object({
 export const RiskEvaluateToolCallInputSchema = z.object({
   root_dir: RootDirSchema,
   session_id: z.string().min(1),
-  call_id: z.string().min(1).optional(),
+  call_id: z.string().min(1),
   tool: z.string().min(1).optional(),
   command: z.string().min(1),
   cwd: z.string().min(1).optional(),
@@ -507,7 +507,7 @@ export const SCHEMA_CONTRACTS = [
       "Evaluate one Bash tool call against destructive-risk rules with session block-once state.",
     schema: {
       type: "object",
-      required: ["session_id", "command"],
+      required: ["session_id", "call_id", "command"],
       additionalProperties: false,
       properties: {
         root_dir: { type: "string", minLength: 1 },

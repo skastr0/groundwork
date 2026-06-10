@@ -8,6 +8,7 @@ export { evaluateRiskCommand } from "./risk/service.ts";
 export {
   evaluateRiskToolCall,
   evaluateRiskToolResult,
+  recordRiskToolPending,
 } from "./risk/cli-service.ts";
 export {
   acceptPolicyOverride,

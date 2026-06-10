@@ -10,11 +10,16 @@ import {
   evaluateRiskToolCall,
   evaluateRiskToolResult,
   markSessionSkillsLoaded,
+  recordRiskToolPending,
 } from "@skastr0/groundwork-core/cli-support";
 
 type PreToolRiskResult =
-  | { kind: "continue"; messages: string[] }
+  | { kind: "continue"; messages: string[]; pendingRisk?: PendingRiskExecution }
   | { kind: "deny"; reason: string };
+
+interface PendingRiskExecution {
+  fingerprint: string;
+}
 
 type PostToolHookContext = {
   rootDir: string | undefined;
@@ -102,10 +107,19 @@ async function runPreToolUseHook(payload: unknown) {
     args: toolInputFromHookPayload(payload),
   });
 
-  if (writePreToolPolicyFeedback(result, riskResult.messages)) {
+  if (isPolicyBlock(result)) {
+    writePreToolDeny(combineHookMessages([renderPolicyDecisionReason(result), ...riskResult.messages]));
     return;
   }
 
+  await recordPendingRiskExecution(payload, sessionID, riskResult);
+
+  if (isPolicyWarn(result)) {
+    writeHookJson({
+      systemMessage: combineHookMessages([renderPolicyDecisionReason(result), ...riskResult.messages]),
+    });
+    return;
+  }
   writeHookSystemMessage(combineHookMessages(riskResult.messages));
 }
 
@@ -119,24 +133,51 @@ async function evaluatePreToolRisk(
   if (!command) return { kind: "continue", messages: [] };
 
   const sessionID = stringField(payload, "session_id");
-  if (sessionID) {
-    const result = await evaluateRiskToolCall({
-      root_dir: cwdFromHookPayload(payload),
-      session_id: sessionID,
-      call_id: stringField(payload, "tool_use_id"),
-      tool: "bash",
-      command,
-      cwd: cwdFromHookPayload(payload),
-      config: configFromEnv(process.env),
-    });
+  if (sessionID) return evaluateSessionPreToolRisk(payload, sessionID, command);
+  return evaluateStatelessPreToolRisk(command);
+}
 
-    if (result.decision === "block") {
-      return { kind: "deny", reason: renderRiskMessages(result) };
-    }
+async function evaluateSessionPreToolRisk(
+  payload: unknown,
+  sessionID: string,
+  command: string,
+): Promise<PreToolRiskResult> {
+  const result = await evaluateRiskToolCall({
+    root_dir: cwdFromHookPayload(payload),
+    session_id: sessionID,
+    call_id: stringField(payload, "tool_use_id"),
+    tool: "bash",
+    command,
+    cwd: cwdFromHookPayload(payload),
+    config: configFromEnv(process.env),
+    record_pending: false,
+  });
 
+  if (result.decision === "block") {
+    return { kind: "deny", reason: renderRiskMessages(result) };
+  }
+
+  if (result.effect !== "warn_after_block_once" || typeof result.fingerprint !== "string") {
     return { kind: "continue", messages: readRiskMessages(result) };
   }
 
+  if (!stringField(payload, "tool_use_id")) {
+    return {
+      kind: "deny",
+      reason: combineHookMessages([
+        renderRiskMessages(result),
+        "[groundwork:risk] Retry blocked because no Codex tool_use_id was supplied for execution reporting.",
+      ]),
+    };
+  }
+  return {
+    kind: "continue",
+    messages: readRiskMessages(result),
+    pendingRisk: { fingerprint: result.fingerprint },
+  };
+}
+
+function evaluateStatelessPreToolRisk(command: string): PreToolRiskResult {
   const riskDecision = evaluateRiskCommand({ command, config: configFromEnv(process.env) });
   if (!riskDecision.violation) return { kind: "continue", messages: [] };
 
@@ -157,22 +198,6 @@ async function evaluatePreToolRisk(
   };
 }
 
-function writePreToolPolicyFeedback(result: unknown, riskMessages: string[]): boolean {
-  if (isPolicyBlock(result)) {
-    writePreToolDeny(combineHookMessages([renderPolicyDecisionReason(result), ...riskMessages]));
-    return true;
-  }
-
-  if (isPolicyWarn(result)) {
-    writeHookJson({
-      systemMessage: combineHookMessages([renderPolicyDecisionReason(result), ...riskMessages]),
-    });
-    return true;
-  }
-
-  return false;
-}
-
 function writePreToolDeny(reason: string): void {
   writeHookJson({
     hookSpecificOutput: {
@@ -180,6 +205,22 @@ function writePreToolDeny(reason: string): void {
       permissionDecision: "deny",
       permissionDecisionReason: reason,
     },
+  });
+}
+
+async function recordPendingRiskExecution(
+  payload: unknown,
+  sessionID: string,
+  riskResult: Extract<PreToolRiskResult, { kind: "continue" }>,
+): Promise<void> {
+  const callID = stringField(payload, "tool_use_id");
+  if (!callID || !riskResult.pendingRisk) return;
+
+  await recordRiskToolPending({
+    root_dir: cwdFromHookPayload(payload),
+    session_id: sessionID,
+    call_id: callID,
+    fingerprint: riskResult.pendingRisk.fingerprint,
   });
 }
 
@@ -214,6 +255,7 @@ async function handleSessionPermissionRequest(
     command,
     cwd: cwdFromHookPayload(payload),
     config: configFromEnv(process.env),
+    record_pending: false,
   });
 
   const message = renderRiskMessages(result);
@@ -341,6 +383,10 @@ function writePostToolContextFeedback(
 ): void {
   const riskMessage = renderRiskMessages(riskResult);
   if (contextResult.reminders.length === 0 && !riskMessage) return;
+  if (contextResult.reminders.length === 0) {
+    writePostToolRiskFeedback(riskMessage);
+    return;
+  }
 
   writeHookJson({
     systemMessage: combineHookMessages([
@@ -351,6 +397,17 @@ function writePostToolContextFeedback(
       hookEventName: "PostToolUse",
       additionalContext:
         "Groundwork found new context reminders for touched paths. This is feedback, not synthetic prompt injection parity.",
+    },
+  });
+}
+
+function writePostToolRiskFeedback(riskMessage: string): void {
+  writeHookJson({
+    systemMessage: riskMessage,
+    hookSpecificOutput: {
+      hookEventName: "PostToolUse",
+      additionalContext:
+        "Groundwork reported risk feedback after tool execution. This cannot undo side effects.",
     },
   });
 }

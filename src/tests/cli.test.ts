@@ -439,6 +439,70 @@ describe("groundwork CLI", () => {
     }
   });
 
+  it("anchors relative risk tool cwd values to root_dir", async () => {
+    const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "groundwork-cli-risk-cwd-"));
+    const processDir = path.join(rootDir, "process");
+    await fs.mkdir(processDir);
+
+    const basePayload = {
+      root_dir: rootDir,
+      session_id: "risk-relative-cwd-session",
+      tool: "bash",
+      command: "git reset --hard",
+      cwd: ".",
+    };
+
+    try {
+      const first = await runGroundwork(
+        [
+          "risk",
+          "evaluate-tool-call",
+          JSON.stringify({ ...basePayload, call_id: "risk-relative-cwd-call-1" }),
+        ],
+        undefined,
+        { cwd: rootDir },
+      );
+      expect(first.exitCode).toBe(0);
+      expect(parseJson(first.stdout)).toMatchObject({
+        data: { decision: "block", effect: "blocked_once" },
+      });
+
+      const second = await runGroundwork(
+        [
+          "risk",
+          "evaluate-tool-call",
+          JSON.stringify({ ...basePayload, call_id: "risk-relative-cwd-call-2" }),
+        ],
+        undefined,
+        { cwd: processDir },
+      );
+      expect(second.exitCode).toBe(0);
+      expect(parseJson(second.stdout)).toMatchObject({
+        data: { decision: "warn", effect: "warn_after_block_once" },
+      });
+    } finally {
+      await fs.rm(rootDir, { recursive: true, force: true });
+    }
+  });
+
+  it("requires call_id for public risk tool-call evaluation", async () => {
+    const result = await runGroundwork([
+      "risk",
+      "evaluate-tool-call",
+      '{"session_id":"missing-call","tool":"bash","command":"git reset --hard"}',
+    ]);
+
+    expectJsonOnlyFailure(result);
+    expect(parseJson(result.stderr)).toMatchObject({
+      ok: false,
+      command: "risk evaluate-tool-call",
+      error: {
+        type: "CliInputError",
+        message: "Input failed schema validation",
+      },
+    });
+  });
+
   it("honors risk foundation warn and off modes", async () => {
     const warnResult = await runGroundwork([
       "risk",

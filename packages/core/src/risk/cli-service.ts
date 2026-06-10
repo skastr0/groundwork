@@ -27,12 +27,20 @@ export interface RiskEvaluateToolCallInput {
   command: string;
   cwd?: string;
   config?: Partial<GuardConfig>;
+  record_pending?: boolean;
 }
 
 export interface RiskEvaluateToolResultInput {
   root_dir?: string;
   session_id: string;
   call_id: string;
+}
+
+export interface RiskRecordToolPendingInput {
+  root_dir?: string;
+  session_id: string;
+  call_id: string;
+  fingerprint: string;
 }
 
 export async function evaluateRiskToolCall(input: RiskEvaluateToolCallInput) {
@@ -88,9 +96,11 @@ export async function evaluateRiskToolCall(input: RiskEvaluateToolCallInput) {
     if (!result.record) return result;
 
     writeRiskBlockOnceRecord(state, key, result.record);
-    if (result.effect === "warn_after_block_once" && input.call_id) {
-      state.session.pendingTools.calls[createRiskPendingToolKey(input.call_id)] =
-        createRiskPendingTool(input.call_id, result.record);
+    if (result.effect === "warn_after_block_once" && input.record_pending !== false) {
+      if (!input.call_id) {
+        return blockRetryWithoutCallID(result);
+      }
+      writeRiskPendingTool(state, input.call_id, result.record);
     }
     return result;
   });
@@ -102,6 +112,39 @@ export async function evaluateRiskToolCall(input: RiskEvaluateToolCallInput) {
     tool: "bash",
     ...updated.result,
   };
+}
+
+export async function recordRiskToolPending(input: RiskRecordToolPendingInput) {
+  const updated = await updateSessionArtifactState(input.root_dir, input.session_id, (state) => {
+    const actionKey = createRiskBlockOnceActionKey(input.fingerprint);
+    const record = readRiskBlockOnceRecord(state, actionKey);
+    if (!record) {
+      return {
+        command: "risk record-tool-pending",
+        decision: "warn" as const,
+        effect: "warn_after_block_once" as const,
+        session_id: input.session_id,
+        call_id: input.call_id,
+        fingerprint: input.fingerprint,
+        recorded: false,
+        messages: ["[groundwork:risk] Risk pending report had no matching block-once record."],
+      };
+    }
+
+    writeRiskPendingTool(state, input.call_id, record);
+    return {
+      command: "risk record-tool-pending",
+      decision: "warn" as const,
+      effect: "warn_after_block_once" as const,
+      session_id: input.session_id,
+      call_id: input.call_id,
+      fingerprint: input.fingerprint,
+      recorded: true,
+      messages: [],
+    };
+  });
+
+  return updated.result;
 }
 
 export async function evaluateRiskToolResult(input: RiskEvaluateToolResultInput) {
@@ -221,10 +264,34 @@ function createRiskPendingTool(
   };
 }
 
+function writeRiskPendingTool(
+  state: SessionArtifactState,
+  callID: string,
+  record: RiskBlockOnceRecord,
+): void {
+  state.session.pendingTools.calls[createRiskPendingToolKey(callID)] =
+    createRiskPendingTool(callID, record);
+}
+
+function blockRetryWithoutCallID(
+  result: ReturnType<typeof evaluateRiskCommandWithBlockOnce>,
+): ReturnType<typeof evaluateRiskCommandWithBlockOnce> {
+  return {
+    ...result,
+    decision: "block",
+    messages: [
+      ...result.messages,
+      "[groundwork:risk] Retry blocked because no call_id was supplied for execution reporting.",
+    ],
+  };
+}
+
 function readPendingRiskFingerprint(pending: FrameworkPendingToolCall): string | undefined {
   return typeof pending.data?.fingerprint === "string" ? pending.data.fingerprint : undefined;
 }
 
 function resolveRiskCwd(input: Pick<RiskEvaluateToolCallInput, "cwd" | "root_dir">): string {
-  return path.resolve(input.cwd ?? input.root_dir ?? process.cwd());
+  const rootDir = path.resolve(input.root_dir ?? process.cwd());
+  if (!input.cwd) return rootDir;
+  return path.isAbsolute(input.cwd) ? input.cwd : path.resolve(rootDir, input.cwd);
 }

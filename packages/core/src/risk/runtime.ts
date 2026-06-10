@@ -141,7 +141,7 @@ async function handleRiskToolBefore(
   });
   persistRiskBlockOnceDecision(runtime.sessionStore, state, callID, tool, blockOnceDecision.record);
 
-  await logFrameworkEvent(runtime.client, SERVICE, "warn", "Blocked potentially destructive command", {
+  await logFrameworkEvent(runtime.client, SERVICE, "warn", riskFrameworkLogMessage(blockOnceDecision), {
     mode: runtime.config.mode,
     effect: blockOnceDecision.effect,
     callID,
@@ -158,6 +158,16 @@ async function handleRiskToolBefore(
     source: SERVICE,
     code: decision.violation.ruleId,
   });
+}
+
+function riskFrameworkLogMessage(
+  decision: ReturnType<typeof evaluateRiskCommandWithBlockOnce>,
+): string {
+  if (decision.decision === "block") return "Blocked potentially destructive command";
+  if (decision.effect === "warn_after_block_once") {
+    return "Warned on destructive command after prior block-once";
+  }
+  return "Warned on potentially destructive command";
 }
 
 function persistRiskBlockOnceDecision(

@@ -118,14 +118,21 @@ describe("Groundwork Codex hook package", () => {
       );
 
       expect(post.exitCode).toBe(0);
-      expect(parseJson(post.stdout)).toMatchObject({
-        systemMessage: expect.stringContaining(
-          "Unsafe command executed after prior block-once warning",
-        ),
+      const parsedPost = parseJson(post.stdout) as {
+        systemMessage?: string;
+        hookSpecificOutput?: { additionalContext?: string };
+      };
+      const additionalContext = parsedPost.hookSpecificOutput?.additionalContext;
+      expect(parsedPost.systemMessage).toContain(
+        "Unsafe command executed after prior block-once warning",
+      );
+      expect(parsedPost).toMatchObject({
         hookSpecificOutput: {
           hookEventName: "PostToolUse",
         },
       });
+      expect(additionalContext).toContain("risk feedback");
+      expect(additionalContext).not.toContain("context reminders");
     } finally {
       await fs.rm(rootDir, { recursive: true, force: true });
     }

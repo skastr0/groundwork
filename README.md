@@ -132,6 +132,7 @@ See `docs/codex-integration.md` for details.
 The OpenCode package is published as `@skastr0/groundwork-opencode-plugin`. Its runtime entrypoint is `packages/opencode-plugin/src/server.ts`, built to `packages/opencode-plugin/dist/server.js`, and it uses `@skastr0/groundwork-core` for shared Groundwork behavior.
 
 OpenCode keeps stronger runtime hooks for ambient behavior, while shared Groundwork services and CLI-facing foundations carry the reusable business logic. Existing OpenCode `gw_*` provenance tool IDs and hook behavior are preserved.
+For destructive Bash risk, OpenCode now follows the shared block-once lifecycle: the first exact session command blocks, the exact retry warns and proceeds, and the after-hook logs execution for the warned command.
 
 For local OpenCode use, point OpenCode at this package/plugin path after building:
 
