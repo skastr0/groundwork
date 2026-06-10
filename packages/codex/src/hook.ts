@@ -1,18 +1,19 @@
 import { readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
-import { Effect } from "effect";
 import {
   acceptPolicyOverride,
-  confirmPolicySkillsLoadedEffect,
   configFromEnv,
   evaluateContextTouchedPaths,
   evaluatePolicyToolCall,
   evaluatePolicyToolResult,
   evaluateRiskCommand,
+  evaluateRiskToolCall,
+  evaluateRiskToolResult,
+  markSessionSkillsLoaded,
 } from "@skastr0/groundwork-core/cli-support";
 
 type PreToolRiskResult =
-  | { kind: "continue"; warning?: string }
+  | { kind: "continue"; messages: string[] }
   | { kind: "deny"; reason: string };
 
 type PostToolHookContext = {
@@ -49,26 +50,24 @@ async function runUserPromptSubmitHook(payload: unknown) {
   const prompt = stringField(payload, "prompt");
   if (!sessionID || !prompt) return;
 
-  const commands = parsePolicyPromptCommands(prompt);
-  for (const command of commands) {
-    if (command.type === "override") {
+  const policyCommands = parsePolicyPromptCommands(prompt);
+  for (const policyCommand of policyCommands) {
+    if (policyCommand.type === "override") {
       await acceptPolicyOverride({
         root_dir: cwdFromHookPayload(payload),
         session_id: sessionID,
-        reason: command.reason,
+        reason: policyCommand.reason,
       });
     } else {
-      await Effect.runPromise(
-        confirmPolicySkillsLoadedEffect({
-          root_dir: cwdFromHookPayload(payload),
-          session_id: sessionID,
-          skills: command.skills,
-        }),
-      );
+      await markSessionSkillsLoaded({
+        root_dir: cwdFromHookPayload(payload),
+        session_id: sessionID,
+        skills: policyCommand.skills,
+      });
     }
   }
 
-  if (commands.length > 0) {
+  if (policyCommands.length > 0) {
     writeHookJson({
       hookSpecificOutput: {
         hookEventName: "UserPromptSubmit",
@@ -82,15 +81,15 @@ async function runPreToolUseHook(payload: unknown) {
   const toolName = stringField(payload, "tool_name");
   if (!toolName) return;
 
-  const riskResult = evaluatePreToolRisk(payload, toolName);
+  const riskResult = await evaluatePreToolRisk(payload, toolName);
   if (riskResult.kind === "deny") {
-    writePreToolDeny(`[groundwork:risk] ${riskResult.reason}`);
+    writePreToolDeny(riskResult.reason);
     return;
   }
 
   const sessionID = stringField(payload, "session_id");
   if (!sessionID) {
-    writeHookSystemMessage(riskResult.warning);
+    writeHookSystemMessage(combineHookMessages(riskResult.messages));
     return;
   }
 
@@ -103,40 +102,71 @@ async function runPreToolUseHook(payload: unknown) {
     args: toolInputFromHookPayload(payload),
   });
 
-  if (writePreToolPolicyFeedback(result)) {
+  if (writePreToolPolicyFeedback(result, riskResult.messages)) {
     return;
   }
 
-  writeHookSystemMessage(riskResult.warning);
+  writeHookSystemMessage(combineHookMessages(riskResult.messages));
 }
 
-function evaluatePreToolRisk(payload: unknown, toolName: string): PreToolRiskResult {
-  if (toolName !== "Bash") return { kind: "continue" };
+async function evaluatePreToolRisk(
+  payload: unknown,
+  toolName: string,
+): Promise<PreToolRiskResult> {
+  if (toolName !== "Bash") return { kind: "continue", messages: [] };
 
   const command = commandFromHookPayload(payload);
-  if (!command) return { kind: "continue" };
+  if (!command) return { kind: "continue", messages: [] };
 
-  const decision = evaluateRiskCommand({ command, config: configFromEnv(process.env) });
-  if (!decision.violation) return { kind: "continue" };
+  const sessionID = stringField(payload, "session_id");
+  if (sessionID) {
+    const result = await evaluateRiskToolCall({
+      root_dir: cwdFromHookPayload(payload),
+      session_id: sessionID,
+      call_id: stringField(payload, "tool_use_id"),
+      tool: "bash",
+      command,
+      cwd: cwdFromHookPayload(payload),
+      config: configFromEnv(process.env),
+    });
 
-  if (decision.decision === "warn") {
+    if (result.decision === "block") {
+      return { kind: "deny", reason: renderRiskMessages(result) };
+    }
+
+    return { kind: "continue", messages: readRiskMessages(result) };
+  }
+
+  const riskDecision = evaluateRiskCommand({ command, config: configFromEnv(process.env) });
+  if (!riskDecision.violation) return { kind: "continue", messages: [] };
+
+  if (riskDecision.decision === "warn") {
     return {
       kind: "continue",
-      warning: `[groundwork:risk] Warn mode matched ${decision.violation.ruleId}: ${decision.violation.reason}`,
+      messages: [
+        `[groundwork:risk] Warn mode matched ${riskDecision.violation.ruleId}: ${riskDecision.violation.reason}`,
+      ],
     };
   }
 
-  return { kind: "deny", reason: decision.violation.reason };
+  return {
+    kind: "deny",
+    reason:
+      `[groundwork:risk] ${riskDecision.violation.reason} (rule: ${riskDecision.violation.ruleId}). ` +
+      "No Codex session_id was present, so block-once retry state could not be recorded.",
+  };
 }
 
-function writePreToolPolicyFeedback(result: unknown): boolean {
+function writePreToolPolicyFeedback(result: unknown, riskMessages: string[]): boolean {
   if (isPolicyBlock(result)) {
-    writePreToolDeny(renderPolicyDecisionReason(result));
+    writePreToolDeny(combineHookMessages([renderPolicyDecisionReason(result), ...riskMessages]));
     return true;
   }
 
   if (isPolicyWarn(result)) {
-    writeHookJson({ systemMessage: renderPolicyDecisionReason(result) });
+    writeHookJson({
+      systemMessage: combineHookMessages([renderPolicyDecisionReason(result), ...riskMessages]),
+    });
     return true;
   }
 
@@ -162,16 +192,67 @@ async function runPermissionRequestHook(payload: unknown) {
   const command = commandFromHookPayload(payload);
   if (!command) return;
 
-  const decision = evaluateRiskCommand({ command, config: configFromEnv(process.env) });
-  if (!decision.violation || decision.decision !== "block") return;
+  const sessionID = stringField(payload, "session_id");
+  if (sessionID) {
+    await handleSessionPermissionRequest(payload, sessionID, command);
+    return;
+  }
 
+  handleStatelessPermissionRequest(command);
+}
+
+async function handleSessionPermissionRequest(
+  payload: unknown,
+  sessionID: string,
+  command: string,
+): Promise<void> {
+  const result = await evaluateRiskToolCall({
+    root_dir: cwdFromHookPayload(payload),
+    session_id: sessionID,
+    call_id: stringField(payload, "tool_use_id"),
+    tool: "bash",
+    command,
+    cwd: cwdFromHookPayload(payload),
+    config: configFromEnv(process.env),
+  });
+
+  const message = renderRiskMessages(result);
+  if (result.decision === "block") {
+    writePermissionRequestDeny(message);
+    return;
+  }
+  if (message) writePermissionRequestWarning(message);
+}
+
+function handleStatelessPermissionRequest(command: string): void {
+  const riskDecision = evaluateRiskCommand({ command, config: configFromEnv(process.env) });
+  if (!riskDecision.violation || riskDecision.decision !== "block") return;
+
+  writePermissionRequestDeny(
+    `[groundwork:risk] ${riskDecision.violation.reason} (rule: ${riskDecision.violation.ruleId}). ` +
+      "No Codex session_id was present, so block-once retry state could not be recorded.",
+  );
+}
+
+function writePermissionRequestDeny(message: string): void {
   writeHookJson({
     hookSpecificOutput: {
       hookEventName: "PermissionRequest",
       decision: {
         behavior: "deny",
-        message: `[groundwork:risk] ${decision.violation.reason}`,
+        message,
       },
+    },
+  });
+}
+
+function writePermissionRequestWarning(message: string): void {
+  writeHookJson({
+    systemMessage: message,
+    hookSpecificOutput: {
+      hookEventName: "PermissionRequest",
+      additionalContext:
+        "Groundwork risk is warning only here; it is not granting or denying the Codex permission request.",
     },
   });
 }
@@ -180,6 +261,11 @@ async function runPostToolUseHook(payload: unknown) {
   const context = readPostToolHookContext(payload);
   if (!context) return;
 
+  const riskResult = await evaluateRiskToolResult({
+    root_dir: context.rootDir,
+    session_id: context.sessionID,
+    call_id: context.toolUseID,
+  });
   const result = await evaluatePolicyToolResult({
     root_dir: context.rootDir,
     session_id: context.sessionID,
@@ -194,7 +280,7 @@ async function runPostToolUseHook(payload: unknown) {
     args: context.args,
   });
 
-  writePostToolFeedback(result, contextResult);
+  writePostToolFeedback(result, contextResult, riskResult);
 }
 
 function readPostToolHookContext(payload: unknown): PostToolHookContext | undefined {
@@ -215,27 +301,30 @@ function readPostToolHookContext(payload: unknown): PostToolHookContext | undefi
 function writePostToolFeedback(
   result: unknown,
   contextResult: Awaited<ReturnType<typeof evaluateContextTouchedPaths>>,
+  riskResult: Awaited<ReturnType<typeof evaluateRiskToolResult>>,
 ): void {
   if (isPolicyWarn(result)) {
-    writePostToolWarnFeedback(result, contextResult);
+    writePostToolWarnFeedback(result, contextResult, riskResult);
     return;
   }
 
   if (!isPolicyBlock(result)) {
-    writePostToolContextFeedback(contextResult);
+    writePostToolContextFeedback(contextResult, riskResult);
     return;
   }
 
-  writePostToolBlockFeedback(result);
+  writePostToolBlockFeedback(result, riskResult);
 }
 
 function writePostToolWarnFeedback(
   result: unknown,
   contextResult: Awaited<ReturnType<typeof evaluateContextTouchedPaths>>,
+  riskResult: Awaited<ReturnType<typeof evaluateRiskToolResult>>,
 ): void {
   writeHookJson({
     systemMessage: combineHookMessages([
       `${renderPolicyDecisionReason(result)} Side effects may already have happened; inspect and repair if needed.`,
+      renderRiskMessages(riskResult),
       renderContextReminderMessage(contextResult),
     ]),
     hookSpecificOutput: {
@@ -248,11 +337,16 @@ function writePostToolWarnFeedback(
 
 function writePostToolContextFeedback(
   contextResult: Awaited<ReturnType<typeof evaluateContextTouchedPaths>>,
+  riskResult: Awaited<ReturnType<typeof evaluateRiskToolResult>>,
 ): void {
-  if (contextResult.reminders.length === 0) return;
+  const riskMessage = renderRiskMessages(riskResult);
+  if (contextResult.reminders.length === 0 && !riskMessage) return;
 
   writeHookJson({
-    systemMessage: renderContextReminderMessage(contextResult),
+    systemMessage: combineHookMessages([
+      riskMessage,
+      renderContextReminderMessage(contextResult),
+    ]),
     hookSpecificOutput: {
       hookEventName: "PostToolUse",
       additionalContext:
@@ -261,10 +355,16 @@ function writePostToolContextFeedback(
   });
 }
 
-function writePostToolBlockFeedback(result: unknown): void {
+function writePostToolBlockFeedback(
+  result: unknown,
+  riskResult: Awaited<ReturnType<typeof evaluateRiskToolResult>>,
+): void {
   writeHookJson({
     decision: "block",
-    reason: `${renderPolicyDecisionReason(result)} Side effects may already have happened; inspect and repair before continuing.`,
+    reason: combineHookMessages([
+      `${renderPolicyDecisionReason(result)} Side effects may already have happened; inspect and repair before continuing.`,
+      renderRiskMessages(riskResult),
+    ]),
     hookSpecificOutput: {
       hookEventName: "PostToolUse",
       additionalContext:
@@ -354,6 +454,18 @@ function renderPolicyDecisionReason(value: unknown): string {
     )
     .find((text): text is string => typeof text === "string" && text.length > 0);
   return firstText ?? "[groundwork:policy] Policy check requested attention.";
+}
+
+function readRiskMessages(value: unknown): string[] {
+  if (!value || typeof value !== "object") return [];
+  const messages = (value as Record<string, unknown>)["messages"];
+  return Array.isArray(messages)
+    ? messages.filter((message): message is string => typeof message === "string" && message.length > 0)
+    : [];
+}
+
+function renderRiskMessages(value: unknown): string {
+  return combineHookMessages(readRiskMessages(value));
 }
 
 function renderContextReminderMessage(value: { reminders?: string[] }): string | undefined {

@@ -51,6 +51,9 @@ groundwork capabilities
 groundwork schema list
 groundwork examples list
 groundwork risk evaluate-command '{"command":"git reset --hard"}'
+groundwork risk evaluate-tool-call '{"session_id":"codex","call_id":"call-1","tool":"bash","command":"git reset --hard","cwd":"."}'
+groundwork risk evaluate-tool-call '{"session_id":"codex","call_id":"call-2","tool":"bash","command":"git reset --hard","cwd":"."}'
+groundwork risk evaluate-tool-result '{"session_id":"codex","call_id":"call-2"}'
 groundwork policy evaluate-tool-call '{"session_id":"codex","tool":"edit","args":{"path":"src/index.ts"}}'
 groundwork context touched-paths '{"session_id":"codex","tool":"edit","args":{"path":"src/index.ts"}}'
 groundwork context discover '{"target_path":"README.md","include_root":true}'
@@ -61,6 +64,7 @@ groundwork session render-compaction '{"session_id":"codex"}'
 
 Discovery commands expose supported capabilities, examples, and JSON schema contracts.
 Context discovery excludes root-level `AGENTS.md` / `CLAUDE.md` by default to preserve harness parity; pass `include_root: true` when using the CLI for workspace-root audits or root-level files.
+Risk `evaluate-command` is a pure classifier. Harness-style `risk evaluate-tool-call` adds session-scoped block-once state: the first exact destructive Bash command blocks, the same exact retry warns, and `risk evaluate-tool-result` records that the warned command actually executed.
 
 ## Policy Configuration
 
@@ -119,7 +123,7 @@ Codex copies plugin sources into its plugin cache. Restart Codex and reinstall o
 
 Codex plugin hooks run shell commands that invoke `node` on the bundled JavaScript file. Runtime support follows the package engine: Node >= 24.
 
-Codex hook parity is best effort. Current hooks cover `SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PermissionRequest`, `PostToolUse`, and `Stop` within Codex hook API limits. They can deny supported risky commands and policy violations before execution, record explicit policy commands, persist session artifacts, and report post-tool/context feedback. They cannot intercept every tool path, undo side effects after a tool runs, or fully reproduce OpenCode synthetic prompt injection/compaction behavior. Codex requires plugin-bundled hooks to be reviewed and trusted after installation or hook changes.
+Codex hook parity is best effort. Current hooks cover `SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PermissionRequest`, `PostToolUse`, and `Stop` within Codex hook API limits. They can block supported risky Bash commands once per exact session command, warn on exact retry without auto-approving permission requests, deny policy violations before execution, record explicit policy commands, persist session artifacts, and report post-tool/context feedback. They cannot intercept every tool path, undo side effects after a tool runs, or fully reproduce OpenCode synthetic prompt injection/compaction behavior. Codex requires plugin-bundled hooks to be reviewed and trusted after installation or hook changes.
 
 See `docs/codex-integration.md` for details.
 

@@ -14,6 +14,8 @@ Codex hooks run shell commands from `hooks/hooks.json`. The shell and cmd wrappe
 
 Hook runtime support follows the package engine: Node >= 24.
 
+Risk hooks use session-scoped block-once state for destructive Bash commands: the first exact command is denied, an exact retry warns without granting Codex permission, and post-tool feedback reports execution after a warning.
+
 ## Build
 
 ```sh

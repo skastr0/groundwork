@@ -37,7 +37,13 @@ export const GroundworkPlugin: Plugin = async ({ $, client, directory, worktree 
     shell: $,
     rootDir: worktree,
   });
-  const mutationRisk = await createFrameworkRiskLayer({ client });
+  const mutationRisk = await createFrameworkRiskLayer({
+    client,
+    directory,
+    ownSessionCleanup: false,
+    sessionStore,
+    worktree,
+  });
 
   return createGroundworkLayer({
     policy,

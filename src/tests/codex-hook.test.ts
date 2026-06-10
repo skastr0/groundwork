@@ -66,7 +66,126 @@ describe("Groundwork Codex hook package", () => {
     });
   });
 
-  it("denies risky Bash commands before tool execution", async () => {
+  it("blocks risky Bash commands once, then warns and reports execution", async () => {
+    const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "groundwork-codex-risk-"));
+
+    try {
+      const first = await runCodexHook(
+        JSON.stringify({
+          hook_event_name: "PreToolUse",
+          cwd: rootDir,
+          session_id: "risk-hook-session",
+          tool_name: "Bash",
+          tool_use_id: "risk-hook-call-1",
+          tool_input: { command: "git reset --hard" },
+        }),
+      );
+
+      expect(first.exitCode).toBe(0);
+      expect(parseJson(first.stdout)).toMatchObject({
+        hookSpecificOutput: {
+          hookEventName: "PreToolUse",
+          permissionDecision: "deny",
+          permissionDecisionReason: expect.stringContaining("Blocked once for this exact command"),
+        },
+      });
+
+      const second = await runCodexHook(
+        JSON.stringify({
+          hook_event_name: "PreToolUse",
+          cwd: rootDir,
+          session_id: "risk-hook-session",
+          tool_name: "Bash",
+          tool_use_id: "risk-hook-call-2",
+          tool_input: { command: "git reset --hard" },
+        }),
+      );
+
+      expect(second.exitCode).toBe(0);
+      expect(parseJson(second.stdout)).toMatchObject({
+        systemMessage: expect.stringContaining("Proceeding after a prior block-once warning"),
+      });
+
+      const post = await runCodexHook(
+        JSON.stringify({
+          hook_event_name: "PostToolUse",
+          cwd: rootDir,
+          session_id: "risk-hook-session",
+          tool_name: "Bash",
+          tool_use_id: "risk-hook-call-2",
+          tool_input: { command: "git reset --hard" },
+        }),
+      );
+
+      expect(post.exitCode).toBe(0);
+      expect(parseJson(post.stdout)).toMatchObject({
+        systemMessage: expect.stringContaining(
+          "Unsafe command executed after prior block-once warning",
+        ),
+        hookSpecificOutput: {
+          hookEventName: "PostToolUse",
+        },
+      });
+    } finally {
+      await fs.rm(rootDir, { recursive: true, force: true });
+    }
+  });
+
+  it("warns only for repeated risky Bash permission requests", async () => {
+    const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "groundwork-codex-permission-"));
+
+    try {
+      const first = await runCodexHook(
+        JSON.stringify({
+          hook_event_name: "PermissionRequest",
+          cwd: rootDir,
+          session_id: "permission-risk-session",
+          tool_name: "Bash",
+          tool_use_id: "permission-risk-call-1",
+          tool_input: { command: "git reset --hard" },
+        }),
+      );
+
+      expect(first.exitCode).toBe(0);
+      expect(parseJson(first.stdout)).toMatchObject({
+        hookSpecificOutput: {
+          hookEventName: "PermissionRequest",
+          decision: {
+            behavior: "deny",
+            message: expect.stringContaining("Blocked once for this exact command"),
+          },
+        },
+      });
+
+      const second = await runCodexHook(
+        JSON.stringify({
+          hook_event_name: "PermissionRequest",
+          cwd: rootDir,
+          session_id: "permission-risk-session",
+          tool_name: "Bash",
+          tool_use_id: "permission-risk-call-2",
+          tool_input: { command: "git reset --hard" },
+        }),
+      );
+
+      expect(second.exitCode).toBe(0);
+      const parsed = parseJson(second.stdout) as {
+        systemMessage?: string;
+        hookSpecificOutput?: { decision?: unknown };
+      };
+      expect(parsed).toMatchObject({
+        systemMessage: expect.stringContaining("Proceeding after a prior block-once warning"),
+        hookSpecificOutput: {
+          hookEventName: "PermissionRequest",
+        },
+      });
+      expect(parsed.hookSpecificOutput?.decision).toBeUndefined();
+    } finally {
+      await fs.rm(rootDir, { recursive: true, force: true });
+    }
+  });
+
+  it("denies risky Bash commands without session state", async () => {
     const result = await runCodexHook(
       JSON.stringify({
         hook_event_name: "PreToolUse",
@@ -80,7 +199,7 @@ describe("Groundwork Codex hook package", () => {
       hookSpecificOutput: {
         hookEventName: "PreToolUse",
         permissionDecision: "deny",
-        permissionDecisionReason: expect.stringContaining("[groundwork:risk]"),
+        permissionDecisionReason: expect.stringContaining("block-once retry state could not be recorded"),
       },
     });
   });

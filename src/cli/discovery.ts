@@ -48,6 +48,22 @@ export const COMMAND_CAPABILITIES = [
     schemas: ["groundwork.risk.evaluate-command.input/v1"],
   },
   {
+    command_id: "risk.evaluate-tool-call",
+    command: "risk evaluate-tool-call",
+    category: "workflow",
+    description:
+      "Evaluate a Bash tool call with session-scoped block-once destructive-risk state.",
+    schemas: ["groundwork.risk.evaluate-tool-call.input/v1"],
+  },
+  {
+    command_id: "risk.evaluate-tool-result",
+    command: "risk evaluate-tool-result",
+    category: "workflow",
+    description:
+      "Report execution after a risky tool call continued past a prior block-once warning.",
+    schemas: ["groundwork.risk.evaluate-tool-result.input/v1"],
+  },
+  {
     command_id: "context.discover",
     command: "context discover",
     category: "workflow",
@@ -216,6 +232,20 @@ export const EXAMPLES = [
     command: "risk evaluate-command",
     name: "Block risky git checkout",
     args: [`{"command":"git checkout -- src/index.ts"}`],
+  },
+  {
+    command_id: "risk.evaluate-tool-call",
+    command: "risk evaluate-tool-call",
+    name: "Block the first exact destructive Bash tool call",
+    args: [
+      `{"session_id":"example","call_id":"call-1","tool":"bash","command":"git reset --hard","cwd":"."}`,
+    ],
+  },
+  {
+    command_id: "risk.evaluate-tool-result",
+    command: "risk evaluate-tool-result",
+    name: "Report a risky tool call that continued after block-once",
+    args: [`{"session_id":"example","call_id":"call-2"}`],
   },
   {
     command_id: "context.discover",

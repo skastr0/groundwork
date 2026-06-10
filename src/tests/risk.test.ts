@@ -66,6 +66,25 @@ describe("framework risk layer", () => {
         "[groundwork:risk] git checkout -- discards local file changes (rule: git.checkout-discard)",
       );
 
+      await expect(
+        harness.invokeToolBefore(
+          {
+            tool: "bash",
+            callID: "call-bash-2",
+            sessionID: "session-bash-1",
+          },
+          { command: "git checkout -- README.md" },
+        ),
+      ).resolves.toBeUndefined();
+
+      await expect(
+        harness.invokeToolAfter({
+          tool: "bash",
+          callID: "call-bash-2",
+          sessionID: "session-bash-1",
+        }),
+      ).resolves.toBeUndefined();
+
       expect(harness.client.app.log).toHaveBeenCalledWith(
         expect.objectContaining({
           body: expect.objectContaining({
@@ -74,6 +93,18 @@ describe("framework risk layer", () => {
             message: "Blocked potentially destructive command",
             extra: expect.objectContaining({
               mode: "block",
+              ruleId: "git.checkout-discard",
+            }),
+          }),
+        }),
+      );
+      expect(harness.client.app.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          body: expect.objectContaining({
+            service: "groundwork-risk",
+            level: "warn",
+            message: "Unsafe command executed after prior block-once warning",
+            extra: expect.objectContaining({
               ruleId: "git.checkout-discard",
             }),
           }),

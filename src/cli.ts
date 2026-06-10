@@ -58,8 +58,12 @@ const INPUT_COMMAND_SPECS = {
     ],
   },
   risk: {
-    commandPrefix: "risk evaluate-command",
-    expectedSubcommands: ["evaluate-command"],
+    commandPrefix: "risk",
+    expectedSubcommands: [
+      "evaluate-command",
+      "evaluate-tool-call",
+      "evaluate-tool-result",
+    ],
   },
   session: {
     commandPrefix: "session",

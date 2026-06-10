@@ -1,7 +1,6 @@
 import { z } from "zod";
 import {
   FRAMEWORK_PROVENANCE_TOOL_IDS,
-  type FrameworkProvenanceToolID,
 } from "@skastr0/groundwork-core/cli-support";
 
 const RootDirSchema = z.string().min(1).optional();
@@ -193,16 +192,33 @@ const DirectProvenanceCommandSchemaSpecs = {
   }
 >;
 
+const RiskConfigInputSchema = z
+  .object({
+    mode: z.enum(["block", "warn", "off"]).optional(),
+    includeExtendedRules: z.boolean().optional(),
+    allowTempRecursiveForceRm: z.boolean().optional(),
+  })
+  .strict();
+
 export const RiskEvaluateCommandInputSchema = z.object({
   command: z.string().min(1),
-  config: z
-    .object({
-      mode: z.enum(["block", "warn", "off"]).optional(),
-      includeExtendedRules: z.boolean().optional(),
-      allowTempRecursiveForceRm: z.boolean().optional(),
-    })
-    .strict()
-    .optional(),
+  config: RiskConfigInputSchema.optional(),
+}).strict();
+
+export const RiskEvaluateToolCallInputSchema = z.object({
+  root_dir: RootDirSchema,
+  session_id: z.string().min(1),
+  call_id: z.string().min(1).optional(),
+  tool: z.string().min(1).optional(),
+  command: z.string().min(1),
+  cwd: z.string().min(1).optional(),
+  config: RiskConfigInputSchema.optional(),
+}).strict();
+
+export const RiskEvaluateToolResultInputSchema = z.object({
+  root_dir: RootDirSchema,
+  session_id: z.string().min(1),
+  call_id: z.string().min(1),
 }).strict();
 
 export const ContextDiscoverInputSchema = z.object({
@@ -400,79 +416,6 @@ const SessionRenderCompactionInputSchemaContract = {
   },
 } as const;
 
-export interface RiskEvaluateCommandInput {
-  command: string;
-  config?: {
-    mode?: "block" | "warn" | "off";
-    includeExtendedRules?: boolean;
-    allowTempRecursiveForceRm?: boolean;
-  };
-}
-
-export interface ContextDiscoverInput {
-  target_path: string;
-  directory?: string;
-  root_dir?: string;
-  include_root?: boolean;
-  include_content?: boolean;
-}
-
-export interface ContextTouchedPathsInput {
-  root_dir?: string;
-  directory?: string;
-  session_id: string;
-  include_root?: boolean;
-  tool?: string;
-  args?: Record<string, unknown>;
-  targets?: Record<string, unknown>[];
-}
-
-export interface ProvenanceRepoStateInput {
-  root_dir?: string;
-  base?: string;
-  limit?: number;
-}
-
-export interface ProvenanceFileStateInput {
-  path: string;
-  root_dir?: string;
-  base?: string;
-}
-
-export interface ProvenanceToolInput {
-  root_dir?: string;
-  tool: FrameworkProvenanceToolID;
-  args?: Record<string, unknown>;
-}
-
-interface PolicyBaseInput {
-  root_dir?: string;
-  session_id: string;
-}
-
-export interface PolicyEvaluateToolCallInput extends PolicyBaseInput {
-  directory?: string;
-  tool: string;
-  call_id?: string;
-  args?: Record<string, unknown>;
-  targets?: Record<string, unknown>[];
-}
-
-export interface PolicyEvaluateToolResultInput extends PolicyBaseInput {
-  call_id: string;
-  tool?: string;
-}
-
-export interface PolicyOverrideInput extends PolicyBaseInput {
-  reason: string;
-  rule_id?: string;
-  metadata?: Record<string, unknown>;
-}
-
-export interface PolicySkillLoadedInput extends PolicyBaseInput {
-  skills: string[];
-}
-
 export const SCHEMA_CONTRACTS = [
   SessionGetInputSchemaContract,
   SessionSkillLoadedInputSchemaContract,
@@ -553,6 +496,52 @@ export const SCHEMA_CONTRACTS = [
             allowTempRecursiveForceRm: { type: "boolean" },
           },
         },
+      },
+    },
+  },
+  {
+    schema_id: "groundwork.risk.evaluate-tool-call.input/v1",
+    command_id: "risk.evaluate-tool-call",
+    command: "risk evaluate-tool-call",
+    description:
+      "Evaluate one Bash tool call against destructive-risk rules with session block-once state.",
+    schema: {
+      type: "object",
+      required: ["session_id", "command"],
+      additionalProperties: false,
+      properties: {
+        root_dir: { type: "string", minLength: 1 },
+        session_id: { type: "string", minLength: 1 },
+        call_id: { type: "string", minLength: 1 },
+        tool: { type: "string", minLength: 1 },
+        command: { type: "string", minLength: 1 },
+        cwd: { type: "string", minLength: 1 },
+        config: {
+          type: "object",
+          additionalProperties: false,
+          properties: {
+            mode: { enum: ["block", "warn", "off"] },
+            includeExtendedRules: { type: "boolean" },
+            allowTempRecursiveForceRm: { type: "boolean" },
+          },
+        },
+      },
+    },
+  },
+  {
+    schema_id: "groundwork.risk.evaluate-tool-result.input/v1",
+    command_id: "risk.evaluate-tool-result",
+    command: "risk evaluate-tool-result",
+    description:
+      "Report completion for a tool call that previously continued after a risk block-once warning.",
+    schema: {
+      type: "object",
+      required: ["session_id", "call_id"],
+      additionalProperties: false,
+      properties: {
+        root_dir: { type: "string", minLength: 1 },
+        session_id: { type: "string", minLength: 1 },
+        call_id: { type: "string", minLength: 1 },
       },
     },
   },

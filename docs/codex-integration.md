@@ -41,9 +41,10 @@ The hook entrypoint supports:
 
 - `SessionStart`: adds Groundwork CLI guidance as developer context.
 - `UserPromptSubmit`: records explicit `/policy override <reason>` and `/policy skill-loaded <skills...>` commands into durable Groundwork session artifacts.
-- `PreToolUse`: evaluates supported Bash risk and policy checks for supported Bash/apply_patch/Edit/Write calls, and denies only through Codex-supported `PreToolUse` denial.
-- `PermissionRequest`: denies risky Bash approval requests when the shared risk guardrail blocks the command.
+- `PreToolUse`: evaluates supported Bash risk and policy checks for supported Bash/apply_patch/Edit/Write calls. Destructive Bash commands block once per exact session command fingerprint; the same exact retry warns instead of permanently blocking.
+- `PermissionRequest`: uses the same risk block-once state. The first exact risky approval request is denied; the exact retry reports a warning only and does not grant or deny the Codex permission request.
 - `PostToolUse`: runs post-mutation policy checks and reports feedback. This does not undo side effects.
+- `PostToolUse`: also reports when a destructive Bash command executed after a prior block-once warning.
 - `PostToolUse`: also reports new inherited context reminders for supported touched paths using session dedupe. This is feedback, not synthetic prompt injection.
 - `Stop`: currently returns an empty JSON success object so the shared entrypoint is valid for the event without forcing continuation.
 
@@ -58,6 +59,7 @@ Codex hooks are best-effort guardrails, not a complete security boundary.
 - Project-local `.codex/` hooks load only when the project is trusted by Codex.
 - `PreToolUse` only intercepts supported tool paths.
 - `PostToolUse` cannot undo side effects; it can only report feedback after the tool has run.
+- Risk block-once state is scoped to the Codex session artifact and an exact fingerprint of cwd, normalized command, matched rule id, and matched command segment.
 - Tool-triggered synthetic prompt injection is unsupported in Codex V1. Prompt-mode policy guidance is surfaced through explicit CLI output, static skill guidance, or user-prompt hook context, not through automatic tool-triggered prompt injection.
 - Codex compaction hook parity is unsupported in V1. Use `groundwork session render-compaction` for explicit compact Groundwork context from local artifacts.
 - The Groundwork readiness skill teaches explicit CLI usage for paths hooks cannot cover.
@@ -73,4 +75,4 @@ bun run verify
 bun run --cwd packages/codex pack:dry-run
 ```
 
-The test suite covers `SessionStart` hook context, `UserPromptSubmit` policy command capture, `PreToolUse` Bash risk and policy denial, `PermissionRequest` denial, `PostToolUse` feedback, unsupported/no-config hook paths, malformed hook payloads, and package layout.
+The test suite covers `SessionStart` hook context, `UserPromptSubmit` policy command capture, `PreToolUse` Bash risk block-once behavior, `PermissionRequest` warning-only retry behavior, `PostToolUse` risk/policy/context feedback, unsupported/no-config hook paths, malformed hook payloads, and package layout.

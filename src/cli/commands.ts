@@ -20,6 +20,8 @@ import {
   evaluatePolicyToolCall,
   evaluatePolicyToolResult,
   evaluateRiskCommand,
+  evaluateRiskToolCall,
+  evaluateRiskToolResult,
   getSessionArtifact,
   isProvenanceToolID,
   markSessionSkillsLoaded,
@@ -56,6 +58,8 @@ import {
   ProvenanceToolArgsInputSchema,
   ProvenanceToolInputSchema,
   RiskEvaluateCommandInputSchema,
+  RiskEvaluateToolCallInputSchema,
+  RiskEvaluateToolResultInputSchema,
 } from "./schemas.ts";
 import { decodeJsonInputEffect, executeJsonCommand } from "./protocol.ts";
 
@@ -152,9 +156,37 @@ const riskEvaluateCommandCommand = Command.make(
     ),
 ).pipe(Command.withDescription(commandDescription("risk evaluate-command")));
 
+const riskEvaluateToolCallCommand = Command.make(
+  "evaluate-tool-call",
+  { input: inputArg },
+  ({ input }) =>
+    decodedJsonEffect(
+      "risk evaluate-tool-call",
+      input,
+      RiskEvaluateToolCallInputSchema,
+      (payload) => evaluateRiskToolCall(payload),
+    ),
+).pipe(Command.withDescription(commandDescription("risk evaluate-tool-call")));
+
+const riskEvaluateToolResultCommand = Command.make(
+  "evaluate-tool-result",
+  { input: inputArg },
+  ({ input }) =>
+    decodedJsonEffect(
+      "risk evaluate-tool-result",
+      input,
+      RiskEvaluateToolResultInputSchema,
+      (payload) => evaluateRiskToolResult(payload),
+    ),
+).pipe(Command.withDescription(commandDescription("risk evaluate-tool-result")));
+
 const riskCommand = Command.make("risk").pipe(
   Command.withDescription("Risk guardrail commands"),
-  Command.withSubcommands([riskEvaluateCommandCommand]),
+  Command.withSubcommands([
+    riskEvaluateCommandCommand,
+    riskEvaluateToolCallCommand,
+    riskEvaluateToolResultCommand,
+  ]),
 );
 
 const contextDiscoverCommand = Command.make("discover", { input: inputArg }, ({ input }) =>

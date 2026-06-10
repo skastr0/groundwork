@@ -6,6 +6,10 @@ export { evaluateContextTouchedPaths } from "./context/cli-service.ts";
 export { configFromEnv } from "./risk/rules.ts";
 export { evaluateRiskCommand } from "./risk/service.ts";
 export {
+  evaluateRiskToolCall,
+  evaluateRiskToolResult,
+} from "./risk/cli-service.ts";
+export {
   acceptPolicyOverride,
   confirmPolicySkillsLoadedEffect,
   evaluatePolicyToolCall,

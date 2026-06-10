@@ -213,6 +213,12 @@ describe("groundwork CLI", () => {
           expect.objectContaining({
             schema_id: "groundwork.risk.evaluate-command.input/v1",
           }),
+          expect.objectContaining({
+            schema_id: "groundwork.risk.evaluate-tool-call.input/v1",
+          }),
+          expect.objectContaining({
+            schema_id: "groundwork.risk.evaluate-tool-result.input/v1",
+          }),
         ]),
       },
     });
@@ -281,6 +287,14 @@ describe("groundwork CLI", () => {
             example_count: 1,
           }),
           expect.objectContaining({
+            command_id: "risk.evaluate-tool-call",
+            example_count: 1,
+          }),
+          expect.objectContaining({
+            command_id: "risk.evaluate-tool-result",
+            example_count: 1,
+          }),
+          expect.objectContaining({
             command_id: "context.discover",
             example_count: 2,
             examples: expect.arrayContaining([
@@ -346,6 +360,83 @@ describe("groundwork CLI", () => {
         },
       },
     });
+  });
+
+  it("evaluates risky Bash tool calls with session block-once state", async () => {
+    const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "groundwork-cli-risk-tool-"));
+
+    try {
+      const first = await runGroundwork([
+        "risk",
+        "evaluate-tool-call",
+        JSON.stringify({
+          root_dir: rootDir,
+          session_id: "risk-tool-session",
+          call_id: "risk-tool-call-1",
+          tool: "bash",
+          command: "git reset --hard",
+          cwd: rootDir,
+        }),
+      ]);
+      expect(first.exitCode).toBe(0);
+      expect(parseJson(first.stdout)).toMatchObject({
+        ok: true,
+        command: "risk evaluate-tool-call",
+        data: {
+          decision: "block",
+          effect: "blocked_once",
+          violation: { ruleId: "git.reset-hard" },
+        },
+      });
+
+      const second = await runGroundwork([
+        "risk",
+        "evaluate-tool-call",
+        JSON.stringify({
+          root_dir: rootDir,
+          session_id: "risk-tool-session",
+          call_id: "risk-tool-call-2",
+          tool: "bash",
+          command: "git reset --hard",
+          cwd: rootDir,
+        }),
+      ]);
+      expect(second.exitCode).toBe(0);
+      expect(parseJson(second.stdout)).toMatchObject({
+        ok: true,
+        command: "risk evaluate-tool-call",
+        data: {
+          decision: "warn",
+          effect: "warn_after_block_once",
+          violation: { ruleId: "git.reset-hard" },
+        },
+      });
+
+      const result = await runGroundwork([
+        "risk",
+        "evaluate-tool-result",
+        JSON.stringify({
+          root_dir: rootDir,
+          session_id: "risk-tool-session",
+          call_id: "risk-tool-call-2",
+        }),
+      ]);
+      expect(result.exitCode).toBe(0);
+      expect(parseJson(result.stdout)).toMatchObject({
+        ok: true,
+        command: "risk evaluate-tool-result",
+        data: {
+          decision: "warn",
+          effect: "warn_after_block_once",
+          recorded: true,
+          messages: [
+            expect.stringContaining("Unsafe command executed after prior block-once warning"),
+          ],
+        },
+      });
+    } finally {
+      await fs.rm(rootDir, { recursive: true, force: true });
+    }
   });
 
   it("honors risk foundation warn and off modes", async () => {

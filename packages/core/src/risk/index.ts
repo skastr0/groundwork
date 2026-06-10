@@ -1,5 +1,21 @@
 export { configFromEnv } from "./rules.ts";
-export { evaluateRiskCommand } from "./service.ts";
-export type { RiskCommandEvaluation } from "./service.ts";
+export {
+  evaluateRiskCommand,
+  evaluateRiskCommandWithBlockOnce,
+} from "./service.ts";
+export type {
+  RiskBlockOnceEffect,
+  RiskBlockOnceEvaluation,
+  RiskBlockOnceRecord,
+  RiskCommandEvaluation,
+} from "./service.ts";
+export {
+  evaluateRiskToolCall,
+  evaluateRiskToolResult,
+} from "./cli-service.ts";
+export type {
+  RiskEvaluateToolCallInput,
+  RiskEvaluateToolResultInput,
+} from "./cli-service.ts";
 export { createFrameworkRiskLayer } from "./runtime.ts";
 export type { CreateFrameworkRiskLayerOptions } from "./runtime.ts";
