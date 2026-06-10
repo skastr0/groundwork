@@ -1,5 +1,5 @@
 import { configFromEnv, type GuardConfig } from "./rules.ts";
-import { evaluateRiskCommand, riskViolationMessage } from "./service.ts";
+import { evaluateRiskCommand, riskViolationMessage, truncateRiskText } from "./service.ts";
 import {
   FrameworkEnforcementError,
   type GroundworkLayerHooks,
@@ -65,7 +65,7 @@ export function createRiskToolBeforeHook(params: {
       sessionID,
       ruleId: decision.violation.ruleId,
       severity: decision.violation.severity,
-      command: truncateCommand(command),
+      command: truncateRiskText(command),
     });
 
     if (decision.decision === "warn") return;
@@ -78,15 +78,8 @@ export function createRiskToolBeforeHook(params: {
   };
 }
 
-
 function extractCommand(args: unknown): string | null {
   if (!args || typeof args !== "object") return null;
   const maybeCommand = (args as { command?: unknown }).command;
   return typeof maybeCommand === "string" ? maybeCommand : null;
-}
-
-function truncateCommand(command: string): string {
-  const maxLength = 320;
-  if (command.length <= maxLength) return command;
-  return `${command.slice(0, maxLength)}...`;
 }
