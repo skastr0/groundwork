@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.0
+
+- Adds block-once destructive-command risk handling so risky shell commands are blocked on first match, then allowed as an audited warning on an exact retry.
+- Wires block-once behavior through the CLI, Codex hook package, and OpenCode runtime wrapper with session-scoped execution reporting.
+- Requires `call_id` for public `risk evaluate-tool-call` requests so retry warnings can be paired with post-tool execution reports.
+- Fixes risk `cwd` fingerprinting for relative CLI inputs by anchoring them to `root_dir`.
+- Clarifies Codex/OpenCode risk feedback messages and documents the block-once lifecycle.
+
 ## 0.1.1
 
 - Adds a Codex marketplace catalog so the Groundwork plugin can be installed from the repository root.

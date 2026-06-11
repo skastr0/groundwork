@@ -1,6 +1,6 @@
 {
   "name": "@skastr0/groundwork-codex",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Self-contained Groundwork Codex plugin hooks",
   "type": "module",
   "author": "Guilherme Castro <skastr052@gmail.com>",
@@ -47,7 +47,7 @@
     "risk"
   ],
   "dependencies": {
-    "@skastr0/groundwork-core": "0.1.1",
+    "@skastr0/groundwork-core": "0.2.0",
     "effect": "^3.21.2"
   },
   "engines": {
