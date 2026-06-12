@@ -570,6 +570,5 @@ if (isDirectRun()) {
   runCodexHook().catch((error: unknown) => {
     const message = error instanceof Error ? error.message : String(error);
     writeHookJson({ systemMessage: `[groundwork] Codex hook failed: ${message}` });
-    process.exitCode = 1;
   });
 }

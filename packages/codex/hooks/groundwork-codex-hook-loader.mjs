@@ -21,5 +21,4 @@ try {
   writeHookJson({
     systemMessage: `[groundwork] Codex hook failed: ${errorMessage(error)}`,
   });
-  process.exitCode = 1;
 }
