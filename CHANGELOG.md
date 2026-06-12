@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.1
+
+- Adds Git-backed policy pack install/update commands for reusable Groundwork policies.
+- Adds `.groundwork/policies/*.toml` as the publish convention for policy packs.
+- Ships `groundwork-effect` as a bundled policy pack and restores root plugin activation.
+- Keeps Codex hook failures from surfacing as failed hook processes while preserving JSON feedback.
+- Hardens policy pack installs against stale caches, source/lock drift, symlinked pack files, unsafe Git arguments, and transitive references in v1 packs.
+- Documents the policy pack distribution flow and the hook-time no-network invariant.
+
 ## 0.2.0
 
 - Adds block-once destructive-command risk handling so risky shell commands are blocked on first match, then allowed as an audited warning on an exact retry.

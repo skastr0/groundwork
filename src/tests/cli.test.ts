@@ -1057,7 +1057,7 @@ plugins = ["groundwork-effect"]
     const result = await runGroundwork(["--wizard", "--help"]);
     expect(result.exitCode).toBe(0);
     expect(result.stderr).toBe("");
-    expect(result.stdout).toContain("groundwork 0.2.0");
+    expect(result.stdout).toContain("groundwork 0.2.1");
   });
 
   it("renders discoverable help for agent-facing commands", async () => {

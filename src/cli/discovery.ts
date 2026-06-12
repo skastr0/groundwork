@@ -1,7 +1,7 @@
 import { DIRECT_PROVENANCE_CLI_COMMAND_NAMES, SCHEMA_CONTRACTS } from "./schemas.ts";
 
 export const CLI_NAME = "groundwork";
-export const CLI_VERSION = "0.2.0";
+export const CLI_VERSION = "0.2.1";
 
 export const COMMAND_CAPABILITIES = [
   {
