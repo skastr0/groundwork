@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { promises as fs } from "node:fs";
+import { accessSync, constants, promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
@@ -11,12 +11,13 @@ interface CommandResult {
 }
 
 const CODEX_HOOK_ENTRY = path.resolve(process.cwd(), "packages", "codex", "src", "hook.ts");
+const BUN_EXECUTABLE = resolveBunExecutable();
 
 async function runCodexHook(
   stdin: string,
   options: { cwd?: string; env?: Record<string, string> } = {},
 ): Promise<CommandResult> {
-  const proc = spawn(process.execPath, [CODEX_HOOK_ENTRY], {
+  const proc = spawn(BUN_EXECUTABLE, ["--conditions=development", CODEX_HOOK_ENTRY], {
     cwd: options.cwd ?? process.cwd(),
     env: { ...process.env, ...options.env },
     stdio: ["pipe", "pipe", "pipe"],
@@ -40,6 +41,23 @@ async function runCodexHook(
   });
 
   return { exitCode, stdout, stderr };
+}
+
+function resolveBunExecutable(): string {
+  if (process.versions.bun) return process.execPath;
+
+  for (const entry of (process.env.PATH ?? "").split(path.delimiter)) {
+    if (!entry) continue;
+    const candidate = path.join(entry, process.platform === "win32" ? "bun.exe" : "bun");
+    try {
+      accessSync(candidate, constants.X_OK);
+      return candidate;
+    } catch {
+      // Keep looking; CI and local dev both install Bun on PATH.
+    }
+  }
+
+  return "bun";
 }
 
 function parseJson(text: string): unknown {
