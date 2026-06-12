@@ -72,6 +72,7 @@ Groundwork-owned config paths are canonical:
 
 - project root: `groundwork.toml`
 - project config directory: `.groundwork/*.toml` policy files
+- project policy pack directory: `.groundwork/policies/*.toml` publishable pack files
 - user/global config directory: `~/.groundwork/*.toml` policy files
 
 The policy loader merges global configs first, then project configs. Later files can override earlier rules by reusing the same rule `id`.
@@ -81,7 +82,7 @@ Environment overrides use Groundwork names only:
 - project: `GROUNDWORK_POLICY_CONFIG`
 - global: `GROUNDWORK_POLICY_GLOBAL_CONFIG`
 
-Use `plugins` for reusable policy packs and `include` or `includes` for local file composition. Plugin pack files such as `groundwork-effect.toml` are opt-in and are not auto-loaded merely because they live in a Groundwork directory:
+Use `plugins` for reusable policy packs and `include` or `includes` for local file composition. Plugin pack files such as `groundwork-effect.toml` are opt-in and are not auto-loaded merely because they live in a Groundwork directory. Repositories can publish packs under `.groundwork/policies/*.toml`; consumers activate them explicitly with `plugins` or install them into a local plugin directory with `groundwork policy install`.
 
 ```toml
 version = 1
@@ -96,6 +97,15 @@ match = ["src/**"]
 type = "block_tool"
 message = "src edits require review"
 ```
+
+Git-backed policy pack distribution is install/update-time only. Hooks never fetch network policy sources. `policy install` clones or fetches the Git source, validates discovered `.groundwork/policies/*.toml` files, materializes selected packs into `~/.groundwork/plugins/<name>.toml` by default, and records source and lock metadata in `~/.groundwork/policy.sources.json` and `~/.groundwork/policy.lock.json`.
+
+```sh
+groundwork policy install '{"url":"https://github.com/skastr0/groundwork.git","ref":"main","name":"groundwork-effect","scope":"global"}'
+groundwork policy update '{"names":["groundwork-effect"],"scope":"global"}'
+```
+
+Use `"scope":"project"` with `"root_dir":"/path/to/repo"` to install into that repository's `.groundwork/plugins` and project-local policy source/lock files instead.
 
 ## Codex
 

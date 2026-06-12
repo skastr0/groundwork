@@ -4,7 +4,9 @@ dist/
 !packages/codex/dist/groundwork-codex-hook.mjs
 .codex/
 .agents/traces/
-.groundwork/
+.groundwork/*
+!.groundwork/policies/
+!.groundwork/policies/*.toml
 .pulsar/cache/
 .pulsar/time-series/
 

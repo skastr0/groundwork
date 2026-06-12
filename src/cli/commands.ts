@@ -23,6 +23,7 @@ import {
   evaluateRiskToolCall,
   evaluateRiskToolResult,
   getSessionArtifact,
+  installPolicyPacks,
   isProvenanceToolID,
   markSessionSkillsLoaded,
   normalizeRequestedPath,
@@ -35,6 +36,7 @@ import {
   runProvenanceTool,
   toProvFileStateData,
   toProvRepoStateData,
+  updatePolicyPacks,
   type Shell,
 } from "@skastr0/groundwork-core/cli-support";
 import {
@@ -51,8 +53,10 @@ import {
   ContextTouchedPathsInputSchema,
   PolicyEvaluateToolCallInputSchema,
   PolicyEvaluateToolResultInputSchema,
+  PolicyInstallInputSchema,
   PolicyOverrideInputSchema,
   PolicySkillLoadedInputSchema,
+  PolicyUpdateInputSchema,
   ProvenanceFileStateInputSchema,
   ProvenanceRepoStateInputSchema,
   ProvenanceToolArgsInputSchema,
@@ -267,13 +271,27 @@ const policySkillLoadedCommand = Command.make("skill-loaded", { input: inputArg 
   ),
 ).pipe(Command.withDescription(commandDescription("policy skill-loaded")));
 
+const policyInstallCommand = Command.make("install", { input: inputArg }, ({ input }) =>
+  decodedJsonEffect("policy install", input, PolicyInstallInputSchema, (payload) =>
+    installPolicyPacks(payload),
+  ),
+).pipe(Command.withDescription(commandDescription("policy install")));
+
+const policyUpdateCommand = Command.make("update", { input: inputArg }, ({ input }) =>
+  decodedJsonEffect("policy update", input, PolicyUpdateInputSchema, (payload) =>
+    updatePolicyPacks(payload),
+  ),
+).pipe(Command.withDescription(commandDescription("policy update")));
+
 const policyCommand = Command.make("policy").pipe(
   Command.withDescription("Policy foundation commands"),
   Command.withSubcommands([
     policyEvaluateToolCallCommand,
     policyEvaluateToolResultCommand,
+    policyInstallCommand,
     policyOverrideCommand,
     policySkillLoadedCommand,
+    policyUpdateCommand,
   ]),
 );
 

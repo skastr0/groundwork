@@ -115,6 +115,36 @@ async function createProvenanceFixtureRepo(): Promise<string> {
   return rootDir;
 }
 
+async function createPolicyPackFixtureRepo(): Promise<string> {
+  const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "groundwork-policy-pack-fixture-"));
+  await runProcess("git", ["init"], rootDir);
+  await runProcess("git", ["config", "user.email", "groundwork@example.com"], rootDir);
+  await runProcess("git", ["config", "user.name", "Groundwork Test"], rootDir);
+  await writePolicyPack(rootDir, "effect-v1");
+  await runProcess("git", ["add", ".groundwork/policies/groundwork-effect.toml"], rootDir);
+  await runProcess("git", ["commit", "-m", "add policy pack"], rootDir);
+  return rootDir;
+}
+
+async function writePolicyPack(rootDir: string, ruleId: string): Promise<void> {
+  const policyPath = path.join(rootDir, ".groundwork", "policies", "groundwork-effect.toml");
+  await fs.mkdir(path.dirname(policyPath), { recursive: true });
+  await fs.writeFile(
+    policyPath,
+    `version = 1
+
+[[rules]]
+id = "${ruleId}"
+match = ["src/**"]
+
+[[rules.actions]]
+type = "inject_prompt"
+text = "${ruleId}"
+`,
+    "utf8",
+  );
+}
+
 function parseJson(text: string): unknown {
   return JSON.parse(text);
 }
@@ -181,6 +211,14 @@ describe("groundwork CLI", () => {
         },
         commands: expect.arrayContaining([
           expect.objectContaining({
+            command: "policy install",
+            schemas: ["groundwork.policy.install.input/v1"],
+          }),
+          expect.objectContaining({
+            command: "policy update",
+            schemas: ["groundwork.policy.update.input/v1"],
+          }),
+          expect.objectContaining({
             command: "provenance repo-state",
             output_shape: "direct_provenance_state",
           }),
@@ -219,6 +257,12 @@ describe("groundwork CLI", () => {
           expect.objectContaining({
             schema_id: "groundwork.risk.evaluate-tool-result.input/v1",
           }),
+          expect.objectContaining({
+            schema_id: "groundwork.policy.install.input/v1",
+          }),
+          expect.objectContaining({
+            schema_id: "groundwork.policy.update.input/v1",
+          }),
         ]),
       },
     });
@@ -254,6 +298,25 @@ describe("groundwork CLI", () => {
       data: {
         schema_id: "groundwork.session.skill-loaded.input/v1",
         command_id: "session.skill-loaded",
+      },
+    });
+
+    const policyInstallShowResult = await runGroundwork([
+      "schema",
+      "show",
+      "groundwork.policy.install.input/v1",
+    ]);
+    expect(policyInstallShowResult.exitCode).toBe(0);
+    expect(policyInstallShowResult.stderr).toBe("");
+    expect(parseJson(policyInstallShowResult.stdout)).toMatchObject({
+      ok: true,
+      command: "schema show",
+      data: {
+        schema_id: "groundwork.policy.install.input/v1",
+        command_id: "policy.install",
+        schema: {
+          required: ["url"],
+        },
       },
     });
   });
@@ -341,6 +404,391 @@ describe("groundwork CLI", () => {
       });
     }
   }, 60_000);
+
+  it("installs and updates Git-backed policy packs with JSON envelopes", async () => {
+    const repo = await createPolicyPackFixtureRepo();
+    const home = await fs.mkdtemp(path.join(os.tmpdir(), "groundwork-policy-pack-home-"));
+
+    try {
+      const install = await runGroundwork([
+        "policy",
+        "install",
+        JSON.stringify({
+          url: repo,
+          name: "groundwork-effect",
+          scope: "global",
+          home,
+        }),
+      ]);
+      expect(install.exitCode).toBe(0);
+      expect(install.stderr).toBe("");
+      const installEnvelope = parseJson(install.stdout) as {
+        data: {
+          installed: Array<{
+            name: string;
+            installed_path: string;
+            sha256: string;
+          }>;
+        };
+      };
+      expect(installEnvelope).toMatchObject({
+        ok: true,
+        command: "policy install",
+        data: {
+          installed: [
+            expect.objectContaining({
+              name: "groundwork-effect",
+              installed_path: "plugins/groundwork-effect.toml",
+              sha256: expect.stringMatching(/^sha256-/),
+            }),
+          ],
+        },
+      });
+      const installedPath = path.join(
+        home,
+        ".groundwork",
+        "plugins",
+        "groundwork-effect.toml",
+      );
+      expect(await fs.readFile(installedPath, "utf8")).toContain('id = "effect-v1"');
+
+      await writePolicyPack(repo, "effect-v2");
+      await runProcess("git", ["add", ".groundwork/policies/groundwork-effect.toml"], repo);
+      await runProcess("git", ["commit", "-m", "update policy pack"], repo);
+
+      const update = await runGroundwork([
+        "policy",
+        "update",
+        JSON.stringify({
+          names: ["groundwork-effect"],
+          scope: "global",
+          home,
+        }),
+      ]);
+      expect(update.exitCode).toBe(0);
+      expect(update.stderr).toBe("");
+      expect(parseJson(update.stdout)).toMatchObject({
+        ok: true,
+        command: "policy update",
+        data: {
+          updated: [
+            expect.objectContaining({
+              name: "groundwork-effect",
+              installed_path: "plugins/groundwork-effect.toml",
+              sha256: expect.stringMatching(/^sha256-/),
+            }),
+          ],
+        },
+      });
+      expect(await fs.readFile(installedPath, "utf8")).toContain('id = "effect-v2"');
+
+      const lock = JSON.parse(
+        await fs.readFile(path.join(home, ".groundwork", "policy.lock.json"), "utf8"),
+      );
+      expect(lock).toMatchObject({
+        schema_version: "groundwork-policy-lock/v1",
+        packs: {
+          "groundwork-effect": {
+            type: "git",
+            url: repo,
+            source_path: ".groundwork/policies/groundwork-effect.toml",
+            installed_path: "plugins/groundwork-effect.toml",
+            resolved_commit: expect.any(String),
+            sha256: expect.stringMatching(/^sha256-/),
+          },
+        },
+      });
+    } finally {
+      await fs.rm(repo, { recursive: true, force: true });
+      await fs.rm(home, { recursive: true, force: true });
+    }
+  }, 20_000);
+
+  it("rejects unsafe Git arguments for policy pack installs", async () => {
+    const result = await runGroundwork([
+      "policy",
+      "install",
+      JSON.stringify({ url: "--upload-pack=echo", scope: "global", home: "/tmp/groundwork-home" }),
+    ]);
+
+    expectJsonOnlyFailure(result);
+    expect(parseJson(result.stderr)).toMatchObject({
+      ok: false,
+      command: "policy install",
+      error: {
+        message: "Policy pack url is not a safe Git argument",
+      },
+    });
+  });
+
+  it("reclones policy pack caches when the same name uses a different Git source", async () => {
+    const firstRepo = await createPolicyPackFixtureRepo();
+    const secondRepo = await createPolicyPackFixtureRepo();
+    const home = await fs.mkdtemp(path.join(os.tmpdir(), "groundwork-policy-pack-home-"));
+
+    try {
+      await writePolicyPack(secondRepo, "effect-other-source");
+      await runProcess("git", ["add", ".groundwork/policies/groundwork-effect.toml"], secondRepo);
+      await runProcess("git", ["commit", "-m", "change policy pack"], secondRepo);
+
+      const first = await runGroundwork([
+        "policy",
+        "install",
+        JSON.stringify({
+          url: firstRepo,
+          name: "groundwork-effect",
+          scope: "global",
+          home,
+        }),
+      ]);
+      expect(first.exitCode).toBe(0);
+
+      const second = await runGroundwork([
+        "policy",
+        "install",
+        JSON.stringify({
+          url: secondRepo,
+          name: "groundwork-effect",
+          scope: "global",
+          home,
+        }),
+      ]);
+      expect(second.exitCode).toBe(0);
+
+      const installedPath = path.join(
+        home,
+        ".groundwork",
+        "plugins",
+        "groundwork-effect.toml",
+      );
+      expect(await fs.readFile(installedPath, "utf8")).toContain('id = "effect-other-source"');
+      const lock = JSON.parse(
+        await fs.readFile(path.join(home, ".groundwork", "policy.lock.json"), "utf8"),
+      );
+      expect(lock.packs["groundwork-effect"].url).toBe(secondRepo);
+    } finally {
+      await fs.rm(firstRepo, { recursive: true, force: true });
+      await fs.rm(secondRepo, { recursive: true, force: true });
+      await fs.rm(home, { recursive: true, force: true });
+    }
+  }, 20_000);
+
+  it("rejects policy pack updates when source metadata drifts from the lock", async () => {
+    const repo = await createPolicyPackFixtureRepo();
+    const home = await fs.mkdtemp(path.join(os.tmpdir(), "groundwork-policy-pack-home-"));
+
+    try {
+      const install = await runGroundwork([
+        "policy",
+        "install",
+        JSON.stringify({
+          url: repo,
+          name: "groundwork-effect",
+          scope: "global",
+          home,
+        }),
+      ]);
+      expect(install.exitCode).toBe(0);
+      const sourcesPath = path.join(home, ".groundwork", "policy.sources.json");
+      const sources = JSON.parse(await fs.readFile(sourcesPath, "utf8"));
+      sources.packs["groundwork-effect"].url = `${repo}-changed`;
+      await fs.writeFile(sourcesPath, `${JSON.stringify(sources, null, 2)}\n`, "utf8");
+
+      const update = await runGroundwork([
+        "policy",
+        "update",
+        JSON.stringify({
+          names: ["groundwork-effect"],
+          scope: "global",
+          home,
+        }),
+      ]);
+
+      expectJsonOnlyFailure(update);
+      expect(parseJson(update.stderr)).toMatchObject({
+        error: {
+          message: expect.stringContaining("differs from the lock"),
+        },
+      });
+    } finally {
+      await fs.rm(repo, { recursive: true, force: true });
+      await fs.rm(home, { recursive: true, force: true });
+    }
+  }, 20_000);
+
+  it("rejects symlinked Git policy pack files", async () => {
+    const repo = await fs.mkdtemp(path.join(os.tmpdir(), "groundwork-policy-pack-fixture-"));
+    const home = await fs.mkdtemp(path.join(os.tmpdir(), "groundwork-policy-pack-home-"));
+    const target = path.join(repo, "outside.toml");
+    const link = path.join(repo, ".groundwork", "policies", "groundwork-effect.toml");
+
+    try {
+      await runProcess("git", ["init"], repo);
+      await runProcess("git", ["config", "user.email", "groundwork@example.com"], repo);
+      await runProcess("git", ["config", "user.name", "Groundwork Test"], repo);
+      await fs.mkdir(path.dirname(link), { recursive: true });
+      await fs.writeFile(
+        target,
+        `version = 1
+
+[[rules]]
+id = "outside"
+match = ["src/**"]
+
+[[rules.actions]]
+type = "inject_prompt"
+text = "outside"
+`,
+        "utf8",
+      );
+      await fs.symlink(target, link);
+      await runProcess("git", ["add", "."], repo);
+      await runProcess("git", ["commit", "-m", "add symlinked policy pack"], repo);
+
+      const result = await runGroundwork([
+        "policy",
+        "install",
+        JSON.stringify({
+          url: repo,
+          name: "groundwork-effect",
+          scope: "global",
+          home,
+        }),
+      ]);
+
+      expectJsonOnlyFailure(result);
+      expect(parseJson(result.stderr)).toMatchObject({
+        error: {
+          message: expect.stringContaining("Policy pack 'groundwork-effect' was not found"),
+        },
+      });
+    } finally {
+      await fs.rm(repo, { recursive: true, force: true });
+      await fs.rm(home, { recursive: true, force: true });
+    }
+  }, 20_000);
+
+  it("rejects Git-installed policy packs with transitive includes", async () => {
+    const repo = await createPolicyPackFixtureRepo();
+    const home = await fs.mkdtemp(path.join(os.tmpdir(), "groundwork-policy-pack-home-"));
+
+    try {
+      const policyPath = path.join(repo, ".groundwork", "policies", "groundwork-effect.toml");
+      await fs.writeFile(
+        policyPath,
+        `version = 1
+includes = ["extra.toml"]
+`,
+        "utf8",
+      );
+      await runProcess("git", ["add", ".groundwork/policies/groundwork-effect.toml"], repo);
+      await runProcess("git", ["commit", "-m", "add transitive include"], repo);
+
+      const result = await runGroundwork([
+        "policy",
+        "install",
+        JSON.stringify({
+          url: repo,
+          name: "groundwork-effect",
+          scope: "global",
+          home,
+        }),
+      ]);
+
+      expectJsonOnlyFailure(result);
+      expect(parseJson(result.stderr)).toMatchObject({
+        error: {
+          message: expect.stringContaining("cannot declare includes or plugins"),
+        },
+      });
+    } finally {
+      await fs.rm(repo, { recursive: true, force: true });
+      await fs.rm(home, { recursive: true, force: true });
+    }
+  }, 20_000);
+
+  it("installs project-scoped policy packs that policy evaluation can load", async () => {
+    const repo = await createPolicyPackFixtureRepo();
+    const project = await fs.mkdtemp(path.join(os.tmpdir(), "groundwork-policy-pack-project-"));
+
+    try {
+      await fs.writeFile(
+        path.join(project, "groundwork.toml"),
+        `version = 1
+plugins = ["groundwork-effect"]
+`,
+        "utf8",
+      );
+
+      const install = await runGroundwork([
+        "policy",
+        "install",
+        JSON.stringify({
+          url: repo,
+          name: "groundwork-effect",
+          scope: "project",
+          root_dir: project,
+        }),
+      ]);
+      expect(install.exitCode).toBe(0);
+      expect(parseJson(install.stdout)).toMatchObject({
+        ok: true,
+        command: "policy install",
+        data: {
+          scope: "project",
+          installed: [
+            expect.objectContaining({
+              installed_path: "plugins/groundwork-effect.toml",
+            }),
+          ],
+        },
+      });
+
+      const sources = JSON.parse(
+        await fs.readFile(path.join(project, ".groundwork", "policy.sources.json"), "utf8"),
+      );
+      expect(sources).toMatchObject({
+        schema_version: "groundwork-policy-sources/v1",
+        packs: {
+          "groundwork-effect": {
+            type: "git",
+            url: repo,
+            source_path: ".groundwork/policies/groundwork-effect.toml",
+            installed_path: "plugins/groundwork-effect.toml",
+          },
+        },
+      });
+
+      const evaluation = await runGroundwork([
+        "policy",
+        "evaluate-tool-call",
+        JSON.stringify({
+          root_dir: project,
+          session_id: "project-policy-pack-session",
+          call_id: "project-policy-pack-call",
+          tool: "edit",
+          args: { path: "src/index.ts" },
+        }),
+      ]);
+      expect(evaluation.exitCode).toBe(0);
+      expect(parseJson(evaluation.stdout)).toMatchObject({
+        ok: true,
+        command: "policy evaluate-tool-call",
+        data: {
+          decision: "allow",
+          messages: expect.arrayContaining([
+            expect.objectContaining({
+              rule_id: "effect-v1",
+              text: expect.stringContaining("effect-v1"),
+            }),
+          ]),
+        },
+      });
+    } finally {
+      await fs.rm(repo, { recursive: true, force: true });
+      await fs.rm(project, { recursive: true, force: true });
+    }
+  }, 20_000);
 
   it("evaluates risky commands through the risk foundation", async () => {
     const result = await runGroundwork([
@@ -1043,7 +1491,7 @@ describe("groundwork CLI", () => {
         },
       },
     });
-  }, 30_000);
+  }, 60_000);
 
   it("runs arbitrary gw_* provenance tools through provenance run", async () => {
     const result = await runGroundwork([

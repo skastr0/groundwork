@@ -289,6 +289,27 @@ export const PolicySkillLoadedInputSchema = PolicyBaseInputSchema.extend({
   skills: z.array(z.string().min(1)).min(1),
 }).strict();
 
+const PolicyPackScopeSchema = z.enum(["global", "project"]);
+
+export const PolicyInstallInputSchema = z.object({
+  url: z.string().min(1),
+  ref: z.string().min(1).optional(),
+  name: z.string().min(1).optional(),
+  path: z.string().min(1).optional(),
+  scope: PolicyPackScopeSchema.optional(),
+  root_dir: RootDirSchema,
+  home: z.string().min(1).optional(),
+  force: z.boolean().optional(),
+}).strict();
+
+export const PolicyUpdateInputSchema = z.object({
+  names: z.array(z.string().min(1)).min(1).optional(),
+  scope: PolicyPackScopeSchema.optional(),
+  root_dir: RootDirSchema,
+  home: z.string().min(1).optional(),
+  force: z.boolean().optional(),
+}).strict();
+
 const SessionBaseProperties = {
   session_id: { type: "string", minLength: 1 },
   root_dir: { type: "string", minLength: 1 },
@@ -475,6 +496,46 @@ export const SCHEMA_CONTRACTS = [
     command: "policy skill-loaded",
     description: "Confirm required policy skills for one session.",
     schema: SessionSkillLoadedInputSchemaContract.schema,
+  },
+  {
+    schema_id: "groundwork.policy.install.input/v1",
+    command_id: "policy.install",
+    command: "policy install",
+    description:
+      "Install policy packs from a Git repository by materializing .groundwork/policies/*.toml into the local plugin cache and recording source/lock metadata.",
+    schema: {
+      type: "object",
+      required: ["url"],
+      additionalProperties: false,
+      properties: {
+        url: { type: "string", minLength: 1 },
+        ref: { type: "string", minLength: 1 },
+        name: { type: "string", minLength: 1 },
+        path: { type: "string", minLength: 1 },
+        scope: { enum: ["global", "project"] },
+        root_dir: { type: "string", minLength: 1 },
+        home: { type: "string", minLength: 1 },
+        force: { type: "boolean" },
+      },
+    },
+  },
+  {
+    schema_id: "groundwork.policy.update.input/v1",
+    command_id: "policy.update",
+    command: "policy update",
+    description:
+      "Refresh installed Git policy pack sources and update lock metadata without involving hook-time policy evaluation.",
+    schema: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        names: { type: "array", minItems: 1, items: { type: "string", minLength: 1 } },
+        scope: { enum: ["global", "project"] },
+        root_dir: { type: "string", minLength: 1 },
+        home: { type: "string", minLength: 1 },
+        force: { type: "boolean" },
+      },
+    },
   },
   {
     schema_id: "groundwork.risk.evaluate-command.input/v1",

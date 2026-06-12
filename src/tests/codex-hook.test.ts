@@ -16,7 +16,7 @@ async function runCodexHook(
   stdin: string,
   options: { cwd?: string; env?: Record<string, string> } = {},
 ): Promise<CommandResult> {
-  const proc = spawn("bun", [CODEX_HOOK_ENTRY], {
+  const proc = spawn(process.execPath, [CODEX_HOOK_ENTRY], {
     cwd: options.cwd ?? process.cwd(),
     env: { ...process.env, ...options.env },
     stdio: ["pipe", "pipe", "pipe"],
@@ -242,6 +242,61 @@ describe("Groundwork Codex hook package", () => {
     );
     expect(second.exitCode).toBe(0);
     expect(second.stdout).toBe("");
+  });
+
+  it("loads local policy packs during hooks without Git on PATH", async () => {
+    const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "groundwork-codex-policy-pack-"));
+    const emptyPath = await fs.mkdtemp(path.join(os.tmpdir(), "groundwork-codex-empty-path-"));
+
+    try {
+      await fs.mkdir(path.join(rootDir, ".groundwork", "plugins"), { recursive: true });
+      await fs.writeFile(
+        path.join(rootDir, "groundwork.toml"),
+        `version = 1
+plugins = ["groundwork-effect"]
+`,
+        "utf8",
+      );
+      await fs.writeFile(
+        path.join(rootDir, ".groundwork", "plugins", "groundwork-effect.toml"),
+        `version = 1
+
+[[rules]]
+id = "hook-local-policy-pack"
+severity = "warn"
+match = ["src/**"]
+
+[[rules.actions]]
+type = "block_tool"
+message = "hook loaded local policy pack"
+`,
+        "utf8",
+      );
+
+      const result = await runCodexHook(
+        JSON.stringify({
+          hook_event_name: "PreToolUse",
+          cwd: rootDir,
+          session_id: "hook-local-pack-session",
+          tool_name: "apply_patch",
+          tool_use_id: "hook-local-pack-call",
+          tool_input: {
+            patchText:
+              "*** Begin Patch\n*** Add File: src/index.ts\n+export {}\n*** End Patch\n",
+          },
+        }),
+        { env: { PATH: emptyPath } },
+      );
+
+      expect(result.exitCode).toBe(0);
+      expect(result.stderr).toBe("");
+      expect(parseJson(result.stdout)).toMatchObject({
+        systemMessage: expect.stringContaining("hook loaded local policy pack"),
+      });
+    } finally {
+      await fs.rm(rootDir, { recursive: true, force: true });
+      await fs.rm(emptyPath, { recursive: true, force: true });
+    }
   });
 
   it("returns JSON feedback for invalid hook payloads", async () => {

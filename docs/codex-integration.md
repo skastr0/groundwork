@@ -52,6 +52,8 @@ Plugin-bundled hooks use the bundled Codex hook runtime. Codex plugin-bundled ho
 
 Policy hooks use the same Groundwork config chain as the CLI and OpenCode plugin because both package surfaces use the shared Groundwork foundations. Put project policy in `groundwork.toml` or `.groundwork/*.toml`, and put user/global policy in `~/.groundwork/*.toml`.
 
+Git-backed policy packs are resolved outside the hook path. Use `groundwork policy install` or `groundwork policy update` to fetch and materialize packs from repository `.groundwork/policies/*.toml` files into local plugin paths. Codex hooks only read the resulting local TOML files and source/lock state; they do not fetch or update Git sources during `PreToolUse` or `PostToolUse`.
+
 ## Trust Boundaries
 
 Codex hooks are best-effort guardrails, not a complete security boundary.

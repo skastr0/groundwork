@@ -17,6 +17,10 @@ export {
   evaluatePolicyToolResult,
 } from "./policy/cli-service.ts";
 export {
+  installPolicyPacks,
+  updatePolicyPacks,
+} from "./policy/packs.ts";
+export {
   normalizeRequestedPath,
   resolveLocalFileState,
   resolveLocalRepoState,

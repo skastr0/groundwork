@@ -108,6 +108,22 @@ export const COMMAND_CAPABILITIES = [
     schemas: ["groundwork.policy.skill-loaded.input/v1"],
   },
   {
+    command_id: "policy.install",
+    command: "policy install",
+    category: "maintenance",
+    description:
+      "Install Git-backed policy packs from .groundwork/policies into the local plugin cache with source and lock metadata.",
+    schemas: ["groundwork.policy.install.input/v1"],
+  },
+  {
+    command_id: "policy.update",
+    command: "policy update",
+    category: "maintenance",
+    description:
+      "Refresh installed Git-backed policy packs from their recorded sources and update lock metadata.",
+    schemas: ["groundwork.policy.update.input/v1"],
+  },
+  {
     command_id: "provenance.repo-state",
     command: "provenance repo-state",
     category: "workflow",
@@ -298,6 +314,28 @@ export const EXAMPLES = [
     command: "policy skill-loaded",
     name: "Confirm policy skills for a hook session",
     args: [`{"session_id":"example","skills":["release-readiness"]}`],
+  },
+  {
+    command_id: "policy.install",
+    command: "policy install",
+    name: "Install all policy packs published by a Git repository",
+    args: [
+      `{"url":"https://github.com/skastr0/groundwork.git","ref":"main","scope":"global"}`,
+    ],
+  },
+  {
+    command_id: "policy.install",
+    command: "policy install",
+    name: "Install one named policy pack from a repository",
+    args: [
+      `{"url":"https://github.com/skastr0/groundwork.git","ref":"main","name":"groundwork-effect","scope":"global"}`,
+    ],
+  },
+  {
+    command_id: "policy.update",
+    command: "policy update",
+    name: "Refresh all installed global policy packs",
+    args: [`{"scope":"global"}`],
   },
   {
     command_id: "provenance.file-state",

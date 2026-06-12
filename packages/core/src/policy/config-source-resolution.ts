@@ -111,6 +111,9 @@ function policyPluginCandidates(
     for (const name of names) {
       candidates.push(path.join(directory, "plugins", name));
     }
+    for (const name of names) {
+      candidates.push(path.join(directory, "policies", name));
+    }
   };
 
   if (path.basename(configDir) === PROJECT_GROUNDWORK_CONFIG_DIR) {

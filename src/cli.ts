@@ -32,8 +32,10 @@ const INPUT_COMMAND_SPECS = {
     expectedSubcommands: [
       "evaluate-tool-call",
       "evaluate-tool-result",
+      "install",
       "override",
       "skill-loaded",
+      "update",
     ],
   },
   provenance: {

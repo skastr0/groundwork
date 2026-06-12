@@ -35,6 +35,13 @@ export {
   loadPolicyConfig,
   mergePolicyConfigs,
 } from "./config-loader.ts";
+export {
+  installPolicyPacks,
+  updatePolicyPacks,
+  type PolicyPackInstallInput,
+  type PolicyPackScope,
+  type PolicyPackUpdateInput,
+} from "./packs.ts";
 export { parsePolicyConfig } from "./config-parser.ts";
 export { extractChangeTargets } from "./config-targets.ts";
 export {

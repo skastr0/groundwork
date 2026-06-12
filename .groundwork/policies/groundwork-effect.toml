@@ -1,0 +1,12 @@
+version = 1
+
+[[rules]]
+id = "groundwork-effect-edits"
+description = "Effect-powered Groundwork code should load the Effect guidance before edits"
+match = ["packages/core/src/**/*.ts", "src/**/*.ts", "packages/*/src/**/*.ts"]
+
+[[rules.actions]]
+type = "ensure_skill_loaded"
+skills = ["effect"]
+mode = "prompt"
+once_per_session = true
