@@ -1,0 +1,20 @@
+{
+  "name": "research-effect",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "node tests/runner.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "effect": "^3.21.4",
+    "toml": "^4.1.2"
+  }
+}
