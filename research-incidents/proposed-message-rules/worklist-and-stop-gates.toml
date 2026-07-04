@@ -1,0 +1,206 @@
+# Proposed message-level rules for Groundwork runtime
+# -----------------------------------------------------------------------------
+# Source: .groundwork/mining-swarm/phase3/merged-candidates.json
+#         .groundwork/mining-swarm/phase5/ranked-packs.json
+# Author: research-incidents swarm
+# Generated: 2026-07-04
+#
+# These rules are RESEARCH PROPOSALS, not enforceable policy today.
+# They document message-level patterns that the mining swarm found to precede
+# real agent failures, but which require new Groundwork runtime support to
+# evaluate or act on. Do not copy them into groundwork.toml as-is.
+# -----------------------------------------------------------------------------
+
+[meta]
+title = "Worklist triggers and verify-before-claim stop gate"
+source_phase3 = ".groundwork/mining-swarm/phase3/merged-candidates.json"
+source_phase5 = ".groundwork/mining-swarm/phase5/ranked-packs.json"
+notes = [
+  "Worklist-trigger pack: 37 sessions intercepted across 35 receipts (ranked-packs rank 1).",
+  "Verify-before-claim pack: 7 sessions intercepted across 7 receipts (ranked-packs rank 3).",
+]
+
+# =============================================================================
+# Rule family 1: Worklist triggers
+# When a user message contains a multi-part ask, the agent must emit a worklist
+# before any tool use.
+# =============================================================================
+
+[[rules]]
+id = "msg-worklist-compound-conjunction"
+family = "worklist-trigger"
+description = "When a user message joins multiple distinct actions with conjunctions, require the agent to expand the ask into an explicit worklist before using any tool."
+required_hook = "SessionStart"
+proposed_match_surface = '''
+Match the user_message content at session start with:
+1. A message_content regex that finds coordination conjunctions (' and ', ' & ', ' plus ', ' as well as ', '; ') separating what appear to be distinct action clauses; and/or
+2. An ask_shape classifier labeled `compound_conjunction` that identifies at least two separable actions in the same turn.
+'''
+proposed_action = "inject_prompt"
+example_user_turn = '''
+Adversarial review of the corrected QSR-220 foundation in /Users/guilhermecastro/Projects/quasar (`git diff` against HEAD ffc4fe2). Confirm the two prior defects are truly fixed: (1) there is NO code path by which an event-level kind="parent" edge (claude/opencode message threading, including the fromId=message-uuid forward-reference case) can populate the served parentSessionId — the projection must select strictly kind="subagent_of"; verify the regression test actually exercises the forward-reference case and fails if the projection is relaxed.
+'''
+rationale = "The mining pack shows 12 recurrence hits for this shape. Agents silently narrowed scope to one of the conjoined actions, leaving the rest unaddressed. Forcing an explicit worklist before any tool use would have made the missing items visible."
+implementation_note = "Requires a new `message_content` regex matcher on user turns and an `ask_shape` classifier for compound actions. The runtime must also support `before_any_tool = true` ordering so the prompt is injected before the first tool call."
+
+[[rules]]
+id = "msg-worklist-dependent-chain"
+family = "worklist-trigger"
+description = "When a user message describes sequential dependent steps, require the agent to record each step in a worklist and preserve execution order."
+required_hook = "SessionStart"
+proposed_match_surface = '''
+Match user_message content at session start with:
+1. A message_content regex for ordering cues such as 'first... then...', 'after X do Y', 'step 1 — ...', 'before ..., ...', 'once ... then ...'; and/or
+2. An ask_shape classifier labeled `dependent_chain`.
+'''
+proposed_action = "inject_prompt"
+example_user_turn = '''
+You are a Prism plugin author designing how to DEEPEN an existing "mac-tuning" skill using practices mined from a real macOS tuning audit. STEP 1 — Read the EXISTING skill in full (these are the baseline; do NOT propose duplicating what's already solid): - ...
+'''
+rationale = "The dependent-chain shape recurred 8 times. Agents executed steps out of order or collapsed them into a single action, breaking dependencies. A worklist that preserves order would have intercepted these sessions."
+implementation_note = "Needs an `ask_shape` classifier for temporal/dependency structure and a runtime guarantee that the injected worklist is ordered and that the agent acknowledges it before tool use."
+
+[[rules]]
+id = "msg-worklist-enumerated-list"
+family = "worklist-trigger"
+description = "When a user provides an explicit list of tasks via bullets, numbers, or checkboxes, require the agent to produce a worklist that acknowledges every item before execution."
+required_hook = "SessionStart"
+proposed_match_surface = '''
+Match user_message content at session start with:
+1. A message_content regex for enumerated markers: `^(\d+\.|-|\*)\s+` repeated across multiple lines, or checklist markers `[ ]` / `[x]`; and/or
+2. An ask_shape classifier labeled `enumerated_list`.
+'''
+proposed_action = "inject_prompt"
+example_user_turn = '''
+Federation setup is in place on the Mac mini. Changed /Users/guilhermecastro/.matrix/continuwuity/compose.yml:
+- CONTINUWUITY_ALLOW_FEDERATION: "true"
+- CONTINUWUITY_WELL_KNOWN__SERVER: "mac-mini.tail6742f6.ts.net:443"
+Verified:
+- Mac mini client API works at https://mac-mini.tail6742f6.ts.net
+- ...
+'''
+rationale = "This shape recurred 8 times. Agents often addressed only the first or last enumerated item, treating the rest as optional context. Enumerating each item in a worklist would have prevented silent scope narrowing."
+implementation_note = "Requires a `message_content` regex matcher that can span multiple lines and an `ask_shape` classifier trained on list-bearing user messages."
+
+[[rules]]
+id = "msg-worklist-follow-up-complaint"
+family = "worklist-trigger"
+description = "When a follow-up user message indicates prior incomplete delivery, require the agent to rebuild a worklist of remaining items and confirm it before any further tool use."
+required_hook = "PreToolUse"
+proposed_match_surface = '''
+Match user_message content before each tool use with:
+1. A message_content regex for complaint/incomplete-delivery lexicon: 'half of the work', 'third time', 'again', 'validate everything left', 'you just love doing this', 'no gotchas'; and/or
+2. An ask_shape classifier labeled `follow_up_complaint`.
+'''
+proposed_action = "require_human_override"
+example_user_turn = '''
+ok buddy it's really important you track my intention here because you just love doing this yeah let's do this and then it turns out it's half of the work - again, it's the third time I'm asking, let's validate everything left please. No gotchas, no "oh oh not quite yet there sir" bullshit please
+'''
+rationale = "The mining pack shows 5 recurrence hits for follow-up complaints. The agent had already partially delivered and was about to continue without surfacing the remaining scope. A forced worklist rebuild with human override would have stopped the drift."
+implementation_note = "Requires the `PreToolUse` hook to inspect user_message content on every turn, plus a `rebuild_remaining_worklist` action that is not yet implemented in the Groundwork runtime."
+
+[[rules]]
+id = "msg-worklist-audit-plus-action"
+family = "worklist-trigger"
+description = "When a request asks to verify or confirm something before acting, require the agent to treat audit and action as separate worklist items."
+required_hook = "SessionStart"
+proposed_match_surface = '''
+Match user_message content at session start with:
+1. A message_content regex pairing verification language ('verify', 'confirm', 'deterministic check', 'audit') with subsequent action language ('then fix', 'then act', 'then review', 'and change'); and/or
+2. An ask_shape classifier labeled `audit_then_action`.
+'''
+proposed_action = "inject_prompt"
+example_user_turn = '''
+Deterministic check: verify that quoted text really exists in the Quasar corpus where claimed. No judgment about meaning — only presence. TOOL — Quasar CLI (verified working this session, v0.2.3): QB="$HOME/.local/share/mise/installs/npm-skastr0-quasar-cli/latest/bin/quasar" "$QB" search --query "<text>" --mode fusion --role user --limit 15 -> JSON; matches at .data.data.matches[], each {score, row:{sessionId,seq,role,provider,projectKey,text,contentHash}} modes: fusion (best default), semantic, lexical.
+'''
+rationale = "This shape recurred 2 times. Agents merged audit and action into a single step, often producing action without a recorded audit or vice versa. Separating them in a worklist makes each phase explicit and checkable."
+implementation_note = "Needs an `ask_shape` classifier that can distinguish an audit phase from an action phase within the same user turn, plus support for injecting a phased worklist."
+
+[[rules]]
+id = "msg-worklist-read-then-act"
+family = "worklist-trigger"
+description = "When a request instructs reading context before acting, require the agent to record both phases in a worklist."
+required_hook = "SessionStart"
+proposed_match_surface = '''
+Match user_message content at session start with:
+1. A message_content regex for explicit read-then-act cues: 'Read first (in order)', 'before acting, read', 'after reading ..., do ...', numbered file references preceding an action; and/or
+2. An ask_shape classifier labeled `read_then_act`.
+'''
+proposed_action = "inject_prompt"
+example_user_turn = '''
+You are building the **Signals workspace screen** (`/signals`) for the Tower Control redesign. Reference: `design/reference-4.png`.
+
+## Read first (in order)
+1. `/Users/guilhermecastro/Projects/tower-control/DESIGN.md` — design language. Tailwind contract in §12 binding.
+2. ...
+'''
+rationale = "This shape recurred 2 times. Agents skipped the read phase or blended it with implementation, leading to context-misaligned changes. A two-phase worklist would have enforced the read before the act."
+implementation_note = "Requires an `ask_shape` classifier that detects a read phase followed by an action phase, and a runtime rule that can inject a phased worklist before any tool call."
+
+# =============================================================================
+# Rule family 2: Verify-before-claim stop gate
+# When an assistant message claims completion or verification, require that a
+# verification command ran after the last file mutation.
+# =============================================================================
+
+[[rules]]
+id = "msg-stop-verify-before-claim"
+family = "stop-gate"
+description = "When an assistant message claims completion or verification (e.g., done/fixed/complete/verified/tests pass/shipped/working), stop the session unless a verification-shaped command ran after the most recent file mutation."
+required_hook = "Stop"
+proposed_match_surface = '''
+Match assistant_message content on the Stop hook with:
+1. A message_content regex `\b(done|fixed|complete|verified|tests pass|shipped|working)\b`; and
+2. A session-span predicate that finds the last tool call that mutated files or state (tool_name in ["Write", "Edit"] or a Bash command classified as writing/deleting/deploying), then checks whether any completed tool call between that mutation and the current assistant message matches `\b(test|typecheck|lint|build|verify)\b`.
+
+Known false-positive surfaces: doc-only changes with no recent file mutation; claims that repeat an already-passing verification from earlier in the session.
+'''
+proposed_action = "require_human_override"
+example_user_turn = '''
+## Summary
+I completed a comprehensive schema validation audit of the Quasar Convex backend by analyzing `/Users/guilhermecastro/Projects/quasar/convex/schema.ts` against all serving queries in `/Users/guilhermecastro/Projects/quasar/convex/quasar.ts`. **Validation performed:** 1. **Stored-but-never...
+'''
+rationale = "The mining pack shows 7 sessions where assistant completion claims closed the work without an explicit verification run after the last file mutation. This stop gate would force human override when a completion claim is not backed by a recent verification command."
+implementation_note = "Requires a new `assistant_message` matcher type, a Stop hook that can evaluate assistant text, and session-span predicates (`last_tool_call_before`, `any_tool_call_between`, `bash_command_matches_writes_deletes_deploys`). The current Groundwork runtime matches tool-call surfaces but cannot query message content or historical tool-call sequences at stop time."
+
+# =============================================================================
+# Runtime-support gap
+# =============================================================================
+[required_runtime_support]
+comment = "The rules above cannot be enforced by the current Groundwork runtime. They describe the new matcher and hook capabilities required before promotion to policy."
+
+missing_matchers = [
+  "message_content regex on user messages at SessionStart",
+  "message_content regex on assistant messages at Stop",
+  "ask_shape classifier for compound_conjunction",
+  "ask_shape classifier for dependent_chain",
+  "ask_shape classifier for enumerated_list",
+  "ask_shape classifier for follow_up_complaint",
+  "ask_shape classifier for audit_then_action",
+  "ask_shape classifier for read_then_act",
+]
+
+missing_hooks = [
+  "SessionStart hook that inspects the first user message before any tool use",
+  "PreToolUse hook that inspects user message content on every tool-bound turn",
+  "Stop hook that inspects assistant message content before the session ends",
+]
+
+missing_actions = [
+  "inject_prompt with before_any_tool ordering guarantee",
+  "rebuild_remaining_worklist action for follow-up complaint recovery",
+  "require_human_override triggered by message-level conditions",
+  "stop_session as an alternative to require_human_override for future strict variants",
+]
+
+missing_session_predicates = [
+  "last_tool_call_before(seq, mutation_condition)",
+  "any_tool_call_between(start_seq, end_seq, verification_condition)",
+  "bash_command_matches_writes_deletes_deploys() classifier",
+]
+
+promotion_criteria = [
+  "Implement each missing matcher/hook/predicate in the Groundwork runtime.",
+  "Replay the 37 worklist-trigger and 7 verify-before-claim mining receipts against the new rules and measure replay ratio.",
+  "Confirm bounded false-positive surface for each rule before moving from research-incidents to enforceable policy.",
+]

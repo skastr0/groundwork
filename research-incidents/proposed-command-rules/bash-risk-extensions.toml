@@ -1,0 +1,150 @@
+# Proposed Bash-command risk extensions mined from the research-incidents corpus.
+# These policies extend the current hardcoded rules in packages/core/src/risk/rules.ts
+# with command classes that should be configurable from Groundwork policy TOML.
+#
+# Sources:
+# - .groundwork/mining-swarm/phase1/lens-A-risk-gates.json
+# - .groundwork/mining-swarm/phase3/merged-candidates.json
+# - .groundwork/mining-swarm/phase5/ranked-packs.json
+
+schema_version = "2026-07-04"
+source_lens = "A"
+
+[[extension]]
+id = "bash-risk-npm-publish"
+description = "Require human override before npm publish to avoid accidental public or partial releases."
+proposed_match_command = 'npm\s+publish\b'
+severity = "high"
+tier = "require_human_override"
+fp_surface = [
+  "Explicit release workflow with version bumps, changelog updates, and pre-publish checks",
+  "npm publish --dry-run used as a verification step",
+  "Publishing to a private registry in a scoped workspace"
+]
+receipts = [
+  'cd /Users/guilhermecastro/Projects/quasar/.release/npm first=1 for d in */; do echo "=== publish $d ===" out=$(cd "$d" && npm publish --access public 2>&1) echo "$out" ',
+  'cd /Users/guilhermecastro/Projects/quasar/.release/npm/@skastr0__quasar-cli-darwin-arm64 echo "=== package.json ==="; cat package.json echo "=== dry-run pack/publish (no actual publish) ===" npm publish --dry-run --access public 2>&1 ',
+  'cd /Users/guilhermecastro/Projects/quasar/.release/npm/@skastr0__quasar-cli-darwin-arm64 npm publish --access public 2>&1 '
+]
+implementation_note = "Expose as a configurable `match_command` surface in policy TOML. The command shape is stable and argument-aware parsing is not required for the override gate."
+
+[[extension]]
+id = "bash-risk-npm-version"
+description = "Warn before npm version bumps because they create commits and tags that affect release state."
+proposed_match_command = 'npm\s+version\b'
+severity = "medium"
+tier = "warn"
+fp_surface = [
+  "Planned release where the user intends to bump package.json and create a git tag",
+  "Local dry-run or inspection such as `npm version --help`"
+]
+receipts = [
+  'echo "=== hermes profile create flags ===" && hermes profile create --help 2>&1 ',
+  '# Verify @opentui/react version imported by prism matches local checkout grep -n "@opentui" /Users/guilhermecastro/Projects/prism/package.json # Check if local opentui is linked or if node_modules uses npm version ls /Users/guilhermecastro/Projects/prism/node_modules/@opentui/ 2>/dev/null '
+]
+implementation_note = "Expose as a configurable `match_command` surface in policy TOML. Mined receipts are indirect; the matcher should flag the literal `npm version` command, not the word `version` in unrelated output."
+
+[[extension]]
+id = "bash-risk-gh-release-create"
+description = "Require human override before `gh release create` because it publishes immutable GitHub releases and tags."
+proposed_match_command = 'gh\s+release\s+create\b'
+severity = "high"
+tier = "require_human_override"
+fp_surface = [
+  "Explicit release workflow after artifacts are built and changelog is finalized",
+  "Creating a draft release with `--draft` for review before publishing"
+]
+receipts = []
+implementation_note = "Expose as a configurable `match_command` surface in policy TOML. No receipts were mined for this exact command; it was inferred from the release-related command class adjacent to `npm publish` and `git push --tags`."
+
+[[extension]]
+id = "bash-risk-git-push-tags"
+description = "Require human override before `git push --tags` because it publishes all local tags to the remote, including release tags."
+proposed_match_command = 'git\s+push\s+.*(--tags\b)'
+severity = "high"
+tier = "require_human_override"
+fp_surface = [
+  "Intentional release push of a specific annotated tag",
+  "Pushing tags to a personal or non-shared fork"
+]
+receipts = []
+implementation_note = "Expose as a configurable `match_command` surface in policy TOML. No direct receipts were mined; this rule complements the existing `git push --force` hardcoded rule and should be adjacent to it in policy."
+
+[[extension]]
+id = "bash-risk-npx-convex-deploy"
+description = "Require human override before Convex deploys or secret mutations in production-like environments."
+proposed_match_command = 'npx\s+convex\s+(deploy|env\s+set)\b'
+severity = "high"
+tier = "require_human_override"
+fp_surface = [
+  "User explicitly requests a backend deployment after code review",
+  "Rotating an environment secret in a controlled release flow"
+]
+receipts = [
+  'npx convex env set --help 2>&1 '
+]
+implementation_note = "Expose as a configurable `match_command` surface in policy TOML. The matcher covers both deploys and `env set` mutations; future hardcoded support could differentiate prod vs dev projects."
+
+[[extension]]
+id = "bash-risk-kill-sigkill"
+description = "Block SIGKILL of unspecified processes because it prevents graceful shutdown and can crash shared services."
+proposed_match_command = 'kill\s+(-9|\s+SIGKILL)'
+severity = "high"
+tier = "block"
+fp_surface = [
+  "Terminating a hung, owned process after gentler signals failed",
+  "Killing a process the user explicitly started in the same session"
+]
+receipts = [
+  'echo "=== kill zombie runner 80986 ===" kill 80986 2>/dev/null; kill -9 80986 2>/dev/null; ps -p 80986 -o pid,stat,etime 2>&1 ',
+  'kill -9 56664 2>/dev/null '
+]
+implementation_note = "Add to the hardcoded risk evaluator. A regex-only `match_command` cannot safely distinguish shared/system processes from user-owned zombies, so the evaluator should eventually support a target whitelist or ownership check."
+
+[[extension]]
+id = "bash-risk-docker-rm-prune"
+description = "Warn before Docker rm/prune to avoid deleting containers or images still needed by builds."
+proposed_match_command = 'docker\s+(rm|prune)\b'
+severity = "medium"
+tier = "warn"
+fp_surface = [
+  "Cleanup of own containers or images after a task completes",
+  "Pruning in an isolated CI runner where no other builds share the daemon"
+]
+receipts = [
+  'cd /Users/guilhermecastro/Projects/quasar docker rm quasar-local-server-local-server-1 2>&1 docker volume rm quasar-local-server_quasar-data 2>&1 docker rmi quasar-local-server:latest quasar-local-server:test 2>&1 '
+]
+implementation_note = "Extend the existing hardcoded Docker evaluator in packages/core/src/risk/rules.ts. The current evaluator already handles `docker system prune`, `docker volume prune/rm`, and forced `docker rm/rmi`; this rule broadens coverage to any `docker rm` or `docker prune` invocation and could be backstopped by a configurable `match_command` policy."
+
+[[extension]]
+id = "bash-risk-sql-drop-delete"
+description = "Block raw SQL DROP TABLE or DELETE FROM commands to prevent accidental data loss."
+proposed_match_command = '(DROP\s+TABLE|DELETE\s+FROM)\b'
+severity = "critical"
+tier = "block"
+fp_surface = [
+  "Migration scripts run in a controlled environment with backups",
+  "Explicitly clearing test/owned data in a non-production database"
+]
+receipts = [
+  '''QUASAR=/Users/guilhermecastro/.local/share/mise/installs/npm-skastr0-quasar-cli/latest/bin/quasar echo "=== SPECIAL CHARS IN QUERY ===" "$QUASAR" search --query 'SELECT * FROM "messages" WHERE id=1; DROP TABLE--' --mode lexical --limit 2 2>&1 echo "EXIT: $?"'''
+]
+implementation_note = "Expose as a configurable `match_command` surface in policy TOML. The matcher is case-insensitive in the current evaluator and should match SQL fragments anywhere in the command string."
+
+[[extension]]
+id = "bash-risk-npm-auth-token"
+description = "Require human override before commands that touch npm auth, tokens, or OTP to prevent secret leakage or misconfiguration."
+proposed_match_command = '(\.npmrc|_authToken|authToken|OTP|otp|token\s*=|//registry\.npmjs\.org/)'
+severity = "critical"
+tier = "require_human_override"
+fp_surface = [
+  "Configuring a private registry with scoped auth in `.npmrc`",
+  "Entering an OTP in an explicit publish flow",
+  "Inspecting `.npmrc` registry config while redacting tokens"
+]
+receipts = [
+  'cd /Users/guilhermecastro/Projects/quasar/packages/cli echo "=== main package pack contents (dry-run) ===" npm pack --dry-run 2>&1 ',
+  'cd /Users/guilhermecastro/Projects/quasar/packages/cli echo "=== .npmrc registry config (token redacted) ===" rg "^(@skastr0):registry" .npmrc 2>&1 ',
+  'cd /Users/guilhermecastro/Projects/quasar echo "=== registry truth (direct, no npm cache) ===" curl -fsS "https://registry.npmjs.org/@skastr0%2Fquasar-cli" 2>/dev/null '
+]
+implementation_note = "Expose as a configurable `match_command` surface in policy TOML. The broad regex captures auth-file names, token fields, OTP literals, and registry URLs. Future hardcoded support could parse `.npmrc` writes and `npm adduser/login/publish` with explicit `--otp` to reduce false positives."
