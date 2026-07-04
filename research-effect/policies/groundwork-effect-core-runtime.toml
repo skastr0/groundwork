@@ -1,0 +1,101 @@
+version = 1
+
+[[rules]]
+id = "core-runtime-yield-star-required"
+description = "In Effect.gen generators, Effect values must be bound with yield*, not yield."
+severity = "warn"
+match = ["src/**/*.ts", "fixtures/**/*.ts"]
+scope = "changed_lines"
+
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = "yield Effect.$M($$$ARGS)"
+
+[[rules.actions]]
+type = "inject_prompt"
+text = "Effect.gen requires `yield*` for Effect values. Use `yield*` to bind the result of an Effect, or refactor to `.pipe` / `.flatMap`."
+once_per_session = true
+
+[[rules]]
+id = "core-runtime-no-throw-in-gen"
+description = "Do not throw inside Effect.gen generators; lift failures into the typed error channel."
+severity = "block"
+match = ["src/**/*.ts", "fixtures/**/*.ts"]
+scope = "changed_lines"
+
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = "Effect.gen(function* ($$$PARAMS) { throw $E })"
+
+[[rules.actions]]
+type = "block_tool"
+message = "Throwing inside an Effect.gen generator escapes the typed error channel. Return or yield* a failing Effect (e.g. Effect.fail) instead."
+
+[[rules]]
+id = "core-runtime-try-promise-needs-catch"
+description = "Effect.tryPromise must include a catch clause so Promise rejections are lifted into the typed error channel."
+severity = "block"
+match = ["src/**/*.ts", "fixtures/**/*.ts"]
+scope = "changed_lines"
+
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = "Effect.tryPromise({ $KEY: $A })"
+
+[[rules.actions]]
+type = "block_tool"
+message = "Effect.tryPromise requires a `catch` clause. Convert rejected Promises into typed errors instead of letting them escape."
+
+[[rules]]
+id = "core-runtime-prefer-try-promise-over-promise"
+description = "Avoid Effect.promise for unmanaged Promise rejections; use Effect.tryPromise with a catch clause."
+severity = "warn"
+match = ["src/**/*.ts", "fixtures/**/*.ts"]
+scope = "changed_lines"
+
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = "Effect.promise($$$ARGS)"
+
+[[rules.actions]]
+type = "inject_prompt"
+text = "`Effect.promise` does not handle Promise rejections. Prefer `Effect.tryPromise` with a `catch` clause so failures stay typed."
+once_per_session = true
+
+[[rules]]
+id = "core-runtime-no-console-in-effect"
+description = "Use Effect.log instead of console.* in Effect programs so logging stays in the effect runtime."
+severity = "warn"
+match = ["src/**/*.ts", "fixtures/**/*.ts"]
+scope = "changed_lines"
+
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = "console.$M($$$ARGS)"
+
+[[rules.actions]]
+type = "inject_prompt"
+text = "Avoid `console.*` in Effect code. Use `Effect.log` / `Effect.logDebug` so output is integrated with the Effect runtime and test layers."
+once_per_session = true
+
+[[rules]]
+id = "core-runtime-no-promise-chain-after-run-promise"
+description = "Do not chain .then/.catch/.finally onto Effect.runPromise; keep composition in Effect and run once at the boundary."
+severity = "warn"
+match = ["src/**/*.ts", "fixtures/**/*.ts"]
+scope = "changed_lines"
+
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = "Effect.runPromise($$$A).$METHOD($$$B)"
+
+[[rules.actions]]
+type = "inject_prompt"
+text = "Chaining `.then` / `.catch` after `Effect.runPromise` drops typed errors and splits control flow. Keep the pipeline in Effect (map, flatMap, catchAll, etc.) and run it once at the boundary."
+once_per_session = true

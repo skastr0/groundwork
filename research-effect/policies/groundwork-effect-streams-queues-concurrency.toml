@@ -1,0 +1,124 @@
+version = 1
+
+[[rules]]
+id = "streams-queues-concurrency-no-throw-in-effect"
+description = "Throwing inside Effect code bypasses the typed error channel and breaks interruption/safety guarantees."
+severity = "block"
+match = ["src/**/*.ts", "fixtures/**/*.ts"]
+scope = "changed_lines"
+
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = "throw $E"
+
+[[rules.actions]]
+type = "block_tool"
+message = "Never throw inside Effect code. Route recoverable errors through Effect.fail and defects through Effect.die."
+
+[[rules]]
+id = "streams-queues-concurrency-unbounded-queue"
+description = "Unbounded queues remove backpressure and can exhaust memory under load."
+severity = "warn"
+match = ["src/**/*.ts", "fixtures/**/*.ts"]
+scope = "changed_lines"
+
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = "Queue.unbounded"
+
+[[rules.actions]]
+type = "inject_prompt"
+text = "Queue.unbounded removes backpressure and can exhaust memory. Prefer Queue.bounded with a capacity that fits your SLO, or model the work as a Stream with explicit buffering."
+once_per_session = true
+
+[[rules]]
+id = "streams-queues-concurrency-hub-unbounded"
+description = "Unbounded hubs remove backpressure and can exhaust memory under load."
+severity = "warn"
+match = ["src/**/*.ts", "fixtures/**/*.ts"]
+scope = "changed_lines"
+
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = "Hub.unbounded"
+
+[[rules.actions]]
+type = "inject_prompt"
+text = "Hub.unbounded removes backpressure and can exhaust memory. Prefer Hub.bounded with a capacity aligned to your latency budget and consumer count."
+once_per_session = true
+
+[[rules]]
+id = "streams-queues-concurrency-prefer-fork-scoped"
+description = "Daemon fibers outlive their creation scope and are easy to leak."
+severity = "warn"
+match = ["src/**/*.ts", "fixtures/**/*.ts"]
+scope = "changed_lines"
+
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = "Effect.forkDaemon"
+
+[[rules.actions]]
+type = "inject_prompt"
+text = "Effect.forkDaemon creates a fiber that outlives its scope. Prefer Effect.forkScoped or Effect.forkIn unless you are explicitly managing a daemon's lifetime."
+once_per_session = true
+
+[[rules]]
+id = "streams-queues-concurrency-stream-run-at-boundary"
+description = "Stream.runPromise and Stream.runSync exit the Effect runtime and should only run at program boundaries."
+severity = "warn"
+match = ["src/**/*.ts", "fixtures/**/*.ts"]
+scope = "changed_lines"
+
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = "Stream.runPromise"
+
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = "Stream.runSync"
+
+[[rules.actions]]
+type = "inject_prompt"
+text = "Stream.runPromise / Stream.runSync leave the Effect runtime. Use them only at program boundaries; inside pipelines prefer Stream.runDrain, Stream.runCollect, or Stream.runForEach."
+once_per_session = true
+
+[[rules]]
+id = "streams-queues-concurrency-queue-shutdown-scope"
+description = "Manual Queue.shutdown calls are error-prone; queues should be released by their Scope."
+severity = "warn"
+match = ["src/**/*.ts", "fixtures/**/*.ts"]
+scope = "changed_lines"
+
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = "Queue.shutdown"
+
+[[rules.actions]]
+type = "inject_prompt"
+text = "Manual Queue.shutdown calls are easy to miss on error paths. Acquire queues through a Scope (Effect.acquireRelease, Layer, or a scoped generator) so shutdown runs as a finalizer."
+once_per_session = true
+
+[[rules]]
+id = "streams-queues-concurrency-buffer-sliding-loss"
+description = "Stream.bufferSliding silently drops older elements under backpressure."
+severity = "warn"
+match = ["src/**/*.ts", "fixtures/**/*.ts"]
+scope = "changed_lines"
+
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = "Stream.bufferSliding"
+
+[[rules.actions]]
+type = "inject_prompt"
+text = "Stream.bufferSliding drops older elements under pressure. Prefer Stream.buffer with bounded capacity and backpressure unless your domain explicitly tolerates lossy behavior."
+once_per_session = true

@@ -1,0 +1,184 @@
+version = 1
+
+[[rules]]
+id = "platform-cli-testing-no-unsafe-run"
+description = "Do not call Effect.unsafeRun* outside of a supervised entrypoint. Run effects through runtime-controlled runners at CLI boundaries."
+severity = "block"
+match = ["src/**/*.ts", "fixtures/**/*.ts"]
+scope = "changed_lines"
+
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = 'Effect.unsafeRunPromise($$$ARGS)'
+
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = 'Effect.unsafeRunSync($$$ARGS)'
+
+[[rules.actions]]
+type = "block_tool"
+message = "Unsafe Effect runners bypass supervision. Use Effect.runPromise / runSync at the outermost CLI boundary only."
+
+[[rules]]
+id = "platform-cli-testing-no-raw-process-argv"
+description = "Read CLI arguments through the configured CLI framework or Config layer, not raw process.argv."
+severity = "warn"
+match = ["src/**/*.ts", "fixtures/**/*.ts"]
+scope = "changed_lines"
+
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = 'process.argv'
+
+[[rules.actions]]
+type = "inject_prompt"
+text = "Raw process.argv access couples the CLI to Node's global. Use Command, Config, or another typed CLI abstraction."
+
+[[rules]]
+id = "platform-cli-testing-no-direct-process-exit"
+description = "Do not call process.exit inside Effect workflows. Return a typed failure or exit code and let the runtime shut down cleanly."
+severity = "warn"
+match = ["src/**/*.ts", "fixtures/**/*.ts"]
+scope = "changed_lines"
+
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = 'process.exit($$$CODE)'
+
+[[rules.actions]]
+type = "inject_prompt"
+text = "process.exit short-circuits Effect fiber supervision. Model shutdown as a typed error or exit-code effect instead."
+
+[[rules]]
+id = "platform-cli-testing-no-try-promise-without-catch"
+description = "Effect.tryPromise must provide catch so Promise rejections become typed errors instead of defects."
+severity = "block"
+match = ["src/**/*.ts", "fixtures/**/*.ts"]
+scope = "changed_lines"
+
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = 'Effect.tryPromise(() => $$$BODY)'
+
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = 'Effect.tryPromise(async () => $$$BODY)'
+
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = 'Effect.tryPromise({ try: $$$TRY })'
+
+[[rules.actions]]
+type = "block_tool"
+message = "Effect.tryPromise is missing a catch. Map rejections to a typed error with the catch option."
+
+[[rules]]
+id = "platform-cli-testing-no-console-log-in-effect"
+description = "Use Effect's structured Console / Logger utilities instead of console.log inside effectful code."
+severity = "warn"
+match = ["src/**/*.ts", "fixtures/**/*.ts"]
+scope = "changed_lines"
+
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = 'console.log($$$ARGS)'
+
+[[rules.actions]]
+type = "inject_prompt"
+text = "console.log bypasses Effect's logging layer. Prefer Console.log or a typed Logger so output is testable and controllable."
+
+[[rules]]
+id = "platform-cli-testing-no-read-env-directly"
+description = "Read environment variables through Config or a Layer instead of direct process.env access."
+severity = "warn"
+match = ["src/**/*.ts", "fixtures/**/*.ts"]
+scope = "changed_lines"
+
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = 'process.env.$VAR'
+
+[[rules.actions]]
+type = "inject_prompt"
+text = "Direct process.env access is untyped and hard to test. Use Config.string / Config.number / Config.bool or a ConfigProvider layer."
+
+[[rules]]
+id = "platform-cli-testing-no-sync-fs-in-effect"
+description = "Avoid blocking synchronous Node fs calls inside Effect workflows. Prefer the @effect/platform file system."
+severity = "warn"
+match = ["src/**/*.ts", "fixtures/**/*.ts"]
+scope = "changed_lines"
+
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = 'readFileSync($$$ARGS)'
+
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = '$FS.readFileSync($$$ARGS)'
+
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = 'writeFileSync($$$ARGS)'
+
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = '$FS.writeFileSync($$$ARGS)'
+
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = 'readdirSync($$$ARGS)'
+
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = '$FS.readdirSync($$$ARGS)'
+
+[[rules.actions]]
+type = "inject_prompt"
+text = "Synchronous fs calls block the fiber runtime. Use Fs.readFileString / writeFileString / readDirectory from @effect/platform."
+
+[[rules]]
+id = "platform-cli-testing-no-direct-child-process-exec"
+description = "Do not shell out directly through child_process inside Effect workflows. Use @effect/platform Command or a provided process service."
+severity = "warn"
+match = ["src/**/*.ts", "fixtures/**/*.ts"]
+scope = "changed_lines"
+
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = 'exec($$$ARGS)'
+
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = '$CP.exec($$$ARGS)'
+
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = 'execSync($$$ARGS)'
+
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = '$CP.execSync($$$ARGS)'
+
+[[rules.actions]]
+type = "inject_prompt"
+text = "Direct child_process calls are untracked side effects. Wrap subprocesses in Effect via Command.execute or a dedicated service."

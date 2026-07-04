@@ -1,0 +1,167 @@
+version = 1
+
+# Keep schema parse errors in the typed error channel and preserve their
+# diagnostic detail. These rules are AST-only; they flag shape, not types.
+
+[[rules]]
+id = "schema-errors-no-sync-decode"
+description = "Sync schema decoding/encoding throws on failure and bypasses Effect's typed error channel. Prefer the effectful decode/encode APIs."
+severity = "warn"
+match = ["src/**/*.ts", "fixtures/**/*.ts"]
+scope = "changed_lines"
+content_mode = "any"
+
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = '''
+  Schema.decodeSync($$$ARGS)($$$INPUT)
+
+'''
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = '''
+  Schema.decodeUnknownSync($$$ARGS)($$$INPUT)
+
+'''
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = '''
+  Schema.encodeSync($$$ARGS)($$$INPUT)
+
+'''
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = '''
+  Schema.encodeUnknownSync($$$ARGS)($$$INPUT)
+
+'''
+[[rules.actions]]
+type = "inject_prompt"
+text = "Replace sync schema decode/encode with the effectful Effect-style API (Schema.decodeUnknown, Schema.encodeUnknown, etc.) so parse failures stay in the typed error channel."
+
+[[rules]]
+id = "schema-errors-decode-unknown-for-runtime"
+description = "Runtime inputs are unknown; Schema.decode expects the schema's input type and can hide validation failures. Use Schema.decodeUnknown for external data."
+severity = "warn"
+match = ["src/**/*.ts", "fixtures/**/*.ts"]
+scope = "changed_lines"
+
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = '''
+  Schema.decode($$$ARGS)($$$INPUT)
+
+'''
+[[rules.actions]]
+type = "inject_prompt"
+text = "For runtime or external data, use Schema.decodeUnknown instead of Schema.decode so the full parse error is returned through the Effect error channel."
+
+[[rules]]
+id = "schema-errors-run-promise-decode-needs-catch"
+description = "Running a decode Effect directly with Effect.runPromise rejects with an unhandled ParseError. Catch ParseError or use runPromiseExit."
+severity = "warn"
+match = ["src/**/*.ts", "fixtures/**/*.ts"]
+scope = "changed_lines"
+
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = '''
+  Effect.runPromise(Schema.decodeUnknown($$$ARGS)($$$INPUT))
+
+'''
+[[rules.actions]]
+type = "inject_prompt"
+text = "Handle the ParseError from schema decoding before awaiting with runPromise, or switch to runPromiseExit so callers can inspect the Exit."
+
+[[rules]]
+id = "schema-errors-swallow-parse-error"
+description = "Catching ParseError with a zero-argument handler discards the parse issue tree and makes debugging hard."
+severity = "warn"
+match = ["src/**/*.ts", "fixtures/**/*.ts"]
+scope = "changed_lines"
+
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = '''
+  Effect.catchTag("ParseError", () => $$$BODY)
+
+'''
+[[rules.actions]]
+type = "inject_prompt"
+text = "When catching ParseError, accept the error parameter and preserve the formatted issues (ParseResult.ArrayFormatter or TreeFormatter)."
+
+[[rules]]
+id = "schema-errors-dont-default-on-decode"
+description = "Using getOrNull, getOrUndefined, or getOrElse on a decode Effect silently drops ParseError and replaces it with a default value. Handle the error explicitly."
+severity = "warn"
+match = ["src/**/*.ts", "fixtures/**/*.ts"]
+scope = "changed_lines"
+content_mode = "any"
+
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = '''
+  Schema.decodeUnknown($$$ARGS)($$$INPUT).pipe(Effect.getOrNull)
+
+'''
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = '''
+  Schema.decodeUnknown($$$ARGS)($$$INPUT).pipe(Effect.getOrUndefined)
+
+'''
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = '''
+  Schema.decodeUnknown($$$ARGS)($$$INPUT).pipe(Effect.getOrElse(() => $$$BODY))
+
+'''
+[[rules.actions]]
+type = "inject_prompt"
+text = "Avoid getOrNull/getOrUndefined/getOrElse on schema decoding. Surface or map the ParseError so callers know validation failed instead of receiving a silent default."
+
+[[rules]]
+id = "schema-errors-no-or-die-on-decode"
+description = "Calling orDie on a decode Effect turns recoverable parse failures into defects. Surface or handle ParseError explicitly."
+severity = "warn"
+match = ["src/**/*.ts", "fixtures/**/*.ts"]
+scope = "changed_lines"
+
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = '''
+  Schema.decodeUnknown($$$ARGS)($$$INPUT).pipe(Effect.orDie)
+
+'''
+[[rules.actions]]
+type = "inject_prompt"
+text = "Avoid orDie on schema decoding. Parse errors are expected failures; handle them with catchTag, mapError, or a typed error channel."
+
+[[rules]]
+id = "schema-errors-preserve-parse-cause"
+description = "mapError on a decode Effect that drops the original ParseError loses the exact validation failures. Keep the formatted issue tree as a cause."
+severity = "warn"
+match = ["src/**/*.ts", "fixtures/**/*.ts"]
+scope = "changed_lines"
+
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = '''
+  Schema.decodeUnknown($$$ARGS)($$$INPUT).pipe(Effect.mapError(() => new Error($$$MSG)))
+
+'''
+[[rules.actions]]
+type = "inject_prompt"
+text = "When mapping a ParseError to a domain error, include the formatted parse issues as the cause so diagnostics are not lost."

@@ -1,0 +1,113 @@
+version = 1
+
+[[rules]]
+id = "services-layers-throw-in-gen"
+description = "Do not throw inside Effect.gen; yield* Effect.fail(...) instead so failures stay in the typed Effect model."
+severity = "block"
+match = ["src/**/*.ts", "fixtures/**/*.ts"]
+scope = "changed_lines"
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = '''
+  Effect.gen(function* () { $$$ throw $ERR })
+'''
+[[rules.actions]]
+type = "block_tool"
+text = "Replace throw with yield* Effect.fail(...) (or another typed failure) inside Effect.gen so the error is tracked in the Effect."
+
+[[rules]]
+id = "services-layers-async-gen-in-effect"
+description = "Effect.gen expects a plain generator function, not an async generator. Lift async work into Effects and consume them with yield*."
+severity = "warn"
+match = ["src/**/*.ts", "fixtures/**/*.ts"]
+scope = "changed_lines"
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = '''
+  Effect.gen(async function* () { $$$BODY })
+'''
+[[rules.actions]]
+type = "inject_prompt"
+text = "Remove async from the generator passed to Effect.gen; replace await with yield* Effect.promise(...) or yield* Effect.tryPromise({ try: ..., catch: ... })."
+
+[[rules]]
+id = "services-layers-promise-then-in-gen"
+description = "Do not chain .then/.catch on Promises inside Effect.gen; compose with lifted Effects and yield* instead."
+severity = "warn"
+match = ["src/**/*.ts", "fixtures/**/*.ts"]
+scope = "changed_lines"
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = '''
+  Effect.gen(function* () { $$$ $EXPR.then($$$ARGS) })
+'''
+[[rules.actions]]
+type = "inject_prompt"
+text = "Replace Promise.then chains with yield* Effect.tryPromise({ try: ..., catch: ... }) or yield* Effect.promise(...) inside Effect.gen."
+
+[[rules]]
+id = "services-layers-try-without-catch"
+description = "Effect.try(...) with a callback maps all thrown errors to UnknownException. Prefer the options-object form with a typed catch."
+severity = "warn"
+match = ["src/**/*.ts", "fixtures/**/*.ts"]
+scope = "changed_lines"
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = '''
+  Effect.try(() => $BODY)
+'''
+[[rules.actions]]
+type = "inject_prompt"
+text = "Use Effect.try({ try: () => ..., catch: (error) => ... }) so failures become typed expected errors rather than UnknownException defects."
+
+[[rules]]
+id = "services-layers-trypromise-without-catch"
+description = "Effect.tryPromise(...) with a callback maps async failures to UnknownException. Always provide a typed catch at async boundaries."
+severity = "block"
+match = ["src/**/*.ts", "fixtures/**/*.ts"]
+scope = "changed_lines"
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = '''
+  Effect.tryPromise(() => $BODY)
+'''
+[[rules.actions]]
+type = "block_tool"
+text = "Use Effect.tryPromise({ try: () => ..., catch: (error) => ... }) so async failures become typed expected errors rather than UnknownException defects."
+
+[[rules]]
+id = "services-layers-runpromise-in-service"
+description = "Avoid Effect.runPromise/Effect.runSync inside service or layer modules; keep effects composable and run them only at the program edge."
+severity = "warn"
+match = ["src/**/*.ts", "fixtures/**/*.ts"]
+scope = "changed_lines"
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = '''
+  Effect.runPromise($$$ARGS)
+'''
+[[rules.actions]]
+type = "inject_prompt"
+text = "Return or compose the Effect instead of running it here; let the caller or main entry point call Effect.runPromise."
+
+[[rules]]
+id = "services-layers-eager-service-construction"
+description = "Do not construct service implementations eagerly at module scope; build them inside a Layer so their lifecycle is controlled by the runtime."
+severity = "advisory"
+match = ["src/**/*.ts", "fixtures/**/*.ts"]
+scope = "changed_lines"
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = '''
+  const $SVC = new $SERVICE($$$ARGS)
+'''
+[[rules.actions]]
+type = "inject_prompt"
+text = "Construct the service implementation inside Layer.effect / Layer.succeed (or an Effect passed to Layer scoped construction) instead of at module load time."

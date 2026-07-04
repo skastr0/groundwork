@@ -1,0 +1,685 @@
+version = 1
+
+[[rules]]
+id = "core-runtime-yield-star-required"
+description = "In Effect.gen generators, Effect values must be bound with yield*, not yield."
+severity = "warn"
+match = ["src/**/*.ts", "fixtures/**/*.ts"]
+scope = "changed_lines"
+
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = "yield Effect.$M($$$ARGS)"
+
+[[rules.actions]]
+type = "inject_prompt"
+text = "Effect.gen requires `yield*` for Effect values. Use `yield*` to bind the result of an Effect, or refactor to `.pipe` / `.flatMap`."
+once_per_session = true
+
+[[rules]]
+id = "core-runtime-no-throw-in-gen"
+description = "Do not throw inside Effect.gen generators; lift failures into the typed error channel."
+severity = "block"
+match = ["src/**/*.ts", "fixtures/**/*.ts"]
+scope = "changed_lines"
+
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = "Effect.gen(function* ($$$PARAMS) { throw $E })"
+
+[[rules.actions]]
+type = "block_tool"
+message = "Throwing inside an Effect.gen generator escapes the typed error channel. Return or yield* a failing Effect (e.g. Effect.fail) instead."
+
+[[rules]]
+id = "core-runtime-try-promise-needs-catch"
+description = "Effect.tryPromise must include a catch clause so Promise rejections are lifted into the typed error channel."
+severity = "block"
+match = ["src/**/*.ts", "fixtures/**/*.ts"]
+scope = "changed_lines"
+
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = "Effect.tryPromise({ $KEY: $A })"
+
+[[rules.actions]]
+type = "block_tool"
+message = "Effect.tryPromise requires a `catch` clause. Convert rejected Promises into typed errors instead of letting them escape."
+
+[[rules]]
+id = "core-runtime-prefer-try-promise-over-promise"
+description = "Avoid Effect.promise for unmanaged Promise rejections; use Effect.tryPromise with a catch clause."
+severity = "warn"
+match = ["src/**/*.ts", "fixtures/**/*.ts"]
+scope = "changed_lines"
+
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = "Effect.promise($$$ARGS)"
+
+[[rules.actions]]
+type = "inject_prompt"
+text = "`Effect.promise` does not handle Promise rejections. Prefer `Effect.tryPromise` with a `catch` clause so failures stay typed."
+once_per_session = true
+
+[[rules]]
+id = "core-runtime-no-console-in-effect"
+description = "Use Effect.log instead of console.* in Effect programs so logging stays in the effect runtime."
+severity = "warn"
+match = ["src/**/*.ts", "fixtures/**/*.ts"]
+scope = "changed_lines"
+
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = "console.$M($$$ARGS)"
+
+[[rules.actions]]
+type = "inject_prompt"
+text = "Avoid `console.*` in Effect code. Use `Effect.log` / `Effect.logDebug` so output is integrated with the Effect runtime and test layers."
+once_per_session = true
+
+[[rules]]
+id = "core-runtime-no-promise-chain-after-run-promise"
+description = "Do not chain .then/.catch/.finally onto Effect.runPromise; keep composition in Effect and run once at the boundary."
+severity = "warn"
+match = ["src/**/*.ts", "fixtures/**/*.ts"]
+scope = "changed_lines"
+
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = "Effect.runPromise($$$A).$METHOD($$$B)"
+
+[[rules.actions]]
+type = "inject_prompt"
+text = "Chaining `.then` / `.catch` after `Effect.runPromise` drops typed errors and splits control flow. Keep the pipeline in Effect (map, flatMap, catchAll, etc.) and run it once at the boundary."
+once_per_session = true
+
+[[rules]]
+id = "platform-cli-testing-no-unsafe-run"
+description = "Do not call Effect.unsafeRun* outside of a supervised entrypoint. Run effects through runtime-controlled runners at CLI boundaries."
+severity = "block"
+match = ["src/**/*.ts", "fixtures/**/*.ts"]
+scope = "changed_lines"
+
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = 'Effect.unsafeRunPromise($$$ARGS)'
+
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = 'Effect.unsafeRunSync($$$ARGS)'
+
+[[rules.actions]]
+type = "block_tool"
+message = "Unsafe Effect runners bypass supervision. Use Effect.runPromise / runSync at the outermost CLI boundary only."
+
+[[rules]]
+id = "platform-cli-testing-no-raw-process-argv"
+description = "Read CLI arguments through the configured CLI framework or Config layer, not raw process.argv."
+severity = "warn"
+match = ["src/**/*.ts", "fixtures/**/*.ts"]
+scope = "changed_lines"
+
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = 'process.argv'
+
+[[rules.actions]]
+type = "inject_prompt"
+text = "Raw process.argv access couples the CLI to Node's global. Use Command, Config, or another typed CLI abstraction."
+
+[[rules]]
+id = "platform-cli-testing-no-direct-process-exit"
+description = "Do not call process.exit inside Effect workflows. Return a typed failure or exit code and let the runtime shut down cleanly."
+severity = "warn"
+match = ["src/**/*.ts", "fixtures/**/*.ts"]
+scope = "changed_lines"
+
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = 'process.exit($$$CODE)'
+
+[[rules.actions]]
+type = "inject_prompt"
+text = "process.exit short-circuits Effect fiber supervision. Model shutdown as a typed error or exit-code effect instead."
+
+[[rules]]
+id = "platform-cli-testing-no-try-promise-without-catch"
+description = "Effect.tryPromise must provide catch so Promise rejections become typed errors instead of defects."
+severity = "block"
+match = ["src/**/*.ts", "fixtures/**/*.ts"]
+scope = "changed_lines"
+
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = 'Effect.tryPromise(() => $$$BODY)'
+
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = 'Effect.tryPromise(async () => $$$BODY)'
+
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = 'Effect.tryPromise({ try: $$$TRY })'
+
+[[rules.actions]]
+type = "block_tool"
+message = "Effect.tryPromise is missing a catch. Map rejections to a typed error with the catch option."
+
+[[rules]]
+id = "platform-cli-testing-no-console-log-in-effect"
+description = "Use Effect's structured Console / Logger utilities instead of console.log inside effectful code."
+severity = "warn"
+match = ["src/**/*.ts", "fixtures/**/*.ts"]
+scope = "changed_lines"
+
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = 'console.log($$$ARGS)'
+
+[[rules.actions]]
+type = "inject_prompt"
+text = "console.log bypasses Effect's logging layer. Prefer Console.log or a typed Logger so output is testable and controllable."
+
+[[rules]]
+id = "platform-cli-testing-no-read-env-directly"
+description = "Read environment variables through Config or a Layer instead of direct process.env access."
+severity = "warn"
+match = ["src/**/*.ts", "fixtures/**/*.ts"]
+scope = "changed_lines"
+
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = 'process.env.$VAR'
+
+[[rules.actions]]
+type = "inject_prompt"
+text = "Direct process.env access is untyped and hard to test. Use Config.string / Config.number / Config.bool or a ConfigProvider layer."
+
+[[rules]]
+id = "platform-cli-testing-no-sync-fs-in-effect"
+description = "Avoid blocking synchronous Node fs calls inside Effect workflows. Prefer the @effect/platform file system."
+severity = "warn"
+match = ["src/**/*.ts", "fixtures/**/*.ts"]
+scope = "changed_lines"
+
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = 'readFileSync($$$ARGS)'
+
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = '$FS.readFileSync($$$ARGS)'
+
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = 'writeFileSync($$$ARGS)'
+
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = '$FS.writeFileSync($$$ARGS)'
+
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = 'readdirSync($$$ARGS)'
+
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = '$FS.readdirSync($$$ARGS)'
+
+[[rules.actions]]
+type = "inject_prompt"
+text = "Synchronous fs calls block the fiber runtime. Use Fs.readFileString / writeFileString / readDirectory from @effect/platform."
+
+[[rules]]
+id = "platform-cli-testing-no-direct-child-process-exec"
+description = "Do not shell out directly through child_process inside Effect workflows. Use @effect/platform Command or a provided process service."
+severity = "warn"
+match = ["src/**/*.ts", "fixtures/**/*.ts"]
+scope = "changed_lines"
+
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = 'exec($$$ARGS)'
+
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = '$CP.exec($$$ARGS)'
+
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = 'execSync($$$ARGS)'
+
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = '$CP.execSync($$$ARGS)'
+
+[[rules.actions]]
+type = "inject_prompt"
+text = "Direct child_process calls are untracked side effects. Wrap subprocesses in Effect via Command.execute or a dedicated service."
+
+# Keep schema parse errors in the typed error channel and preserve their
+# diagnostic detail. These rules are AST-only; they flag shape, not types.
+
+[[rules]]
+id = "schema-errors-no-sync-decode"
+description = "Sync schema decoding/encoding throws on failure and bypasses Effect's typed error channel. Prefer the effectful decode/encode APIs."
+severity = "warn"
+match = ["src/**/*.ts", "fixtures/**/*.ts"]
+scope = "changed_lines"
+content_mode = "any"
+
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = '''
+  Schema.decodeSync($$$ARGS)($$$INPUT)
+
+'''
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = '''
+  Schema.decodeUnknownSync($$$ARGS)($$$INPUT)
+
+'''
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = '''
+  Schema.encodeSync($$$ARGS)($$$INPUT)
+
+'''
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = '''
+  Schema.encodeUnknownSync($$$ARGS)($$$INPUT)
+
+'''
+[[rules.actions]]
+type = "inject_prompt"
+text = "Replace sync schema decode/encode with the effectful Effect-style API (Schema.decodeUnknown, Schema.encodeUnknown, etc.) so parse failures stay in the typed error channel."
+
+[[rules]]
+id = "schema-errors-decode-unknown-for-runtime"
+description = "Runtime inputs are unknown; Schema.decode expects the schema's input type and can hide validation failures. Use Schema.decodeUnknown for external data."
+severity = "warn"
+match = ["src/**/*.ts", "fixtures/**/*.ts"]
+scope = "changed_lines"
+
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = '''
+  Schema.decode($$$ARGS)($$$INPUT)
+
+'''
+[[rules.actions]]
+type = "inject_prompt"
+text = "For runtime or external data, use Schema.decodeUnknown instead of Schema.decode so the full parse error is returned through the Effect error channel."
+
+[[rules]]
+id = "schema-errors-run-promise-decode-needs-catch"
+description = "Running a decode Effect directly with Effect.runPromise rejects with an unhandled ParseError. Catch ParseError or use runPromiseExit."
+severity = "warn"
+match = ["src/**/*.ts", "fixtures/**/*.ts"]
+scope = "changed_lines"
+
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = '''
+  Effect.runPromise(Schema.decodeUnknown($$$ARGS)($$$INPUT))
+
+'''
+[[rules.actions]]
+type = "inject_prompt"
+text = "Handle the ParseError from schema decoding before awaiting with runPromise, or switch to runPromiseExit so callers can inspect the Exit."
+
+[[rules]]
+id = "schema-errors-swallow-parse-error"
+description = "Catching ParseError with a zero-argument handler discards the parse issue tree and makes debugging hard."
+severity = "warn"
+match = ["src/**/*.ts", "fixtures/**/*.ts"]
+scope = "changed_lines"
+
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = '''
+  Effect.catchTag("ParseError", () => $$$BODY)
+
+'''
+[[rules.actions]]
+type = "inject_prompt"
+text = "When catching ParseError, accept the error parameter and preserve the formatted issues (ParseResult.ArrayFormatter or TreeFormatter)."
+
+[[rules]]
+id = "schema-errors-dont-default-on-decode"
+description = "Using getOrNull, getOrUndefined, or getOrElse on a decode Effect silently drops ParseError and replaces it with a default value. Handle the error explicitly."
+severity = "warn"
+match = ["src/**/*.ts", "fixtures/**/*.ts"]
+scope = "changed_lines"
+content_mode = "any"
+
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = '''
+  Schema.decodeUnknown($$$ARGS)($$$INPUT).pipe(Effect.getOrNull)
+
+'''
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = '''
+  Schema.decodeUnknown($$$ARGS)($$$INPUT).pipe(Effect.getOrUndefined)
+
+'''
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = '''
+  Schema.decodeUnknown($$$ARGS)($$$INPUT).pipe(Effect.getOrElse(() => $$$BODY))
+
+'''
+[[rules.actions]]
+type = "inject_prompt"
+text = "Avoid getOrNull/getOrUndefined/getOrElse on schema decoding. Surface or map the ParseError so callers know validation failed instead of receiving a silent default."
+
+[[rules]]
+id = "schema-errors-no-or-die-on-decode"
+description = "Calling orDie on a decode Effect turns recoverable parse failures into defects. Surface or handle ParseError explicitly."
+severity = "warn"
+match = ["src/**/*.ts", "fixtures/**/*.ts"]
+scope = "changed_lines"
+
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = '''
+  Schema.decodeUnknown($$$ARGS)($$$INPUT).pipe(Effect.orDie)
+
+'''
+[[rules.actions]]
+type = "inject_prompt"
+text = "Avoid orDie on schema decoding. Parse errors are expected failures; handle them with catchTag, mapError, or a typed error channel."
+
+[[rules]]
+id = "schema-errors-preserve-parse-cause"
+description = "mapError on a decode Effect that drops the original ParseError loses the exact validation failures. Keep the formatted issue tree as a cause."
+severity = "warn"
+match = ["src/**/*.ts", "fixtures/**/*.ts"]
+scope = "changed_lines"
+
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = '''
+  Schema.decodeUnknown($$$ARGS)($$$INPUT).pipe(Effect.mapError(() => new Error($$$MSG)))
+
+'''
+[[rules.actions]]
+type = "inject_prompt"
+text = "When mapping a ParseError to a domain error, include the formatted parse issues as the cause so diagnostics are not lost."
+
+[[rules]]
+id = "services-layers-throw-in-gen"
+description = "Do not throw inside Effect.gen; yield* Effect.fail(...) instead so failures stay in the typed Effect model."
+severity = "block"
+match = ["src/**/*.ts", "fixtures/**/*.ts"]
+scope = "changed_lines"
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = '''
+  Effect.gen(function* () { $$$ throw $ERR })
+'''
+[[rules.actions]]
+type = "block_tool"
+text = "Replace throw with yield* Effect.fail(...) (or another typed failure) inside Effect.gen so the error is tracked in the Effect."
+
+[[rules]]
+id = "services-layers-async-gen-in-effect"
+description = "Effect.gen expects a plain generator function, not an async generator. Lift async work into Effects and consume them with yield*."
+severity = "warn"
+match = ["src/**/*.ts", "fixtures/**/*.ts"]
+scope = "changed_lines"
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = '''
+  Effect.gen(async function* () { $$$BODY })
+'''
+[[rules.actions]]
+type = "inject_prompt"
+text = "Remove async from the generator passed to Effect.gen; replace await with yield* Effect.promise(...) or yield* Effect.tryPromise({ try: ..., catch: ... })."
+
+[[rules]]
+id = "services-layers-promise-then-in-gen"
+description = "Do not chain .then/.catch on Promises inside Effect.gen; compose with lifted Effects and yield* instead."
+severity = "warn"
+match = ["src/**/*.ts", "fixtures/**/*.ts"]
+scope = "changed_lines"
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = '''
+  Effect.gen(function* () { $$$ $EXPR.then($$$ARGS) })
+'''
+[[rules.actions]]
+type = "inject_prompt"
+text = "Replace Promise.then chains with yield* Effect.tryPromise({ try: ..., catch: ... }) or yield* Effect.promise(...) inside Effect.gen."
+
+[[rules]]
+id = "services-layers-try-without-catch"
+description = "Effect.try(...) with a callback maps all thrown errors to UnknownException. Prefer the options-object form with a typed catch."
+severity = "warn"
+match = ["src/**/*.ts", "fixtures/**/*.ts"]
+scope = "changed_lines"
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = '''
+  Effect.try(() => $BODY)
+'''
+[[rules.actions]]
+type = "inject_prompt"
+text = "Use Effect.try({ try: () => ..., catch: (error) => ... }) so failures become typed expected errors rather than UnknownException defects."
+
+[[rules]]
+id = "services-layers-trypromise-without-catch"
+description = "Effect.tryPromise(...) with a callback maps async failures to UnknownException. Always provide a typed catch at async boundaries."
+severity = "block"
+match = ["src/**/*.ts", "fixtures/**/*.ts"]
+scope = "changed_lines"
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = '''
+  Effect.tryPromise(() => $BODY)
+'''
+[[rules.actions]]
+type = "block_tool"
+text = "Use Effect.tryPromise({ try: () => ..., catch: (error) => ... }) so async failures become typed expected errors rather than UnknownException defects."
+
+[[rules]]
+id = "services-layers-runpromise-in-service"
+description = "Avoid Effect.runPromise/Effect.runSync inside service or layer modules; keep effects composable and run them only at the program edge."
+severity = "warn"
+match = ["src/**/*.ts", "fixtures/**/*.ts"]
+scope = "changed_lines"
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = '''
+  Effect.runPromise($$$ARGS)
+'''
+[[rules.actions]]
+type = "inject_prompt"
+text = "Return or compose the Effect instead of running it here; let the caller or main entry point call Effect.runPromise."
+
+[[rules]]
+id = "services-layers-eager-service-construction"
+description = "Do not construct service implementations eagerly at module scope; build them inside a Layer so their lifecycle is controlled by the runtime."
+severity = "advisory"
+match = ["src/**/*.ts", "fixtures/**/*.ts"]
+scope = "changed_lines"
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = '''
+  const $SVC = new $SERVICE($$$ARGS)
+'''
+[[rules.actions]]
+type = "inject_prompt"
+text = "Construct the service implementation inside Layer.effect / Layer.succeed (or an Effect passed to Layer scoped construction) instead of at module load time."
+
+[[rules]]
+id = "streams-queues-concurrency-no-throw-in-effect"
+description = "Throwing inside Effect code bypasses the typed error channel and breaks interruption/safety guarantees."
+severity = "block"
+match = ["src/**/*.ts", "fixtures/**/*.ts"]
+scope = "changed_lines"
+
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = "throw $E"
+
+[[rules.actions]]
+type = "block_tool"
+message = "Never throw inside Effect code. Route recoverable errors through Effect.fail and defects through Effect.die."
+
+[[rules]]
+id = "streams-queues-concurrency-unbounded-queue"
+description = "Unbounded queues remove backpressure and can exhaust memory under load."
+severity = "warn"
+match = ["src/**/*.ts", "fixtures/**/*.ts"]
+scope = "changed_lines"
+
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = "Queue.unbounded"
+
+[[rules.actions]]
+type = "inject_prompt"
+text = "Queue.unbounded removes backpressure and can exhaust memory. Prefer Queue.bounded with a capacity that fits your SLO, or model the work as a Stream with explicit buffering."
+once_per_session = true
+
+[[rules]]
+id = "streams-queues-concurrency-hub-unbounded"
+description = "Unbounded hubs remove backpressure and can exhaust memory under load."
+severity = "warn"
+match = ["src/**/*.ts", "fixtures/**/*.ts"]
+scope = "changed_lines"
+
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = "Hub.unbounded"
+
+[[rules.actions]]
+type = "inject_prompt"
+text = "Hub.unbounded removes backpressure and can exhaust memory. Prefer Hub.bounded with a capacity aligned to your latency budget and consumer count."
+once_per_session = true
+
+[[rules]]
+id = "streams-queues-concurrency-prefer-fork-scoped"
+description = "Daemon fibers outlive their creation scope and are easy to leak."
+severity = "warn"
+match = ["src/**/*.ts", "fixtures/**/*.ts"]
+scope = "changed_lines"
+
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = "Effect.forkDaemon"
+
+[[rules.actions]]
+type = "inject_prompt"
+text = "Effect.forkDaemon creates a fiber that outlives its scope. Prefer Effect.forkScoped or Effect.forkIn unless you are explicitly managing a daemon's lifetime."
+once_per_session = true
+
+[[rules]]
+id = "streams-queues-concurrency-stream-run-at-boundary"
+description = "Stream.runPromise and Stream.runSync exit the Effect runtime and should only run at program boundaries."
+severity = "warn"
+match = ["src/**/*.ts", "fixtures/**/*.ts"]
+scope = "changed_lines"
+
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = "Stream.runPromise"
+
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = "Stream.runSync"
+
+[[rules.actions]]
+type = "inject_prompt"
+text = "Stream.runPromise / Stream.runSync leave the Effect runtime. Use them only at program boundaries; inside pipelines prefer Stream.runDrain, Stream.runCollect, or Stream.runForEach."
+once_per_session = true
+
+[[rules]]
+id = "streams-queues-concurrency-queue-shutdown-scope"
+description = "Manual Queue.shutdown calls are error-prone; queues should be released by their Scope."
+severity = "warn"
+match = ["src/**/*.ts", "fixtures/**/*.ts"]
+scope = "changed_lines"
+
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = "Queue.shutdown"
+
+[[rules.actions]]
+type = "inject_prompt"
+text = "Manual Queue.shutdown calls are easy to miss on error paths. Acquire queues through a Scope (Effect.acquireRelease, Layer, or a scoped generator) so shutdown runs as a finalizer."
+once_per_session = true
+
+[[rules]]
+id = "streams-queues-concurrency-buffer-sliding-loss"
+description = "Stream.bufferSliding silently drops older elements under backpressure."
+severity = "warn"
+match = ["src/**/*.ts", "fixtures/**/*.ts"]
+scope = "changed_lines"
+
+[[rules.content]]
+type = "ast_grep"
+language = "ts"
+pattern = "Stream.bufferSliding"
+
+[[rules.actions]]
+type = "inject_prompt"
+text = "Stream.bufferSliding drops older elements under pressure. Prefer Stream.buffer with bounded capacity and backpressure unless your domain explicitly tolerates lossy behavior."
+once_per_session = true
