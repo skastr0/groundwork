@@ -1,0 +1,50 @@
+version = 1
+
+# Type-fitness rules are enforced by Quartz type analysis, not AST matching.
+# They detect broken Effect instantiations that the TypeScript compiler accepts
+# but that weaken the typed error/requirement model.
+
+[[rules]]
+id = "type-fitness-no-any-error"
+description = "Effect error channel must not be `any`; use a typed error or `never` only when truly infallible."
+severity = "block"
+match = ["src/**/*.ts"]
+scope = "changed_lines"
+
+[[rules.content]]
+type = "quartz"
+check = "effect_error_channel_any"
+
+[[rules.actions]]
+type = "block_tool"
+message = "The Effect error channel is `any`, which disables typed error handling. Replace it with a concrete error type or keep it as `never` only for proven infallible effects."
+
+[[rules]]
+id = "type-fitness-no-any-requirement"
+description = "Effect requirement/dependency channel must not be `any`; use a concrete Context.Tag set or `never`."
+severity = "block"
+match = ["src/**/*.ts"]
+scope = "changed_lines"
+
+[[rules.content]]
+type = "quartz"
+check = "effect_requirement_channel_any"
+
+[[rules.actions]]
+type = "block_tool"
+message = "The Effect requirement channel is `any`, which hides real dependencies. Replace it with the concrete Context.Tag set the effect actually needs."
+
+[[rules]]
+id = "type-fitness-no-unknown-requirement"
+description = "Effect requirement/dependency channel must not be `unknown`; specify the concrete Context.Tag set."
+severity = "warn"
+match = ["src/**/*.ts"]
+scope = "changed_lines"
+
+[[rules.content]]
+type = "quartz"
+check = "effect_requirement_channel_unknown"
+
+[[rules.actions]]
+type = "inject_prompt"
+text = "The Effect requirement channel is `unknown`, which forces callers to provide an opaque dependency set. Replace it with the concrete Context.Tag set the effect needs."

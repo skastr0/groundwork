@@ -1,0 +1,61 @@
+{
+  "orbit": "forge",
+  "kind": "groundwork.effect-pack.research-complete",
+  "summary": "Groundwork Effect policy pack research complete: 38 rules (35 ast-grep + 3 Quartz type-fitness) with passing fixture harness.",
+  "contract_schema_id": "forge/signal/research-complete/v1",
+  "payload": {
+    "location": "/Users/guilhermecastro/Projects/groundwork/research-effect",
+    "artifacts": [
+      "policies/groundwork-effect.toml",
+      "policies/groundwork-effect-core-runtime.toml",
+      "policies/groundwork-effect-schema-errors.toml",
+      "policies/groundwork-effect-services-layers.toml",
+      "policies/groundwork-effect-streams-queues-concurrency.toml",
+      "policies/groundwork-effect-platform-cli-testing.toml",
+      "policies/groundwork-effect-type-fitness.toml",
+      "fixtures/core-runtime.ts",
+      "fixtures/schema-errors.ts",
+      "fixtures/services-layers.ts",
+      "fixtures/streams-queues-concurrency.ts",
+      "fixtures/platform-cli-testing.ts",
+      "fixtures/type-fitness.ts",
+      "tests/runner.js",
+      "tsconfig.json"
+    ],
+    "coverage": {
+      "ast_grep_rules": 35,
+      "quartz_rules": 3,
+      "fixtures": 6,
+      "assertions_passing": 82
+    },
+    "ast_grep_rule_domains": [
+      "core-runtime",
+      "schema-errors",
+      "services-layers",
+      "streams-queues-concurrency",
+      "platform-cli-testing"
+    ],
+    "quartz_rule_domains": [
+      "type-fitness-no-any-error",
+      "type-fitness-no-any-requirement",
+      "type-fitness-no-unknown-requirement"
+    ],
+    "what_works": [
+      "AST-only matchers catch idiomatic Effect misuse (yield vs yield*, missing catch, sync decode, unbounded queues, etc.)",
+      "Quartz type analysis catches broken Effect instantiations with any/unknown in error/requirement channels",
+      "Test harness unifies ast-grep and Quartz assertions against annotated fixtures",
+      "Policy files are valid Groundwork TOML and merge into a single pack"
+    ],
+    "next_steps": [
+      "Promote research pack to a real Groundwork plugin pack (groundwork-effect) installable via plugins = [\"groundwork-effect\"]",
+      "Add more Quartz rules: unknown error channel, never error channel on failable bodies, Effect<A,E,R> assignability leaks across module boundaries",
+      "Extend Quartz coverage from exported variables to function return types, parameters, and inline expression positions",
+      "Wire type-fitness checks as a Groundwork command matcher once the runtime supports command-type content",
+      "Run the pack against real Effect codebases (ether, quartz, prism-plugins) and tune false positives",
+      "Add CI step that runs `npm test` in groundwork/research-effect on every change"
+    ],
+    "blockers": [
+      "Groundwork policy schema currently only supports ast_grep and semgrep content; quartz rules are enforced by the research harness, not by Groundwork itself. A command/content matcher or harness hook is needed for production use."
+    ]
+  }
+}

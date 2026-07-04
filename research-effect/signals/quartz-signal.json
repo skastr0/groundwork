@@ -1,0 +1,64 @@
+{
+  "orbit": "forge",
+  "kind": "quartz.effect-type-analysis.feature-request",
+  "summary": "Feature request: extend Quartz to support Effect type-fitness analysis (error/requirement channel integrity).",
+  "contract_schema_id": "forge/signal/feature-request/v1",
+  "payload": {
+    "origin": "/Users/guilhermecastro/Projects/groundwork/research-effect",
+    "use_case": "Effect policy pack needs type-level guards that AST matchers cannot provide: detecting any/unknown/never in Effect<A,E,R> channels, and verifying that failable function bodies match their declared error types.",
+    "current_state": {
+      "quartz_version": "0.1.0",
+      "commands_used": ["symbols", "info", "at-position"],
+      "what_works_now": [
+        "`quartz symbols` lists exported variables and their declaration lines.",
+        "`quartz info` returns the declared type string of an exported symbol (e.g., Effect.Effect<string, any, never>).",
+        "`quartz at-position` returns the type at a specific source position."
+      ]
+    },
+    "gaps": [
+      {
+        "gap": "No command to enumerate all Effect<...> type occurrences (variables, function returns, parameters, inline expressions).",
+        "impact": "Policy harness must guess candidate positions instead of asking Quartz for every Effect-typed node."
+      },
+      {
+        "gap": "No structured access to Effect type arguments (A, E, R).",
+        "impact": "Harness must regex-match the expanded type string, which is brittle for nested or aliased types."
+      },
+      {
+        "gap": "No check that compares a function body's inferred error type against its declared return type.",
+        "impact": "Cannot detect the most dangerous case: a function declared `Effect<A, never, R>` that internally calls `Effect.tryPromise` or `Effect.fail`."
+      }
+    ],
+    "proposed_evolution": [
+      {
+        "command": "effect-nodes",
+        "description": "Return all AST nodes whose resolved type is Effect<...> with node kind, file, line, column, and expanded type string.",
+        "filters": {"kind": "variable|function|parameter|call|property", "typePattern": "Effect<...>"}
+      },
+      {
+        "command": "effect-type-args",
+        "description": "Given a symbol or position, return the three type arguments of the Effect type as structured JSON: { success, error, requirement }.",
+        "output": ["typeString", "typeKind", "isAny", "isUnknown", "isNever", "isConcrete"]
+      },
+      {
+        "command": "effect-error-consistency",
+        "description": "For a function returning Effect<A,E,R>, verify that the body's inferred error type is assignable to E and not silently widened to any/unknown.",
+        "input": ["file", "line", "column"]
+      }
+    ],
+    "existing_testbed": {
+      "fixture": "fixtures/type-fitness.ts",
+      "cases": [
+        "explicitAnyError: Effect.Effect<string, any, never>",
+        "propagatedAnyError: Effect.Effect<string, any, never> inferred from a broken dependency",
+        "explicitAnyRequirement: Effect.Effect<string, Error, any>",
+        "explicitUnknownRequirement: Effect.Effect<string, Error, unknown>"
+      ]
+    },
+    "next_steps": [
+      "Confirm whether the proposed commands fit Quartz's architecture or if an existing command can be extended.",
+      "If accepted, implement `effect-nodes` first; it unblocks the richest policy use case.",
+      "Update the research harness to use the new Quartz commands and retire regex-based type parsing."
+    ]
+  }
+}
