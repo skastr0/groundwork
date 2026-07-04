@@ -1,0 +1,184 @@
+{
+  "lens": "D — silent scope narrowing",
+  "project_identity_key": "git:github.com/skastr0/groundwork",
+  "excluded_study_lineage_sessions": [
+    "kimi:9bd4e3fd0b9f8bc6f76897476c6781f8",
+    "claude:125057f897e06c03eae355f2593857dd"
+  ],
+  "queries_run": [
+    {
+      "mode": "lexical",
+      "role": "user",
+      "limit": 50,
+      "queries": [
+        "half of the work",
+        "you missed",
+        "the rest of",
+        "only did",
+        "what about the other",
+        "all of them",
+        "third time I'm asking",
+        "each of the following",
+        "all three",
+        "all 3",
+        "all four",
+        "all 4",
+        "every one of",
+        "all of the following"
+      ],
+      "note": "Initial broad sweep. Very noisy: dominated by subagent notifications, Codex hook warnings, and the two excluded study-lineage sessions."
+    },
+    {
+      "mode": "lexical",
+      "role": "assistant",
+      "limit": 50,
+      "queries": [
+        "focus on",
+        "start with",
+        "covered in this response",
+        "first part",
+        "we can discuss later"
+      ],
+      "note": "Second sweep targeting assistant-side explicit narrowing phrases. Returned mostly progress updates and work-in-flight chatter, not silent omissions."
+    },
+    {
+      "mode": "lexical",
+      "role": "user",
+      "limit": 50,
+      "queries": [
+        "you missed",
+        "what about the rest of",
+        "only did",
+        "half of the work",
+        "you forgot",
+        "you didn't address"
+      ],
+      "note": "Complaint-phrase sweep. Output truncated; preview dominated by hook-warning spam and study-lineage material. No clean narrowing receipts surfaced in reviewed portion."
+    },
+    {
+      "mode": "lexical",
+      "role": "user",
+      "limit": 50,
+      "queries": [
+        "third time I'm asking",
+        "each of the following",
+        "all of the following",
+        "every one of",
+        "all three",
+        "all 3",
+        "all four",
+        "all 4"
+      ],
+      "note": "Quantified enumeration sweep. Same noise profile as above."
+    }
+  ],
+  "sessions_scanned": 11,
+  "sessions_scanned_note": "Count of candidate sessions read end-to-end after deduping and excluding the two study-lineage sessions. Lexical search result sets were capped at 50 matches per query and were not fully enumerative.",
+  "instances": [],
+  "instances_note": "No confirmed silent-scope-narrowing instances were found in the examined sessions. Every candidate that looked promising from the lexical sweep turned out, on end-to-end reading, to be either (a) a full delivery, (b) an explicit scope negotiation, or (c) dominated by hook-warning/system noise rather than a real ask/delivery mismatch. The most promising candidate (antigravity:430cd7160da862a5c7c11ccc01a461d3) was verified by reading its delivered report and covers all three requested workstreams.",
+  "taxonomy": [
+    {
+      "ask_shape": "enumerated_multi_part",
+      "description": "User provides an explicit numbered or bulleted list of 3+ distinct deliverables in a single turn.",
+      "examples": [
+        "1. audit X, 2. fix Y, 3. write tests for Z",
+        "A, B, and C — please cover all three"
+      ],
+      "auto_worklist_trigger": true,
+      "rationale": "High risk of silent omission when the agent answers a composite request in one block; a worklist makes each item visible and checkable."
+    },
+    {
+      "ask_shape": "compound_conjunction",
+      "description": "Multiple independent clauses joined by 'and', 'as well as', 'plus', 'also', or 'in addition'.",
+      "examples": [
+        "refactor the parser and update the CLI and add docs",
+        "assess the current state as well as implementing the fix"
+      ],
+      "auto_worklist_trigger": true,
+      "rationale": "Conjunctions are easy for the model to collapse into a single focus area; explicit worklist prevents one clause from being absorbed."
+    },
+    {
+      "ask_shape": "audit_plus_action",
+      "description": "User asks for both an assessment/evaluation and a follow-up action based on that assessment.",
+      "examples": [
+        "tell me what's wrong and then fix it",
+        "identify the gaps and implement the top three"
+      ],
+      "auto_worklist_trigger": true,
+      "rationale": "The agent may deliver the audit and skip the action, or vice versa, without noticing the split."
+    },
+    {
+      "ask_shape": "cross_domain_orbit",
+      "description": "Request spans multiple domains or orbits that normally use different skills/policies.",
+      "examples": [
+        "evaluate engineering workflows and also marketing/creative workflows",
+        "load skills X, Y, Z and compare their applicability"
+      ],
+      "auto_worklist_trigger": true,
+      "rationale": "Different domains require different sub-agents or tools; a single response tends to default to the most familiar domain."
+    },
+    {
+      "ask_shape": "fan_out_subagent",
+      "description": "User explicitly requests sub-agents or parallel exploration of several topics.",
+      "examples": [
+        "fan out sub-agents for a full assessment of A, B, and C",
+        "deploy one sub-agent per domain to investigate X, Y, Z"
+      ],
+      "auto_worklist_trigger": true,
+      "rationale": "Fan-out implies N independent workstreams; without a worklist, results may be reported partially or merged into one summary that drops threads."
+    },
+    {
+      "ask_shape": "retrospective_prospective",
+      "description": "User asks for both a retrospective summary and a prospective plan/recommendation.",
+      "examples": [
+        "what do we have that's good, what's missing, and what should we add?",
+        "review what worked and propose next steps"
+      ],
+      "auto_worklist_trigger": true,
+      "rationale": "The retrospective is easier to generate and can crowd out the prospective recommendation."
+    },
+    {
+      "ask_shape": "quantified_universal",
+      "description": "User uses universal quantifiers like 'all of them', 'every one of', 'each of the following'.",
+      "examples": [
+        "answer all four questions",
+        "handle every one of the listed items"
+      ],
+      "auto_worklist_trigger": true,
+      "rationale": "Universal quantifiers set a clear count; any missing item is a detectable narrowing event."
+    },
+    {
+      "ask_shape": "comparison_valuation",
+      "description": "User asks for a comparative valuation across multiple items or categories.",
+      "examples": [
+        "what's good, what's missing, what to keep, and what's not useful?",
+        "compare options A, B, C and rank them"
+      ],
+      "auto_worklist_trigger": true,
+      "rationale": "Each category is a separate deliverable; the agent often covers the easiest category and skips the rest."
+    }
+  ],
+  "recommendations": [
+    "Add a policy rule that triggers on the ask-shapes above and requires the agent to emit a numbered worklist before acting.",
+    "When a worklist is required, the agent should confirm the count of requested items and report delivery against each item, not just a merged summary.",
+    "For cross-domain requests, require explicit sub-agent dispatch with per-domain receipts.",
+    "Keep the two excluded study-lineage sessions out of any automated narrowing classifier training data to avoid self-pollution."
+  ],
+  "verification": {
+    "report_read_back": true,
+    "candidate_sessions_read": [
+      "claude:f33fc8154e3107b82af023ffe39374d2",
+      "codex:81d6ff02245e78dd7c79dd1892901573",
+      "codex:e670e38ccecc4f63ce9036c2966d6b81",
+      "codex:62b827c225a21b9951e3b524d328da53",
+      "codex:253699a18323e11613ba5da3346bf840",
+      "codex:6507cd38252df8bfe18a9042c18989c9",
+      "codex:019e51b7f4a23b64c68e7c21a9aa89b6",
+      "antigravity:430cd7160da862a5c7c11ccc01a461d3",
+      "codex:c128d9bf03d948ecc92c33f5c19d80b2",
+      "codex:11fd2150d71cb11f1763658e8052c925",
+      "codex:178722e6a8acecd1e870f96ce8ad639f"
+    ],
+    "confirmed_instance_count": 0
+  }
+}
