@@ -1,0 +1,21 @@
+version = 1
+
+# Source: phase3/merged-candidates.json id=lens-B-atomic-commits, lens=B, receipts=1
+# Note: the original draft used match_command regex (git commit.*-a|git commit\.\*|git commit.*&&).
+# The current policy runtime enforces via file content only, so this rule targets shell scripts.
+# Inline Bash tool commands are not inspectable by this matcher.
+[[rules]]
+id = "research-incidents-atomic-commits"
+description = "Commit changes atomically as instructed; do not batch unrelated changes into one commit."
+severity = "advisory"
+match = ["**/*.sh", "**/*.bash"]
+tools_include = ["bash", "Bash"]
+content = [
+  { type = "ast_grep", pattern = "git commit -a", expect = "present" },
+  { type = "ast_grep", pattern = "git commit -am", expect = "present" },
+  { type = "ast_grep", pattern = "git commit *", expect = "present" }
+]
+content_mode = "any"
+actions = [
+  { type = "inject_prompt", text = "Commit changes atomically as instructed. Do not batch unrelated changes into a single commit and avoid `git commit -a` or `git commit *`.", once_per_session = true }
+]

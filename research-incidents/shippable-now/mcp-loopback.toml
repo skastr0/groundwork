@@ -1,0 +1,22 @@
+version = 1
+
+# Source: phase3/merged-candidates.json id=lens-B-remove-mcp-token-local-loopback, lens=B, receipts=1
+# Note: the mining draft used regex MCP.*token|token.*MCP|loopback.*token|token.*loopback.
+# These camelCase/UPPER_SNAKE identifiers capture the same concepts with the current ast_grep matcher.
+[[rules]]
+id = "research-incidents-remove-mcp-token-local-loopback"
+description = "Do not require authentication tokens for loopback-local MCP servers that are not exposed externally."
+severity = "block"
+match = ["packages/*/src/**/*.ts", "src/**/*.ts", "scripts/**/*.ts"]
+content = [
+  { type = "ast_grep", pattern = "mcpToken", expect = "present", strictness = "smart" },
+  { type = "ast_grep", pattern = "MCP_TOKEN", expect = "present", strictness = "smart" },
+  { type = "ast_grep", pattern = "loopbackToken", expect = "present", strictness = "smart" },
+  { type = "ast_grep", pattern = "LOOPBACK_TOKEN", expect = "present", strictness = "smart" },
+  { type = "ast_grep", pattern = "requireMcpToken", expect = "present", strictness = "smart" },
+  { type = "ast_grep", pattern = "mcpAuthToken", expect = "present", strictness = "smart" }
+]
+content_mode = "any"
+actions = [
+  { type = "block_tool", message = "Loopback-local MCP servers should not require authentication tokens. Remove token configuration unless the server is exposed beyond localhost. If an audit explicitly requires token auth, escalate for human override." }
+]

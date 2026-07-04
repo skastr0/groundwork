@@ -1,0 +1,21 @@
+version = 1
+
+# Source: phase3/merged-candidates.json id=lens-B-no-project-management-leak, lens=B, receipts=2
+# Note: ast_grep cannot express the regex from the mining draft
+# (project.?management|pm.?id|project.?id.?boundary|boundary.?spec). These camelCase identifiers
+# capture the same concepts with the current matcher.
+[[rules]]
+id = "research-incidents-no-project-management-leak"
+description = "Do not introduce project-management-specific code, tests, or specifications into domains unrelated to project management."
+severity = "warn"
+match = ["packages/*/src/**/*.ts", "src/**/*.ts", "scripts/**/*.ts"]
+content = [
+  { type = "ast_grep", pattern = "projectManagement", expect = "present", strictness = "smart" },
+  { type = "ast_grep", pattern = "pmId", expect = "present", strictness = "smart" },
+  { type = "ast_grep", pattern = "projectIdBoundary", expect = "present", strictness = "smart" },
+  { type = "ast_grep", pattern = "boundarySpec", expect = "present", strictness = "smart" }
+]
+content_mode = "any"
+actions = [
+  { type = "inject_prompt", text = "This change appears to introduce project-management-specific concepts into a non-PM domain. Verify it is required, or remove it and validate the concern with regex/tests instead.", once_per_session = true }
+]

@@ -1,0 +1,20 @@
+version = 1
+
+# Source: phase3/merged-candidates.json id=lens-B-close-contaminated-subagents, lens=B, receipts=1
+# Note: the mining draft used regex subagent|spawn.*agent|dispatch.*agent. These identifiers
+# capture the same concepts with the current ast_grep matcher. The rule is advisory because
+# subagent references are legitimate during active orchestration work.
+[[rules]]
+id = "research-incidents-close-contaminated-subagents"
+description = "When subagents are contaminated or stale, close them and remove their chance of reappearing."
+severity = "advisory"
+match = ["packages/*/src/**/*.ts", "src/**/*.ts", "scripts/**/*.ts"]
+content = [
+  { type = "ast_grep", pattern = "subagent", expect = "present", strictness = "smart" },
+  { type = "ast_grep", pattern = "spawnAgent", expect = "present", strictness = "smart" },
+  { type = "ast_grep", pattern = "dispatchAgent", expect = "present", strictness = "smart" }
+]
+content_mode = "any"
+actions = [
+  { type = "inject_prompt", text = "If subagents are contaminated or stale, close them and remove any mechanism that could resurrect their stale state.", once_per_session = true }
+]

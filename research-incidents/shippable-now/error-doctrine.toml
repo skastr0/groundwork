@@ -1,0 +1,18 @@
+version = 1
+
+# Source: phase3/merged-candidates.json id=lens-B-no-useless-error-scaffolding, lens=B, receipts=1
+# Note: ast_grep cannot express the regex from the mining draft (error message|validation|scaffold).
+# These keyword markers are heuristic and therefore kept at warn severity.
+[[rules]]
+id = "research-incidents-no-useless-error-scaffolding"
+description = "Do not invent new error-message or validation scaffolding that will become cleanup debt; prefer existing doctrine."
+severity = "warn"
+match = ["packages/*/src/**/*.ts", "src/**/*.ts", "scripts/**/*.ts"]
+content = [
+  { type = "ast_grep", pattern = "scaffold", expect = "present", strictness = "smart" },
+  { type = "ast_grep", pattern = "validation", expect = "present", strictness = "smart" }
+]
+content_mode = "any"
+actions = [
+  { type = "inject_prompt", text = "Do not invent new error-message or validation scaffolding that will become cleanup debt. Reuse existing doctrine and patterns.", once_per_session = true }
+]

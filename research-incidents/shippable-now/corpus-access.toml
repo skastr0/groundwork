@@ -1,0 +1,21 @@
+version = 1
+
+# Source: phase3/merged-candidates.json id=lens-B-no-corpus-reingest, lens=B, receipts=1
+# Note: ast_grep cannot express the regex from the mining draft
+# (ingest.*all|parse.*corpus|re.?ingest|full.?scan). These camelCase identifiers capture the
+# same concepts with the current matcher.
+[[rules]]
+id = "research-incidents-no-corpus-reingest"
+description = "Do not re-ingest or parse the entire corpus when a targeted query or local manifest would suffice."
+severity = "warn"
+match = ["packages/*/src/**/*.ts", "src/**/*.ts", "packages/*/src/cli/**/*.ts"]
+content = [
+  { type = "ast_grep", pattern = "ingestAll", expect = "present", strictness = "smart" },
+  { type = "ast_grep", pattern = "parseCorpus", expect = "present", strictness = "smart" },
+  { type = "ast_grep", pattern = "reingest", expect = "present", strictness = "smart" },
+  { type = "ast_grep", pattern = "fullScan", expect = "present", strictness = "smart" }
+]
+content_mode = "any"
+actions = [
+  { type = "inject_prompt", text = "The agent must not re-ingest or parse the entire corpus to answer a targeted query. Prefer local manifests, targeted searches, or incremental indexes.", once_per_session = true }
+]

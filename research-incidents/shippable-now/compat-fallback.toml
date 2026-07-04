@@ -1,0 +1,41 @@
+version = 1
+
+# Source: phase3/merged-candidates.json id=lens-B-no-compat-layers, lens=B, receipts=1
+# Note: ast_grep keyword matching; regex alternation (compat|legacy|migration|transition|backwards)
+# would be more precise for free-text comments but is not supported by the current ast_grep matcher.
+[[rules]]
+id = "research-incidents-no-compat-layers"
+description = "During consolidation work, do not preserve backward compatibility, legacy paths, migration code, or transition layers."
+severity = "block"
+match = ["packages/*/src/**/*.ts", "src/**/*.ts", "scripts/**/*.ts"]
+content = [
+  { type = "ast_grep", pattern = "compat", expect = "present", strictness = "smart" },
+  { type = "ast_grep", pattern = "legacy", expect = "present", strictness = "smart" },
+  { type = "ast_grep", pattern = "migration", expect = "present", strictness = "smart" },
+  { type = "ast_grep", pattern = "transition", expect = "present", strictness = "smart" },
+  { type = "ast_grep", pattern = "backwards", expect = "present", strictness = "smart" }
+]
+content_mode = "any"
+actions = [
+  { type = "block_tool", message = "Consolidation stance: no backward compatibility, legacy paths, migration code, or transition layers. If an external boundary truly requires coexistence, escalate for human override with a concrete retirement plan." }
+]
+
+# Source: phase3/merged-candidates.json id=lens-B-no-provider-fallback, lens=B, receipts=2
+# Note: concrete env-var names mirror the mining quote; prefix regex for EMBEDDING_/PROVIDER_/QUASAR_
+# would be more robust but requires regex support beyond the current ast_grep matcher.
+[[rules]]
+id = "research-incidents-no-provider-fallback"
+description = "When the architecture mandates a single provider or API, do not add fallback paths, alternate providers, or environment switches."
+severity = "block"
+match = ["packages/*/src/**/*.ts", "src/**/*.ts", "scripts/**/*.ts"]
+content = [
+  { type = "ast_grep", pattern = "fallback", expect = "present", strictness = "smart" },
+  { type = "ast_grep", pattern = "Gemini", expect = "present", strictness = "smart" },
+  { type = "ast_grep", pattern = "$PROVIDER ?? $FALLBACK", expect = "present", strictness = "smart" },
+  { type = "ast_grep", pattern = "process.env.EMBEDDING_PROVIDER", expect = "present", strictness = "smart" },
+  { type = "ast_grep", pattern = "process.env.QUASAR_EMBEDDING_PROVIDER", expect = "present", strictness = "smart" }
+]
+content_mode = "any"
+actions = [
+  { type = "block_tool", message = "Single-provider architecture: do not add fallback providers or environment switches. If multi-provider support is explicitly required in the glyph, escalate for human override." }
+]

@@ -1,0 +1,30 @@
+version = 1
+
+# Source: phase3/merged-candidates.json id=lens-B-cli-fail-loud, lens=B, receipts=1
+[[rules]]
+id = "research-incidents-cli-fail-loud"
+description = "CLI tools must fail loudly on unknown commands, missing arguments, and invalid argument values instead of returning success."
+severity = "block"
+match = ["src/cli/**/*.ts", "packages/*/src/cli/**/*.ts"]
+actions = [
+  { type = "inject_prompt", text = "When editing CLI command handling, ensure unknown commands, missing arguments, and invalid enum/number/string values return a non-zero exit code and a clear error message. Do not silently return ok:true with empty output.", once_per_session = true }
+]
+
+# Source: phase3/merged-candidates.json id=lens-B-fail-loud-silent-drop, lens=B, receipts=1
+# Note: ast_grep cannot express the regex alternation from the mining draft
+# (success.*but.*drop|acknowledge.*active|silent.*fail|swallow.*error). These keyword
+# markers are heuristic and therefore kept at warn severity.
+[[rules]]
+id = "research-incidents-fail-loud-silent-drop"
+description = "Incomplete or failing features must fail loudly rather than acknowledging success and dropping work silently."
+severity = "warn"
+match = ["packages/*/src/**/*.ts", "src/**/*.ts", "scripts/**/*.ts"]
+content = [
+  { type = "ast_grep", pattern = "swallow", expect = "present", strictness = "relaxed" },
+  { type = "ast_grep", pattern = "silent", expect = "present", strictness = "relaxed" },
+  { type = "ast_grep", pattern = "acknowledge", expect = "present", strictness = "relaxed" }
+]
+content_mode = "any"
+actions = [
+  { type = "inject_prompt", text = "Incomplete or failing paths must fail loudly with a clear error. Do not acknowledge success and silently drop work.", once_per_session = true }
+]
