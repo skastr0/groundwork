@@ -71,6 +71,11 @@
       "types": "./src/portable/index.ts",
       "development": "./src/portable/index.ts",
       "import": "./dist/portable/index.js"
+    },
+    "./plugin-sdk": {
+      "types": "./src/plugin-sdk.ts",
+      "development": "./src/plugin-sdk.ts",
+      "import": "./dist/plugin-sdk.js"
     }
   },
   "files": [
@@ -82,7 +87,7 @@
     "access": "public"
   },
   "scripts": {
-    "build": "bun build ./src/index.ts ./src/cli-support.ts ./src/portable/index.ts ./src/context/index.ts ./src/kernel/index.ts ./src/layer/index.ts ./src/logger/index.ts ./src/policy/index.ts ./src/provenance/index.ts ./src/risk/index.ts ./src/session/index.ts --root ./src --outdir ./dist --target node --format esm",
+    "build": "bun build ./src/index.ts ./src/cli-support.ts ./src/portable/index.ts ./src/plugin-sdk.ts ./src/context/index.ts ./src/kernel/index.ts ./src/layer/index.ts ./src/logger/index.ts ./src/policy/index.ts ./src/provenance/index.ts ./src/risk/index.ts ./src/session/index.ts --root ./src --outdir ./dist --target node --format esm",
     "pack:dry-run": "npm pack --dry-run"
   },
   "keywords": [

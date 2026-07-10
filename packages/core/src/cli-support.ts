@@ -70,3 +70,4 @@ export type {
   PortableToolAfterInput,
   PortableToolBeforeInput,
 } from "./portable/index.ts";
+// Prefer importing from "@skastr0/groundwork-core/plugin-sdk" for harness plugins.

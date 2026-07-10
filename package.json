@@ -45,7 +45,7 @@
     "check:imports": "bun -e \"await import('./dist/cli.js'); await import('./dist/metadata.js'); await import('./packages/core/dist/index.js'); await import('./packages/core/dist/cli-support.js'); await import('./packages/core/dist/portable/index.js')\"",
     "check:cli": "bun ./dist/cli.js doctor",
     "check:local-install": "bun scripts/check-local-install.ts",
-    "plugin:package": "bun scripts/package-harness-plugins.ts",
+    "plugin:package": "bun run plugin:sdk && bun scripts/package-harness-plugins.ts",
     "plugin:compile": "bun run plugin:package",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
@@ -53,7 +53,8 @@
     "pack:dry-run": "npm pack --dry-run",
     "pack:dry-run:all": "bun run pack:dry-run && bun run --cwd packages/core pack:dry-run",
     "pack:install-smoke": "bun scripts/check-packed-installs.ts",
-    "pack:verify": "bun run pack:dry-run:all && bun run pack:install-smoke"
+    "pack:verify": "bun run pack:dry-run:all && bun run pack:install-smoke",
+    "plugin:sdk": "bun scripts/bundle-plugin-sdk.ts"
   },
   "keywords": [
     "groundwork",

@@ -40,4 +40,4 @@ Marketplace catalog (`.agents/plugins/marketplace.json`) points at `packages/cod
 
 ## Runtime
 
-Hook wrappers call the **Groundwork CLI** (`groundwork hook …`) so state stays durable under `.groundwork/sessions/`. Install the CLI (`@skastr0/groundwork` / `bun run install:local`) so hooks can resolve `groundwork` on `PATH` (or set `GROUNDWORK_BIN`).
+Hook wrappers are self-contained: they embed the Groundwork core SDK (policy/risk/context/session). State stays durable under `.groundwork/sessions/`. **No Groundwork CLI is required** for the plugin to run. The CLI is optional for interactive JSON commands.

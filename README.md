@@ -124,7 +124,7 @@ codex plugin add groundwork@groundwork-local          # → packages/codex
 # Grok: install packages/grok as a local plugin
 ```
 
-Compiled hooks spawn the Groundwork CLI (`groundwork hook …`). See `docs/harness-plugins.md` and `docs/codex-integration.md`.
+Compiled plugins embed the core SDK (no CLI required at runtime). See `docs/harness-plugins.md` and `docs/codex-integration.md`.
 
 ## Development
 

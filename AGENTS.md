@@ -23,7 +23,7 @@ Common commands:
 
 The canonical policy entrypoint is `groundwork.toml`; additional project policy may live under `.groundwork/*.toml`. User-level policy may live under `~/.groundwork/*.toml`.
 
-The Groundwork CLI should be available as `groundwork`. Compiled harness plugins spawn this binary (override with `GROUNDWORK_BIN`). If hook execution cannot rely on `PATH`, use `$HOME/.local/bin/groundwork` explicitly.
+Compiled harness plugins embed `@skastr0/groundwork-core` (via `bun run plugin:sdk` → `prism-plugin/lib/plugin-sdk.generated.ts`). **Plugins do not require the Groundwork CLI at runtime.** The CLI is the optional JSON interface for agents and humans (`groundwork …`).
 
 ## Package Shape
 
@@ -32,9 +32,7 @@ The Groundwork CLI should be available as `groundwork`. Compiled harness plugins
 - `prism-plugin/`: **portable source** (hooks/tools/skills). Author here only.
 - `packages/<harness>/`: **shipped native plugins** produced by `bun run plugin:package` (`prism-dev package` + materialize). Users install these with harness-native mechanisms (Codex marketplace, Claude plugin, OpenCode plugin entry, Grok plugin). Users do **not** run Prism to use Groundwork.
 
-Portable hook CLI surface (used by compiled wrappers):
-
-- `groundwork hook session-start|prompt-submit|tool-before|tool-after|permission-request '<json>'`
+Portable decisions live in `packages/core` (`plugin-sdk` / `portable`). CLI exposes them as `groundwork hook …` for optional use; plugins import the same SDK in-process.
 
 See `docs/harness-plugins.md` and `docs/codex-integration.md`.
 

@@ -31,4 +31,6 @@ See `packages/INSTALL.json` after packaging.
 
 ## Runtime dependency
 
-All compiled hooks spawn `groundwork` (CLI). Users need the Groundwork CLI installed; they do not need Prism.
+Compiled hooks and tools **embed** `@skastr0/groundwork-core` (frozen into `prism-plugin/lib/plugin-sdk.generated.ts` at package time, then inlined into each harness `.mjs`). Users install the harness-native plugin only — **no Groundwork CLI and no Prism** at runtime.
+
+The CLI remains optional for humans/agents who want JSON commands (`groundwork risk …`, `groundwork hook …`, provenance, etc.).

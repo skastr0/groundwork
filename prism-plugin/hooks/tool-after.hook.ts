@@ -2,11 +2,11 @@ import { defineHook, hookEvent, hookTool } from "prism";
 import {
   callIdFromEvent,
   rootFromEvent,
-  runGroundworkHook,
+  runPortableHook,
   sessionIdFromEvent,
   toolInputFromEvent,
   toolNameFromEvent,
-} from "./shared/groundwork-cli.ts";
+} from "./shared/groundwork-runtime.ts";
 
 export default defineHook({
   name: "tool-after",
@@ -16,7 +16,7 @@ export default defineHook({
   async handle(event) {
     const callId = callIdFromEvent(event);
     if (!callId) return { decision: "continue" as const };
-    const result = await runGroundworkHook("tool-after", {
+    const result = await runPortableHook("tool-after", {
       root_dir: rootFromEvent(event),
       session_id: sessionIdFromEvent(event),
       call_id: callId,

@@ -1,8 +1,7 @@
 import { Schema } from "effect";
 import { defineTool } from "prism";
-import { runGroundworkProvenance } from "../hooks/shared/groundwork-cli.ts";
+import { runGwTool } from "../hooks/shared/groundwork-runtime.ts";
 
-/** Loose but non-index-signature input for MCP schema bridge compatibility. */
 const Input = Schema.Struct({
   root_dir: Schema.optional(Schema.String),
   path: Schema.optional(Schema.String),
@@ -24,7 +23,7 @@ const Input = Schema.Struct({
 
 export default defineTool({
   name: "gw_pr_materialize",
-  description: "Groundwork provenance tool `gw_pr_materialize` via `groundwork provenance pr-materialize`.",
+  description: "Groundwork provenance tool `gw_pr_materialize` (embedded SDK, no CLI required).",
   input: Input,
   output: Schema.Struct({
     ok: Schema.Boolean,
@@ -32,6 +31,6 @@ export default defineTool({
     error: Schema.optional(Schema.String),
   }),
   async handle(input) {
-    return runGroundworkProvenance("pr-materialize", input as Record<string, unknown>);
+    return runGwTool("gw_pr_materialize", input as Record<string, unknown>);
   },
 });
