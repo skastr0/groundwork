@@ -37,6 +37,11 @@ import {
   toProvFileStateData,
   toProvRepoStateData,
   updatePolicyPacks,
+  permissionRequestResult,
+  promptSubmitResult,
+  sessionStartResult,
+  toolAfterResult,
+  toolBeforeResult,
   type Shell,
 } from "@skastr0/groundwork-core/cli-support";
 import {
@@ -64,6 +69,11 @@ import {
   RiskEvaluateCommandInputSchema,
   RiskEvaluateToolCallInputSchema,
   RiskEvaluateToolResultInputSchema,
+  HookSessionStartInputSchema,
+  HookPromptSubmitInputSchema,
+  HookToolBeforeInputSchema,
+  HookToolAfterInputSchema,
+  HookPermissionRequestInputSchema,
 } from "./schemas.ts";
 import { decodeJsonInputEffect, executeJsonCommand } from "./protocol.ts";
 
@@ -431,6 +441,79 @@ const sessionCommand = Command.make("session").pipe(
   ]),
 );
 
+const hookSessionStartCommand = Command.make("session-start", { input: inputArg }, ({ input }) =>
+  decodedJsonEffect("hook session-start", input, HookSessionStartInputSchema, (payload) =>
+    sessionStartResult({
+      rootDir: payload.root_dir,
+      sessionId: payload.session_id,
+    }),
+  ),
+).pipe(Command.withDescription("Portable session-start hook decision (Prism adapters)."));
+
+const hookPromptSubmitCommand = Command.make("prompt-submit", { input: inputArg }, ({ input }) =>
+  decodedJsonEffect("hook prompt-submit", input, HookPromptSubmitInputSchema, (payload) =>
+    promptSubmitResult({
+      rootDir: payload.root_dir,
+      sessionId: payload.session_id,
+      prompt: payload.prompt,
+    }),
+  ),
+).pipe(Command.withDescription("Portable prompt-submit hook decision (Prism adapters)."));
+
+const hookToolBeforeCommand = Command.make("tool-before", { input: inputArg }, ({ input }) =>
+  decodedJsonEffect("hook tool-before", input, HookToolBeforeInputSchema, (payload) =>
+    toolBeforeResult({
+      rootDir: payload.root_dir,
+      sessionId: payload.session_id,
+      callId: payload.call_id,
+      toolName: payload.tool_name,
+      args: payload.args,
+    }),
+  ),
+).pipe(Command.withDescription("Portable pre-tool risk/policy hook decision (Prism adapters)."));
+
+const hookToolAfterCommand = Command.make("tool-after", { input: inputArg }, ({ input }) =>
+  decodedJsonEffect("hook tool-after", input, HookToolAfterInputSchema, (payload) =>
+    toolAfterResult({
+      rootDir: payload.root_dir,
+      sessionId: payload.session_id,
+      callId: payload.call_id,
+      toolName: payload.tool_name,
+      args: payload.args,
+    }),
+  ),
+).pipe(Command.withDescription("Portable post-tool feedback hook decision (Prism adapters)."));
+
+const hookPermissionRequestCommand = Command.make(
+  "permission-request",
+  { input: inputArg },
+  ({ input }) =>
+    decodedJsonEffect(
+      "hook permission-request",
+      input,
+      HookPermissionRequestInputSchema,
+      (payload) =>
+        permissionRequestResult({
+          rootDir: payload.root_dir,
+          sessionId: payload.session_id,
+          callId: payload.call_id,
+          toolName: payload.tool_name,
+          args: payload.args,
+        }),
+    ),
+).pipe(Command.withDescription("Portable permission-request risk hook decision (Prism adapters)."));
+
+const hookCommand = Command.make("hook").pipe(
+  Command.withDescription("Portable Prism/harness hook decisions (durable session state)"),
+  Command.withSubcommands([
+    hookSessionStartCommand,
+    hookPromptSubmitCommand,
+    hookToolBeforeCommand,
+    hookToolAfterCommand,
+    hookPermissionRequestCommand,
+  ]),
+);
+
 export const rootCommand = Command.make("groundwork").pipe(
   Command.withDescription(
     "JSON-first Groundwork CLI for agent guardrails and evidence. Run `groundwork capabilities`, `groundwork schema show <command>`, and `groundwork examples show <command>` for machine-readable contracts and examples.",
@@ -440,6 +523,7 @@ export const rootCommand = Command.make("groundwork").pipe(
     contextCommand,
     doctorCommand,
     examplesCommand,
+    hookCommand,
     policyCommand,
     provenanceCommand,
     riskCommand,

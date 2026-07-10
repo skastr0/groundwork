@@ -51,3 +51,22 @@ export {
   rememberSessionAction,
   renderSessionCompaction,
 } from "./session/artifacts.ts";
+export {
+  normalizePolicyToolName,
+  parsePolicyPromptCommands,
+  permissionRequestResult,
+  promptSubmitResult,
+  sessionStartResult,
+  toolAfterResult,
+  toolBeforeResult,
+} from "./portable/index.ts";
+export type {
+  PortableBlock,
+  PortableContinue,
+  PortableHookResult,
+  PortablePermissionRequestInput,
+  PortablePromptSubmitInput,
+  PortableSessionStartInput,
+  PortableToolAfterInput,
+  PortableToolBeforeInput,
+} from "./portable/index.ts";

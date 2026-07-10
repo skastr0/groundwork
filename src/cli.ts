@@ -79,6 +79,16 @@ const INPUT_COMMAND_SPECS = {
       "skill-loaded",
     ],
   },
+  hook: {
+    commandPrefix: "hook",
+    expectedSubcommands: [
+      "session-start",
+      "prompt-submit",
+      "tool-before",
+      "tool-after",
+      "permission-request",
+    ],
+  },
 } as const satisfies Record<string, InputCommandSpec>;
 
 type DiscoveryCommandGroup = (typeof DISCOVERY_COMMAND_GROUPS)[number];

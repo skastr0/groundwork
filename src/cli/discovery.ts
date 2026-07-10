@@ -499,10 +499,9 @@ export function renderCapabilities() {
     },
     commands: COMMAND_CAPABILITIES,
     package_surfaces: {
-      cli: "JSON-first commands for policy, context, provenance, risk, and session artifacts.",
+      cli: "JSON-first commands for policy, context, provenance, risk, session artifacts, and portable hook decisions.",
       core: "Reusable library package for shared Groundwork foundations.",
-      opencode: "OpenCode plugin package that composes the shared foundations into runtime hooks.",
-      codex: "Codex plugin package that ships precompiled lifecycle hook commands.",
+      prism: "In-repo Prism plugin (prism-plugin/) that lowers hooks and gw_* tools to all supported harnesses.",
     },
   };
 }

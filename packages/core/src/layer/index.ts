@@ -8,7 +8,7 @@ import {
 export const GROUNDWORK_LAYER_META = {
   pluginId: "groundwork",
   packageId: "@skastr0/groundwork-core",
-  runtimeSurfaces: ["cli", "codex", "opencode"] as const,
+  runtimeSurfaces: ["cli", "prism"] as const,
   hookSurface: GROUNDWORK_HOOK_SURFACE,
   // Ordering is intentional: policy can block or inject before any prompt/context work,
   // context adds inherited instructions before provenance hints are rendered, provenance

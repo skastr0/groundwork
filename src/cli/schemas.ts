@@ -7,6 +7,41 @@ const RootDirSchema = z.string().min(1).optional();
 const DirectorySchema = z.string().min(1).optional();
 const BaseSchema = z.string().min(1).optional();
 
+export const HookSessionStartInputSchema = z.object({
+  root_dir: RootDirSchema,
+  session_id: z.string().min(1).optional(),
+});
+
+export const HookPromptSubmitInputSchema = z.object({
+  root_dir: RootDirSchema,
+  session_id: z.string().min(1).optional(),
+  prompt: z.string(),
+});
+
+export const HookToolBeforeInputSchema = z.object({
+  root_dir: RootDirSchema,
+  session_id: z.string().min(1).optional(),
+  call_id: z.string().min(1).optional(),
+  tool_name: z.string().min(1),
+  args: z.record(z.string(), z.unknown()).optional(),
+});
+
+export const HookToolAfterInputSchema = z.object({
+  root_dir: RootDirSchema,
+  session_id: z.string().min(1).optional(),
+  call_id: z.string().min(1),
+  tool_name: z.string().min(1).optional(),
+  args: z.record(z.string(), z.unknown()).optional(),
+});
+
+export const HookPermissionRequestInputSchema = z.object({
+  root_dir: RootDirSchema,
+  session_id: z.string().min(1).optional(),
+  call_id: z.string().min(1).optional(),
+  tool_name: z.string().min(1).optional(),
+  args: z.record(z.string(), z.unknown()).optional(),
+});
+
 export const DIRECT_PROVENANCE_CLI_COMMAND_NAMES = [
   "span-history",
   "diff-expand",
