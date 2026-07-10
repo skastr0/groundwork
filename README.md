@@ -1,6 +1,6 @@
 # Groundwork
 
-Groundwork is a JSON-first CLI and shared foundation layer for policy, provenance, context, risk, and session artifacts in agentic development workflows. The Bun CLI, OpenCode wrapper, and Codex plugin are published as separate packages around the same Groundwork foundations.
+Groundwork is a JSON-first CLI and shared foundation layer for policy, provenance, context, risk, and session artifacts in agentic development workflows. Multi-harness hooks and tools ship as an in-repo **Prism plugin** (`prism-plugin/`) that compiles to Claude, Codex, OpenCode, Grok, and other supported targets.
 
 ## Status
 
@@ -15,9 +15,8 @@ The first public package release is prepared for npm but not published yet. Real
 ## Package Surface
 
 - `@skastr0/groundwork`: the root Bun CLI package. It exports the `groundwork` executable through `bin.groundwork -> dist/cli.js`.
-- `@skastr0/groundwork-core`: the shared library package under `packages/core` for policy, provenance, context, risk, and session foundations.
-- `@skastr0/groundwork-opencode-plugin`: the OpenCode runtime wrapper under `packages/opencode-plugin`. It uses `@skastr0/groundwork-core` and exports `dist/server.js`.
-- `@skastr0/groundwork-codex`: the self-contained Codex plugin bundle under `packages/codex`. It ships `.codex-plugin/plugin.json`, `hooks/hooks.json`, shell and cmd hook wrappers, and `dist/groundwork-codex-hook.mjs`.
+- `@skastr0/groundwork-core`: the shared library package under `packages/core` for policy, provenance, context, risk, session foundations, and portable hook decisions.
+- `prism-plugin/`: Prism plugin source (hooks, `gw_*` tools, skills, rules). Compile with `bun run plugin:compile` or `prism refresh ./prism-plugin --overwrite --harness <id>`.
 
 ## CLI Install Surface
 
@@ -107,48 +106,28 @@ groundwork policy update '{"names":["groundwork-effect"],"scope":"global"}'
 
 Use `"scope":"project"` with `"root_dir":"/path/to/repo"` to install into that repository's `.groundwork/plugins` and project-local policy source/lock files instead.
 
-## Codex
+## Prism harness plugin
 
-The Codex plugin is published as `@skastr0/groundwork-codex`. Its package root contains `.codex-plugin/plugin.json`, lifecycle hooks in `hooks/hooks.json`, POSIX and Windows hook wrappers in `hooks/`, and the bundled hook runtime at `dist/groundwork-codex-hook.mjs`.
-
-Codex installs plugins from configured marketplace snapshots. This repository includes `.agents/plugins/marketplace.json`, which points at `packages/codex`.
-
-For local development, build the plugin bundle, add this checkout as a marketplace, then install `groundwork` from that marketplace:
+Harness integration is owned by `prism-plugin/`. Hooks spawn the Groundwork CLI (`groundwork hook …`) so decisions stay durable on disk and lower to every Prism-supported harness from one source.
 
 ```sh
 bun install
 bun run build
-codex plugin marketplace add /path/to/groundwork
-codex plugin add groundwork@groundwork-local
+bun run install:local
+prism refresh ./prism-plugin --overwrite --harness codex-cli
+prism refresh ./prism-plugin --overwrite --harness opencode
+prism refresh ./prism-plugin --overwrite --harness claude-code
+# or: bun run plugin:compile
 ```
 
-For Git-backed installs, use the same marketplace catalog from the repository:
+Portable decisions (also used by generated wrappers):
 
 ```sh
-codex plugin marketplace add skastr0/groundwork --ref main
-codex plugin add groundwork@groundwork-local
+groundwork hook session-start '{}'
+groundwork hook tool-before '{"tool_name":"Bash","args":{"command":"git push --force origin main"}}'
 ```
 
-Codex copies plugin sources into its plugin cache. Restart Codex and reinstall or refresh the marketplace after changing plugin files, then review and trust the plugin-bundled hooks.
-
-Codex plugin hooks run shell commands that invoke `node` on the bundled JavaScript file. Runtime support follows the package engine: Node >= 24.
-
-Codex hook parity is best effort. Current hooks cover `SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PermissionRequest`, `PostToolUse`, and `Stop` within Codex hook API limits. They can block supported risky Bash commands once per exact session command, warn on exact retry without auto-approving permission requests, deny policy violations before execution, record explicit policy commands, persist session artifacts, and report post-tool/context feedback. They cannot intercept every tool path, undo side effects after a tool runs, or fully reproduce OpenCode synthetic prompt injection/compaction behavior. Codex requires plugin-bundled hooks to be reviewed and trusted after installation or hook changes.
-
-See `docs/codex-integration.md` for details.
-
-## OpenCode
-
-The OpenCode package is published as `@skastr0/groundwork-opencode-plugin`. Its runtime entrypoint is `packages/opencode-plugin/src/server.ts`, built to `packages/opencode-plugin/dist/server.js`, and it uses `@skastr0/groundwork-core` for shared Groundwork behavior.
-
-OpenCode keeps stronger runtime hooks for ambient behavior, while shared Groundwork services and CLI-facing foundations carry the reusable business logic. Existing OpenCode `gw_*` provenance tool IDs and hook behavior are preserved.
-For destructive Bash risk, OpenCode now follows the shared block-once lifecycle: the first exact session command blocks, the exact retry warns and proceeds, and the after-hook logs execution for the warned command.
-
-For local OpenCode use, point OpenCode at this package/plugin path after building:
-
-```sh
-bun run build
-```
+See `docs/codex-integration.md` for Codex-oriented install notes.
 
 ## Development
 
@@ -177,15 +156,14 @@ bun run pack:verify
 ## Release Plan
 
 1. Keep the repository private until the public-source surface and package tarball are validated.
-2. Publish the packages to npm as `@skastr0/groundwork`, `@skastr0/groundwork-core`, `@skastr0/groundwork-opencode-plugin`, and `@skastr0/groundwork-codex`; the unscoped `groundwork` package name is not the release target.
+2. Publish the packages to npm as `@skastr0/groundwork` and `@skastr0/groundwork-core`; the unscoped `groundwork` package name is not the release target. Harness plugins are distributed via Prism compile of `prism-plugin/`.
 3. Keep the `groundwork` executable name through `bin.groundwork`.
 4. Use CI as the release gate: `bun run verify` and `bun run pack:verify` must pass on the release commit.
 5. After maintainer approval, flip repository visibility, create the release tag/GitHub release, and run the real npm publish.
 
 ## Project Layout
 
-- `src/cli.ts` and `src/cli/` implement the standalone CLI protocol.
-- `packages/core/` contains the shared Groundwork library for risk, policy, context, provenance, and session foundations.
-- `packages/opencode-plugin/` contains the OpenCode runtime wrapper.
-- `packages/codex/` contains the self-contained Codex plugin bundle and bundled hook runtime.
+- `src/cli.ts` and `src/cli/` implement the standalone CLI protocol (including `hook` decisions).
+- `packages/core/` contains the shared Groundwork library for risk, policy, context, provenance, session foundations, and portable hook runtime.
+- `prism-plugin/` contains Prism hooks, `gw_*` tools, skills, and rules for multi-harness distribution.
 - `docs/` contains integration and session artifact notes.

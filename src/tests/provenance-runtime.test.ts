@@ -1,4 +1,5 @@
 import { promises as fs } from "node:fs";
+import { composeRuntimeLayers } from "./compose-runtime-layers.ts";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
@@ -19,7 +20,6 @@ import { rememberFrameworkAction } from "../../packages/core/src/kernel/helpers.
 import {
   type GroundworkLayerHooks,
 } from "../../packages/core/src/layer/dispatcher.ts";
-import { GroundworkPlugin } from "../../packages/opencode-plugin/src/index.ts";
 import { createFrameworkHookHarness } from "./framework-test-harness.ts";
 
 describe("framework provenance runtime", () => {
@@ -305,7 +305,7 @@ text = "stay within guardrails"
         process.env.GROUNDWORK_POLICY_GLOBAL_CONFIG = globalConfig;
 
         try {
-          return await GroundworkPlugin(context);
+          return await composeRuntimeLayers(context);
         } finally {
           if (previousGlobalConfig === undefined) {
             delete process.env.GROUNDWORK_POLICY_GLOBAL_CONFIG;

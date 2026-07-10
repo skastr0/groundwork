@@ -1,80 +1,43 @@
-# Groundwork for Codex
+# Groundwork + Codex (via Prism)
 
-Groundwork exposes Codex support through `@skastr0/groundwork-codex`, a self-contained plugin bundle. The package ships the Codex manifest, hook definitions, platform wrappers, and bundled hook runtime from one plugin source directory.
+Groundwork no longer ships a bespoke Codex marketplace package. Codex integration is the **Prism-generated** hook + MCP surface from the in-repo plugin.
 
-## Install Surfaces
+## Source
 
-- Plugin package: `@skastr0/groundwork-codex`, with `.codex-plugin/plugin.json`, bundled `hooks/hooks.json`, shell and cmd wrappers in `hooks/`, and `dist/groundwork-codex-hook.mjs`.
-- Local plugin source: `packages/codex`, where `.codex-plugin/plugin.json` and `hooks/hooks.json` live.
-- Runtime entrypoint: `dist/groundwork-codex-hook.mjs`, invoked through `hooks/groundwork-codex-hook.sh` or `hooks/groundwork-codex-hook.cmd`.
-- Runtime engine: Node >= 24.
+- Prism plugin: `prism-plugin/`
+- Portable decisions: `groundwork hook …` (durable session artifacts under `.groundwork/sessions/`)
+- Provenance tools: `groundwork provenance …` lowered as Prism MCP tools
 
-For local development, run `bun install` and `bun run build` before installing or refreshing the plugin.
+## Install / compile
 
-## Plugin Browser Testing
-
-This repository includes `.agents/plugins/marketplace.json`, which points the `groundwork` plugin source at `packages/codex`.
-
-For a local Codex plugin install from this checkout, build the workspace and add the repository root as a marketplace snapshot:
-
-```sh
-bun install
-bun run build
-codex plugin marketplace add /path/to/groundwork
-codex plugin add groundwork@groundwork-local
-```
-
-For a Git-backed marketplace snapshot:
-
-```sh
-codex plugin marketplace add skastr0/groundwork --ref main
-codex plugin add groundwork@groundwork-local
-```
-
-The marketplace entry resolves the `groundwork` plugin source to `packages/codex`, where `.codex-plugin/plugin.json`, `hooks/hooks.json`, and `dist/groundwork-codex-hook.mjs` live.
-
-Restart Codex after changing plugin files. Codex copies local plugin sources into its plugin cache, so an already-installed plugin can keep using stale hook definitions until the marketplace/plugin is refreshed. Review and trust the plugin-bundled hooks after install or hook changes.
-
-## Hook Behavior
-
-The hook entrypoint supports:
-
-- `SessionStart`: adds Groundwork CLI guidance as developer context.
-- `UserPromptSubmit`: records explicit `/policy override <reason>` and `/policy skill-loaded <skills...>` commands into durable Groundwork session artifacts.
-- `PreToolUse`: evaluates supported Bash risk and policy checks for supported Bash/apply_patch/Edit/Write calls. Destructive Bash commands block once per exact session command fingerprint; the same exact retry warns instead of permanently blocking.
-- `PermissionRequest`: uses the same risk block-once state. The first exact risky approval request is denied; the exact retry reports a warning only and does not grant or deny the Codex permission request.
-- `PostToolUse`: runs post-mutation policy checks and reports feedback. This does not undo side effects.
-- `PostToolUse`: also reports when a destructive Bash command executed after a prior block-once warning.
-- `PostToolUse`: also reports new inherited context reminders for supported touched paths using session dedupe. This is feedback, not synthetic prompt injection.
-- `Stop`: currently returns an empty JSON success object so the shared entrypoint is valid for the event without forcing continuation.
-
-Plugin-bundled hooks use the bundled Codex hook runtime. Codex plugin-bundled hooks are non-managed hooks; after installation or hook changes, Codex skips them until the user reviews and trusts the current hook definition.
-
-Policy hooks use the same Groundwork config chain as the CLI and OpenCode plugin because both package surfaces use the shared Groundwork foundations. Put project policy in `groundwork.toml` or `.groundwork/*.toml`, and put user/global policy in `~/.groundwork/*.toml`.
-
-Git-backed policy packs are resolved outside the hook path. Use `groundwork policy install` or `groundwork policy update` to fetch and materialize packs from repository `.groundwork/policies/*.toml` files into local plugin paths. Codex hooks only read the resulting local TOML files and source/lock state; they do not fetch or update Git sources during `PreToolUse` or `PostToolUse`.
-
-## Trust Boundaries
-
-Codex hooks are best-effort guardrails, not a complete security boundary.
-
-- Project-local `.codex/` hooks load only when the project is trusted by Codex.
-- `PreToolUse` only intercepts supported tool paths.
-- `PostToolUse` cannot undo side effects; it can only report feedback after the tool has run.
-- Risk block-once state is scoped to the Codex session artifact and an exact fingerprint of cwd, normalized command, matched rule id, and matched command segment.
-- Tool-triggered synthetic prompt injection is unsupported in Codex V1. Prompt-mode policy guidance is surfaced through explicit CLI output, static skill guidance, or user-prompt hook context, not through automatic tool-triggered prompt injection.
-- Codex compaction hook parity is unsupported in V1. Use `groundwork session render-compaction` for explicit compact Groundwork context from local artifacts.
-- The Groundwork readiness skill teaches explicit CLI usage for paths hooks cannot cover.
-- Use `groundwork context touched-paths` explicitly when hook coverage is missing or when you need deterministic context reminder output.
-- The full `gw_*` provenance registry is available through `groundwork provenance <tool-name>` commands and `groundwork provenance run`; `gw_block_read` remains an explicit blocking read command rather than a hidden policy side effect.
-
-## Validation
-
-Run:
+From this repository (requires `prism` on PATH, ≥ 0.3.4 for hook lowerers):
 
 ```bash
-bun run verify
-bun run --cwd packages/codex pack:dry-run
+bun run build
+bun run install:local   # installs groundwork CLI so hooks can spawn it
+prism refresh ./prism-plugin --overwrite --harness codex-cli
 ```
 
-The test suite covers `SessionStart` hook context, `UserPromptSubmit` policy command capture, `PreToolUse` Bash risk block-once behavior, `PermissionRequest` warning-only retry behavior, `PostToolUse` risk/policy/context feedback, unsupported/no-config hook paths, malformed hook payloads, and package layout.
+Or use the package script smoke path:
+
+```bash
+bun run plugin:compile
+```
+
+Prism patches managed Codex hooks into `config.toml` and registers the MCP server for `gw_*` tools.
+
+## Behavioral contract (portable)
+
+| Event | Behavior |
+|---|---|
+| session start | Inject Groundwork guidance (`additionalContext`) |
+| prompt submit | Record `/policy override` and `/policy skill-loaded` |
+| tool before | Risk block-once for shell + policy pre-eval |
+| permission request | Risk gate for Bash (Codex + OpenCode) |
+| tool after | Non-blocking policy/risk/context feedback |
+
+Codex PreToolUse is shell-only upstream; file-edit pre-policy is best-effort where the harness fires hooks for edit tools.
+
+## Override binary path
+
+Generated hooks resolve `groundwork` from `PATH`, then `$HOME/.local/bin/groundwork`, then `GROUNDWORK_BIN`.

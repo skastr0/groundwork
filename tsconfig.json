@@ -20,14 +20,10 @@
     "noPropertyAccessFromIndexSignature": false,
     "paths": {
       "@skastr0/groundwork-core": ["./packages/core/src/index.ts"],
-      "@skastr0/groundwork-core/*": ["./packages/core/src/*"],
-      "@skastr0/groundwork-codex": ["./packages/codex/src/hook.ts"],
-      "@skastr0/groundwork-codex/*": ["./packages/codex/src/*"],
-      "@skastr0/groundwork-opencode-plugin": ["./packages/opencode-plugin/src/index.ts"],
-      "@skastr0/groundwork-opencode-plugin/*": ["./packages/opencode-plugin/src/*"]
+      "@skastr0/groundwork-core/*": ["./packages/core/src/*"]
     },
     "types": ["bun", "node"]
   },
   "include": ["src/**/*.ts", "packages/**/*.ts", "review/**/*.ts"],
-  "exclude": ["node_modules"]
+  "exclude": ["node_modules", "prism-plugin"]
 }

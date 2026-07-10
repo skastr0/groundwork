@@ -7,7 +7,7 @@
       "dependencies": {
         "@effect/cli": "^0.75.1",
         "@effect/platform-bun": "^0.89.0",
-        "@skastr0/groundwork-core": "workspace:*",
+        "@skastr0/groundwork-core": "0.2.1",
         "effect": "^3.21.2",
         "zod": "4.1.8",
       },
@@ -22,14 +22,6 @@
         "vitest": "^4.0.15",
       },
     },
-    "packages/codex": {
-      "name": "@skastr0/groundwork-codex",
-      "version": "0.2.1",
-      "dependencies": {
-        "@skastr0/groundwork-core": "workspace:*",
-        "effect": "^3.21.2",
-      },
-    },
     "packages/core": {
       "name": "@skastr0/groundwork-core",
       "version": "0.2.1",
@@ -37,19 +29,6 @@
         "@iarna/toml": "^2.2.5",
         "effect": "^3.21.2",
         "zod": "4.1.8",
-      },
-    },
-    "packages/opencode-plugin": {
-      "name": "@skastr0/groundwork-opencode-plugin",
-      "version": "0.2.1",
-      "dependencies": {
-        "@skastr0/groundwork-core": "workspace:*",
-      },
-      "devDependencies": {
-        "@opencode-ai/plugin": "1.3.17",
-      },
-      "peerDependencies": {
-        "@opencode-ai/plugin": ">=1.3.17",
       },
     },
   },
@@ -168,11 +147,7 @@
 
     "@rolldown/pluginutils": ["@rolldown/pluginutils@1.0.0-rc.17", "", {}, "sha512-n8iosDOt6Ig1UhJ2AYqoIhHWh/isz0xpicHTzpKBeotdVsTEcxsSA/i3EVM7gQAj0rU27OLAxCjzlj15IWY7bg=="],
 
-    "@skastr0/groundwork-codex": ["@skastr0/groundwork-codex@workspace:packages/codex"],
-
     "@skastr0/groundwork-core": ["@skastr0/groundwork-core@workspace:packages/core"],
-
-    "@skastr0/groundwork-opencode-plugin": ["@skastr0/groundwork-opencode-plugin@workspace:packages/opencode-plugin"],
 
     "@skastr0/pulsar-core": ["@skastr0/pulsar-core@0.1.1", "", { "dependencies": { "effect": "^3.0.0" } }, "sha512-x/ZjfOdOis6avK38W9PZdDYX4BCyDzpd8jHE52gdnVCRRBgI6ETa4lFEAjog06WEEwrSJhvo0nLol1PIlkAIcA=="],
 

@@ -6,12 +6,7 @@ import { fileURLToPath } from "node:url";
 
 const repoRoot = path.resolve(fileURLToPath(new URL("..", import.meta.url)));
 
-const packageDirs = [
-  ".",
-  "packages/core",
-  "packages/opencode-plugin",
-  "packages/codex",
-] as const;
+const packageDirs = [".", "packages/core"] as const;
 
 interface CommandResult {
   stdout: string;
@@ -57,7 +52,9 @@ async function runCommand(
             `${command} ${args.join(" ")} exited with ${code ?? "unknown"}`,
             stdout.trim(),
             stderr.trim(),
-          ].filter(Boolean).join("\n"),
+          ]
+            .filter(Boolean)
+            .join("\n"),
         ),
       );
     });
@@ -71,11 +68,9 @@ async function runCommand(
 }
 
 async function packPackage(packageDir: string, destination: string): Promise<string> {
-  const result = await runCommand(
-    "npm",
-    ["pack", "--json", "--pack-destination", destination],
-    { cwd: path.join(repoRoot, packageDir) },
-  );
+  const result = await runCommand("npm", ["pack", "--json", "--pack-destination", destination], {
+    cwd: path.join(repoRoot, packageDir),
+  });
   const packed = JSON.parse(result.stdout) as Array<{ filename: string }>;
   const filename = packed[0]?.filename;
   if (!filename) {
@@ -85,38 +80,26 @@ async function packPackage(packageDir: string, destination: string): Promise<str
   return path.isAbsolute(filename) ? filename : path.join(destination, filename);
 }
 
-async function smokeCodexHook(consumerDir: string): Promise<void> {
-  const pluginRoot = path.join(
-    consumerDir,
-    "node_modules",
-    "@skastr0",
-    "groundwork-codex",
-  );
-  const payload = JSON.stringify({
-    hook_event_name: "SessionStart",
-    session_id: "pack-smoke",
-    cwd: consumerDir,
-  });
+async function smokeHookCli(consumerDir: string): Promise<void> {
   const result = await runCommand(
-    "sh",
-    [path.join(pluginRoot, "hooks", "groundwork-codex-hook.sh")],
-    {
-      cwd: consumerDir,
-      env: {
-        ...process.env,
-        PLUGIN_ROOT: pluginRoot,
-      },
-      input: `${payload}\n`,
-    },
+    "bun",
+    [
+      "node_modules/@skastr0/groundwork/dist/cli.js",
+      "hook",
+      "session-start",
+      "{}",
+    ],
+    { cwd: consumerDir },
   );
   const output = JSON.parse(result.stdout) as {
-    hookSpecificOutput?: {
-      hookEventName?: string;
-      additionalContext?: string;
-    };
+    ok?: boolean;
+    data?: { decision?: string; additionalContext?: string };
   };
-  if (output.hookSpecificOutput?.hookEventName !== "SessionStart") {
-    throw new Error("Codex hook wrapper smoke did not return SessionStart output");
+  if (!output.ok || output.data?.decision !== "continue") {
+    throw new Error("Hook CLI smoke did not return portable session-start continue");
+  }
+  if (!output.data?.additionalContext?.includes("Groundwork is active")) {
+    throw new Error("Hook CLI smoke missing session guidance");
   }
 }
 
@@ -135,17 +118,13 @@ async function main(): Promise<void> {
     }
 
     await runCommand("npm", ["init", "-y"], { cwd: consumerDir });
-    await runCommand(
-      "npm",
-      ["install", "--ignore-scripts", ...tarballs, "@opencode-ai/plugin@1.3.17"],
-      { cwd: consumerDir },
-    );
+    await runCommand("npm", ["install", "--ignore-scripts", ...tarballs], {
+      cwd: consumerDir,
+    });
 
-    await runCommand(
-      "bun",
-      ["node_modules/@skastr0/groundwork/dist/cli.js", "doctor"],
-      { cwd: consumerDir },
-    );
+    await runCommand("bun", ["node_modules/@skastr0/groundwork/dist/cli.js", "doctor"], {
+      cwd: consumerDir,
+    });
     await runCommand(
       "node",
       [
@@ -154,13 +133,12 @@ async function main(): Promise<void> {
         [
           "await import('@skastr0/groundwork-core');",
           "await import('@skastr0/groundwork-core/cli-support');",
-          "await import('@skastr0/groundwork-opencode-plugin');",
-          "await import('@skastr0/groundwork-codex');",
+          "await import('@skastr0/groundwork-core/portable');",
         ].join(" "),
       ],
       { cwd: consumerDir },
     );
-    await smokeCodexHook(consumerDir);
+    await smokeHookCli(consumerDir);
 
     console.log("Packed package install smoke passed.");
   } finally {

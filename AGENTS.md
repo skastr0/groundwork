@@ -2,7 +2,7 @@
 
 ## Project
 
-This repository contains Groundwork, a JSON-first CLI and package set for policy, provenance, context, risk, and session artifact foundations.
+This repository contains Groundwork, a JSON-first CLI and package set for policy, provenance, context, risk, and session artifact foundations, plus an in-repo Prism plugin that lowers hooks and tools to supported coding harnesses.
 
 ## Package Manager
 
@@ -16,40 +16,28 @@ Common commands:
 - `bun run build`
 - `bun run check:imports`
 - `bun run check:cli`
+- `bun run plugin:compile`
 - `bun run verify`
 
 ## Groundwork Setup
 
 The canonical policy entrypoint is `groundwork.toml`; additional project policy may live under `.groundwork/*.toml`. User-level policy may live under `~/.groundwork/*.toml`.
 
-The Groundwork CLI should be available as `groundwork`. If hook execution cannot rely on `PATH`, use `$HOME/.local/bin/groundwork` explicitly.
+The Groundwork CLI should be available as `groundwork`. Prism-generated hooks spawn this binary (override with `GROUNDWORK_BIN`). If hook execution cannot rely on `PATH`, use `$HOME/.local/bin/groundwork` explicitly.
 
 ## Package Shape
 
 - `@skastr0/groundwork`: root Bun CLI package exporting `groundwork` from `dist/cli.js`.
-- `@skastr0/groundwork-core`: shared library under `packages/core`.
-- `@skastr0/groundwork-opencode-plugin`: OpenCode runtime wrapper under `packages/opencode-plugin`, using the core library.
-- `@skastr0/groundwork-codex`: self-contained Codex plugin bundle under `packages/codex`, with `.codex-plugin/plugin.json`, `hooks/hooks.json`, shell/cmd wrappers, and `dist/groundwork-codex-hook.mjs`.
+- `@skastr0/groundwork-core`: shared library under `packages/core` (policy, risk, context, provenance, session artifacts, portable hook decisions).
+- In-repo Prism plugin: `prism-plugin/` — portable hooks (`hook` CLI) + `gw_*` tools + skills/rules. Compile/install with `prism refresh ./prism-plugin`.
 
-Codex integration files:
+Portable hook CLI surface:
 
-- `packages/codex/.codex-plugin/plugin.json`
-- `packages/codex/hooks/hooks.json`
-- `packages/codex/hooks/groundwork-codex-hook.sh`
-- `packages/codex/hooks/groundwork-codex-hook.cmd`
-- `packages/codex/dist/groundwork-codex-hook.mjs` after `bun run build`
-
-OpenCode integration entrypoints:
-
-- `packages/opencode-plugin/src/server.ts`
-- `packages/opencode-plugin/dist/server.js` after `bun run build`
-- local OpenCode config can point at this checkout during development
+- `groundwork hook session-start|prompt-submit|tool-before|tool-after|permission-request '<json>'`
 
 ## Boundaries
 
-Keep harness integrations thin. Shared behavior belongs in the Groundwork foundations under `packages/core/src/`. The root CLI owns CLI protocol and local binary install scripts under `src/` and `scripts/`; package-specific runtime wrappers live under `packages/opencode-plugin/` and `packages/codex/`.
-
-Do not put the Groundwork skill inside this runtime repo. The skill source lives outside this package and is installed into harness skill directories from there.
+Keep harness integrations thin. Shared behavior belongs in the Groundwork foundations under `packages/core/src/`. The root CLI owns CLI protocol and local binary install scripts under `src/` and `scripts/`. Multi-harness distribution is owned by `prism-plugin/` + Prism compile — do not reintroduce per-harness native plugin packages.
 
 ## Validation Expectations
 

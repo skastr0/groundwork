@@ -3,18 +3,6 @@
   "interface": {
     "displayName": "Groundwork Local Plugins"
   },
-  "plugins": [
-    {
-      "name": "groundwork",
-      "source": {
-        "source": "local",
-        "path": "./packages/codex"
-      },
-      "policy": {
-        "installation": "AVAILABLE",
-        "authentication": "ON_INSTALL"
-      },
-      "category": "Productivity"
-    }
-  ]
+  "plugins": [],
+  "notes": "Codex/OpenCode native packages were retired. Install via Prism: prism refresh ./prism-plugin --overwrite --harness <id>"
 }

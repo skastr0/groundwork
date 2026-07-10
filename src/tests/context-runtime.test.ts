@@ -1,4 +1,5 @@
 import { promises as fs } from "node:fs";
+import { composeRuntimeLayers } from "./compose-runtime-layers.ts";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -326,7 +327,6 @@ async function createContextPluginHarness(
     >["sessionMessages"];
   } = {},
 ) {
-  const { GroundworkPlugin } = await import("../../packages/opencode-plugin/src/index.ts");
   const globalConfig = path.join(
     os.tmpdir(),
     `groundwork-global-${Date.now()}-${Math.random().toString(16).slice(2)}.toml`,
@@ -341,7 +341,7 @@ async function createContextPluginHarness(
       process.env.GROUNDWORK_POLICY_GLOBAL_CONFIG = globalConfig;
 
       try {
-        return await GroundworkPlugin(context);
+        return await composeRuntimeLayers(context);
       } finally {
         if (previousGlobalConfig === undefined) {
           delete process.env.GROUNDWORK_POLICY_GLOBAL_CONFIG;

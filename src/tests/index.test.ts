@@ -3,6 +3,7 @@ import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { composeRuntimeLayers } from "./compose-runtime-layers.ts";
 import { createFrameworkHookHarness } from "./framework-test-harness.ts";
 
 vi.mock("@opencode-ai/plugin", async () => {
@@ -13,12 +14,12 @@ vi.mock("@opencode-ai/plugin", async () => {
   };
 });
 
-describe("GroundworkPlugin", () => {
+describe("Groundwork layer composition", () => {
   afterEach(() => {
     vi.restoreAllMocks();
   });
 
-  it("keeps the core helper inert while the OpenCode package composes runtime layers", async () => {
+  it("keeps the core helper inert while portable layers compose runtime hooks", async () => {
     const {
       GROUNDWORK_LAYER_META,
       createGroundworkLayer,
@@ -26,9 +27,6 @@ describe("GroundworkPlugin", () => {
     const { EMPTY_GROUNDWORK_LAYER } = await import("../../packages/core/src/layer/index.ts");
     const { GROUNDWORK_HOOK_SURFACE, GROUNDWORK_LAYER_ORDER } =
       await import("../../packages/core/src/layer/dispatcher.ts");
-    const { FRAMEWORK_SYSTEM_TRANSFORM_GUIDANCE } =
-      await import("../../packages/core/src/provenance/runtime.ts");
-    const { GroundworkPlugin } = await import("../../packages/opencode-plugin/src/index.ts");
     const { FRAMEWORK_PROVENANCE_TOOL_IDS } = await import("../../packages/core/src/provenance/registry.ts");
     const previousGlobalConfig = process.env.GROUNDWORK_POLICY_GLOBAL_CONFIG;
     process.env.GROUNDWORK_POLICY_GLOBAL_CONFIG = path.join(
@@ -37,7 +35,7 @@ describe("GroundworkPlugin", () => {
     );
 
     const harness = await createFrameworkHookHarness({
-      plugin: GroundworkPlugin,
+      createHooks: async (context) => composeRuntimeLayers(context),
       shell: createUnexpectedShell(),
     });
 
@@ -45,7 +43,7 @@ describe("GroundworkPlugin", () => {
       expect(GROUNDWORK_LAYER_META).toEqual({
         pluginId: "groundwork",
         packageId: "@skastr0/groundwork-core",
-        runtimeSurfaces: ["cli", "codex", "opencode"],
+        runtimeSurfaces: ["cli", "prism"],
         hookSurface: GROUNDWORK_HOOK_SURFACE,
         layerOrder: GROUNDWORK_LAYER_ORDER,
       });
@@ -59,39 +57,7 @@ describe("GroundworkPlugin", () => {
       expect(typeof harness.hooks.event).toBe("function");
       expect(typeof harness.hooks["experimental.chat.system.transform"]).toBe("function");
       expect(typeof harness.hooks["experimental.session.compacting"]).toBe("function");
-
-      const systemOutput: { system: string[] } = { system: [] };
-      await harness.invokeHook(
-        "experimental.chat.system.transform",
-        {
-          sessionID: "session-framework-index",
-          model: { providerID: "openai", modelID: "gpt-5.4" },
-        },
-        systemOutput,
-      );
-
       expect(harness.hooks).not.toBe(EMPTY_GROUNDWORK_LAYER);
-      expect(systemOutput.system).toEqual([FRAMEWORK_SYSTEM_TRANSFORM_GUIDANCE]);
-
-      expect(harness.client.app.log).toHaveBeenCalledWith(
-        expect.objectContaining({
-          body: {
-            service: "groundwork",
-            level: "info",
-            message: "Groundwork composition root initialized",
-            extra: GROUNDWORK_LAYER_META,
-          },
-        }),
-      );
-      expect(harness.client.app.log).toHaveBeenCalledWith(
-        expect.objectContaining({
-          body: expect.objectContaining({
-            service: "groundwork-policy",
-            level: "info",
-            message: "No policy config found; framework policy layer idle",
-          }),
-        }),
-      );
     } finally {
       if (previousGlobalConfig === undefined) {
         delete process.env.GROUNDWORK_POLICY_GLOBAL_CONFIG;
@@ -193,15 +159,20 @@ message = "patch blocked by policy"
     }
   });
 
-  it("loads the OpenCode package entrypoint", async () => {
-    const { GroundworkPlugin } = await import("../../packages/opencode-plugin/src/index.ts");
-
-    expect(typeof GroundworkPlugin).toBe("function");
+  it("exposes portable hook decisions without harness plugins", async () => {
+    const { toolBeforeResult, sessionStartResult } = await import(
+      "../../packages/core/src/portable/index.ts"
+    );
+    expect(sessionStartResult({}).additionalContext).toContain("Groundwork is active");
+    const blocked = await toolBeforeResult({
+      toolName: "Bash",
+      args: { command: "git push --force origin main" },
+    });
+    expect(blocked.decision).toBe("block");
   });
 });
 
 async function createFrameworkPluginHarness(options: { policyToml?: string } = {}) {
-  const { GroundworkPlugin } = await import("../../packages/opencode-plugin/src/index.ts");
   const globalConfig = path.join(
     os.tmpdir(),
     `groundwork-global-${Date.now()}-${Math.random().toString(16).slice(2)}.toml`,
@@ -217,7 +188,7 @@ async function createFrameworkPluginHarness(options: { policyToml?: string } = {
       process.env.GROUNDWORK_POLICY_GLOBAL_CONFIG = globalConfig;
 
       try {
-        return await GroundworkPlugin(context);
+        return await composeRuntimeLayers(context);
       } finally {
         if (previousGlobalConfig === undefined) {
           delete process.env.GROUNDWORK_POLICY_GLOBAL_CONFIG;

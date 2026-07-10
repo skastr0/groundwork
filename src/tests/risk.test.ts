@@ -1,3 +1,4 @@
+import { composeRuntimeLayers } from "./compose-runtime-layers.ts";
 import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
@@ -43,14 +44,15 @@ async function runGroundwork(args: string[]): Promise<CommandResult> {
 
 describe("framework risk layer", () => {
   it("blocks destructive bash commands through the framework plugin without standalone activation", async () => {
-    const { GroundworkPlugin } = await import("../../packages/opencode-plugin/src/index.ts");
     const previousGlobalConfig = process.env.GROUNDWORK_POLICY_GLOBAL_CONFIG;
     process.env.GROUNDWORK_POLICY_GLOBAL_CONFIG = path.join(
       os.tmpdir(),
       "groundwork.global.none.toml",
     );
 
-    const harness = await createFrameworkHookHarness({ plugin: GroundworkPlugin });
+    const harness = await createFrameworkHookHarness({
+      createHooks: async (context) => composeRuntimeLayers(context),
+    });
 
     try {
       await expect(

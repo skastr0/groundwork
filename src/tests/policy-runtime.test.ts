@@ -273,7 +273,9 @@ async function createPolicyRuntimeHarness(options: {
   policyToml?: string;
   sessionMessages?: NonNullable<Parameters<typeof createFrameworkMockClient>[0]>["sessionMessages"];
 }) {
-  const { GroundworkPlugin } = await import("../../packages/opencode-plugin/src/index.ts");
+  const { createGroundworkLayer } = await import("../../packages/core/src/layer/index.ts");
+  const { createSessionKernelStore } = await import("../../packages/core/src/kernel/index.ts");
+  const { createFrameworkPolicyLayer } = await import("../../packages/core/src/policy/index.ts");
   const globalConfig = path.join(
     os.tmpdir(),
     `groundwork-global-${Date.now()}-${Math.random().toString(16).slice(2)}.toml`,
@@ -293,7 +295,15 @@ async function createPolicyRuntimeHarness(options: {
       process.env.GROUNDWORK_POLICY_GLOBAL_CONFIG = globalConfig;
 
       try {
-        return await GroundworkPlugin(context);
+        const sessionStore = createSessionKernelStore();
+        const policy = await createFrameworkPolicyLayer({
+          client: context.client as never,
+          directory: context.directory,
+          ownSessionCleanup: true,
+          sessionStore,
+          worktree: context.worktree,
+        });
+        return createGroundworkLayer({ policy }) as never;
       } finally {
         if (previousGlobalConfig === undefined) {
           delete process.env.GROUNDWORK_POLICY_GLOBAL_CONFIG;

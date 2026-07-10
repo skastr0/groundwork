@@ -10,25 +10,24 @@ async function readPackageJson(packagePath: string): Promise<Record<string, unkn
 }
 
 describe("groundwork package layout", () => {
-  it("keeps the CLI, core, OpenCode, and Codex package surfaces in place", async () => {
+  it("keeps the CLI, core, and Prism plugin surfaces in place", async () => {
     await fs.access(path.join(repoRoot, "src", "cli.ts"));
     await fs.access(path.join(repoRoot, "packages", "core", "src", "policy", "config.ts"));
     await fs.access(path.join(repoRoot, "packages", "core", "src", "provenance", "registry.ts"));
-    await fs.access(path.join(repoRoot, "packages", "opencode-plugin", "src", "index.ts"));
-    await fs.access(path.join(repoRoot, "packages", "codex", ".codex-plugin", "plugin.json"));
-    await fs.access(path.join(repoRoot, "packages", "codex", "hooks", "hooks.json"));
+    await fs.access(path.join(repoRoot, "packages", "core", "src", "portable", "runtime.ts"));
+    await fs.access(path.join(repoRoot, "prism-plugin", "plugin.json"));
+    await fs.access(path.join(repoRoot, "prism-plugin", "hooks", "tool-before.hook.ts"));
+    await fs.access(path.join(repoRoot, "prism-plugin", "tools", "gw_repo_state.tool.ts"));
 
     const rootPackage = await readPackageJson(".");
     expect(rootPackage["workspaces"]).toEqual(["packages/*"]);
     expect((rootPackage["bin"] as Record<string, string>)["groundwork"]).toBe("dist/cli.js");
+    expect(rootPackage["scripts"]).toMatchObject({
+      "plugin:compile": expect.stringContaining("prism refresh ./prism-plugin"),
+    });
 
     const corePackage = await readPackageJson("packages/core");
     expect(corePackage["name"]).toBe("@skastr0/groundwork-core");
-
-    const opencodePackage = await readPackageJson("packages/opencode-plugin");
-    expect(opencodePackage["name"]).toBe("@skastr0/groundwork-opencode-plugin");
-
-    const codexPackage = await readPackageJson("packages/codex");
-    expect(codexPackage["name"]).toBe("@skastr0/groundwork-codex");
+    expect((corePackage["exports"] as Record<string, unknown>)["./portable"]).toBeTruthy();
   });
 });
