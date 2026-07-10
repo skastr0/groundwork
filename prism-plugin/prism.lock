@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "root": "groundwork",
+  "rootVersion": "0.3.0",
+  "entries": [
+    {
+      "name": "groundwork",
+      "version": "0.3.0",
+      "sourcePath": ".",
+      "contentHash": "ebf4ccf67bd483062d564ce55cdb3701bb130a5bf82ad22243adf7477d0467f7",
+      "dependencies": {},
+      "sources": [
+        {
+          "path": "skills/groundwork/SKILL.md",
+          "contentHash": "e3de2ca5f590ee806934a47fe11a8e6749d2cacb70364e41656d268bd1345c4a"
+        }
+      ]
+    }
+  ],
+  "generatedAt": "2026-07-10T01:27:57.066Z"
+}

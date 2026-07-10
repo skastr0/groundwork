@@ -1,0 +1,33 @@
+{
+  "name": "groundwork",
+  "version": "0.3.0",
+  "description": "Groundwork policy, provenance, context, and risk — portable Prism hooks and tools for all supported harnesses",
+  "targets": {
+    "rules": ["coding-harness"],
+    "skills": ["coding-harness", "claw-harness"],
+    "hooks": [
+      "claude-code",
+      "opencode",
+      "codex-cli",
+      "grok",
+      "kimi-code",
+      "amp-code",
+      "antigravity-cli",
+      "factory-droid",
+      "pi"
+    ],
+    "tools": [
+      "claude-code",
+      "opencode",
+      "codex-cli",
+      "grok",
+      "hermes",
+      "kimi-code",
+      "amp-code",
+      "antigravity-cli",
+      "factory-droid",
+      "pi",
+      "cursor"
+    ]
+  }
+}
