@@ -1,0 +1,23 @@
+{
+  "generatedBy": "scripts/package-harness-plugins.ts",
+  "prism": "prism-dev package",
+  "source": "prism-plugin/",
+  "install": {
+    "claude-code": {
+      "path": "packages/claude-code",
+      "how": "Install as a Claude Code local plugin (contains .claude-plugin/plugin.json)."
+    },
+    "codex": {
+      "path": "packages/codex",
+      "how": "Install via Codex marketplace pointing at packages/codex (.codex-plugin/plugin.json)."
+    },
+    "opencode": {
+      "path": "packages/opencode-plugin",
+      "how": "Point opencode.json plugin entry at packages/opencode-plugin/dist/server.mjs (file:// URL)."
+    },
+    "grok": {
+      "path": "packages/grok",
+      "how": "Install as a Grok local plugin bundle (contains .claude-plugin/plugin.json + hooks)."
+    }
+  }
+}

@@ -16,7 +16,7 @@ The first public package release is prepared for npm but not published yet. Real
 
 - `@skastr0/groundwork`: the root Bun CLI package. It exports the `groundwork` executable through `bin.groundwork -> dist/cli.js`.
 - `@skastr0/groundwork-core`: the shared library package under `packages/core` for policy, provenance, context, risk, session foundations, and portable hook decisions.
-- `prism-plugin/`: Prism plugin source (hooks, `gw_*` tools, skills, rules). Compile with `bun run plugin:compile` or `prism refresh ./prism-plugin --overwrite --harness <id>`.
+- `prism-plugin/`: portable Prism source (hooks, `gw_*` tools, skills, rules). Maintainers compile with `bun run plugin:package` (`prism-dev package`) into **native** install roots under `packages/`.
 
 ## CLI Install Surface
 
@@ -106,28 +106,25 @@ groundwork policy update '{"names":["groundwork-effect"],"scope":"global"}'
 
 Use `"scope":"project"` with `"root_dir":"/path/to/repo"` to install into that repository's `.groundwork/plugins` and project-local policy source/lock files instead.
 
-## Prism harness plugin
+## Harness plugins (native install)
 
-Harness integration is owned by `prism-plugin/`. Hooks spawn the Groundwork CLI (`groundwork hook …`) so decisions stay durable on disk and lower to every Prism-supported harness from one source.
-
-```sh
-bun install
-bun run build
-bun run install:local
-prism refresh ./prism-plugin --overwrite --harness codex-cli
-prism refresh ./prism-plugin --overwrite --harness opencode
-prism refresh ./prism-plugin --overwrite --harness claude-code
-# or: bun run plugin:compile
-```
-
-Portable decisions (also used by generated wrappers):
+Author once in `prism-plugin/`. Maintainers package with **`prism-dev`** into shippable native trees under `packages/`. End users install those trees with each harness’s own plugin UX — **not** via Prism.
 
 ```sh
-groundwork hook session-start '{}'
-groundwork hook tool-before '{"tool_name":"Bash","args":{"command":"git push --force origin main"}}'
+# maintainers
+bun install && bun run build && bun run install:local
+bun run plugin:package   # requires prism-dev
+
+# users — examples
+codex plugin marketplace add /path/to/groundwork
+codex plugin add groundwork@groundwork-local          # → packages/codex
+
+# Claude: install packages/claude-code as a local Claude plugin
+# OpenCode: point plugin at packages/opencode-plugin/dist/server.mjs
+# Grok: install packages/grok as a local plugin
 ```
 
-See `docs/codex-integration.md` for Codex-oriented install notes.
+Compiled hooks spawn the Groundwork CLI (`groundwork hook …`). See `docs/harness-plugins.md` and `docs/codex-integration.md`.
 
 ## Development
 
@@ -165,5 +162,5 @@ bun run pack:verify
 
 - `src/cli.ts` and `src/cli/` implement the standalone CLI protocol (including `hook` decisions).
 - `packages/core/` contains the shared Groundwork library for risk, policy, context, provenance, session foundations, and portable hook runtime.
-- `prism-plugin/` contains Prism hooks, `gw_*` tools, skills, and rules for multi-harness distribution.
+- `prism-plugin/` is portable source; `packages/` holds Prism-compiled native plugins for each harness.
 - `docs/` contains integration and session artifact notes.

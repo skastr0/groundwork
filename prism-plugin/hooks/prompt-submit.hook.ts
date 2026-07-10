@@ -4,7 +4,7 @@ import { rootFromEvent, runGroundworkHook, sessionIdFromEvent } from "./shared/g
 export default defineHook({
   name: "prompt-submit",
   description: "Record /policy override and /policy skill-loaded commands into durable session state.",
-  targets: ["codex-cli", "opencode", "kimi-code"],
+  targets: ["codex-cli", "opencode", "claude-code", "kimi-code"],
   event: hookEvent.promptSubmit,
   async handle(event) {
     const result = await runGroundworkHook("prompt-submit", {

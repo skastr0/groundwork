@@ -1,0 +1,16 @@
+{
+  "name": "@skastr0/groundwork-codex",
+  "version": "0.3.0",
+  "description": "Groundwork Codex plugin (Prism-compiled native bundle)",
+  "type": "module",
+  "license": "MIT",
+  "files": [
+    ".codex-plugin",
+    "hooks",
+    "skills",
+    "mcp"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
+}

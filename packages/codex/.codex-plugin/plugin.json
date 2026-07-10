@@ -1,0 +1,31 @@
+{
+  "name": "groundwork",
+  "version": "0.3.0",
+  "description": "Groundwork policy, risk, context, and provenance for Codex (Prism-compiled).",
+  "author": {
+    "name": "Guilherme Castro",
+    "email": "skastr052@gmail.com",
+    "url": "https://github.com/skastr0"
+  },
+  "homepage": "https://github.com/skastr0/groundwork#readme",
+  "repository": "https://github.com/skastr0/groundwork",
+  "license": "MIT",
+  "keywords": [
+    "codex",
+    "groundwork",
+    "policy",
+    "provenance",
+    "risk",
+    "context"
+  ],
+  "hooks": "./hooks/hooks.json",
+  "interface": {
+    "displayName": "Groundwork",
+    "shortDescription": "Policy, provenance, context, and risk feedback.",
+    "longDescription": "Groundwork bundles Codex hooks and provenance tools compiled from the portable Prism plugin.",
+    "developerName": "Groundwork",
+    "category": "Productivity",
+    "websiteURL": "https://github.com/skastr0/groundwork",
+    "brandColor": "#2563EB"
+  }
+}

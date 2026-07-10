@@ -23,8 +23,11 @@ describe("groundwork package layout", () => {
     expect(rootPackage["workspaces"]).toEqual(["packages/*"]);
     expect((rootPackage["bin"] as Record<string, string>)["groundwork"]).toBe("dist/cli.js");
     expect(rootPackage["scripts"]).toMatchObject({
-      "plugin:compile": expect.stringContaining("prism refresh ./prism-plugin"),
+      "plugin:package": expect.stringContaining("package-harness-plugins"),
     });
+    await fs.access(path.join(repoRoot, "scripts", "package-harness-plugins.ts"));
+    await fs.access(path.join(repoRoot, "packages", "codex", ".codex-plugin", "plugin.json"));
+    await fs.access(path.join(repoRoot, "packages", "claude-code", ".claude-plugin", "plugin.json"));
 
     const corePackage = await readPackageJson("packages/core");
     expect(corePackage["name"]).toBe("@skastr0/groundwork-core");

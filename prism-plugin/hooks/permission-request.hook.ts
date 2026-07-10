@@ -11,7 +11,7 @@ import {
 export default defineHook({
   name: "permission-request",
   description: "Groundwork risk gate on permission requests (shell/Bash).",
-  targets: ["codex-cli", "opencode"],
+  targets: ["codex-cli", "opencode", "claude-code"],
   event: hookEvent.permissionRequest,
   match: { tool: hookTool.any() },
   async handle(event) {

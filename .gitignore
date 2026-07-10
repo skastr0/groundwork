@@ -1,7 +1,5 @@
 node_modules/
 dist/
-!packages/codex/dist/
-!packages/codex/dist/groundwork-codex-hook.mjs
 .codex/
 .agents/traces/
 .groundwork/*
@@ -13,3 +11,7 @@ dist/
 .DS_Store
 *.log
 .atlas/
+
+# Prism package intermediate (intermediate only; ship roots are packages/{claude-code,codex,opencode-plugin,grok}/)
+packages/harness-plugins/
+prism-plugin/dist/

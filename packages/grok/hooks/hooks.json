@@ -1,0 +1,36 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"/Users/guilhermecastro/Projects/groundwork/packages/harness-plugins/grok/prism-generated-groundwork/.prism-plan-root/plugins/prism-generated-groundwork/hooks/session-start.mjs\""
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"/Users/guilhermecastro/Projects/groundwork/packages/harness-plugins/grok/prism-generated-groundwork/.prism-plan-root/plugins/prism-generated-groundwork/hooks/tool-after.mjs\""
+          }
+        ],
+        "matcher": ".*"
+      }
+    ],
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"/Users/guilhermecastro/Projects/groundwork/packages/harness-plugins/grok/prism-generated-groundwork/.prism-plan-root/plugins/prism-generated-groundwork/hooks/tool-before.mjs\""
+          }
+        ],
+        "matcher": ".*"
+      }
+    ]
+  }
+}

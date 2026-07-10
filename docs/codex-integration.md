@@ -1,43 +1,43 @@
-# Groundwork + Codex (via Prism)
+# Groundwork + Codex (native marketplace plugin)
 
-Groundwork no longer ships a bespoke Codex marketplace package. Codex integration is the **Prism-generated** hook + MCP surface from the in-repo plugin.
+Groundwork ships a **Codex-native plugin** compiled from the portable Prism source (`prism-plugin/`) via `prism-dev package`. Users install it the Codex marketplace way — they do **not** need Prism on their machine.
 
-## Source
+## Build (maintainers)
 
-- Prism plugin: `prism-plugin/`
-- Portable decisions: `groundwork hook …` (durable session artifacts under `.groundwork/sessions/`)
-- Provenance tools: `groundwork provenance …` lowered as Prism MCP tools
-
-## Install / compile
-
-From this repository (requires `prism` on PATH, ≥ 0.3.4 for hook lowerers):
+Requires `prism-dev` (local Prism binary with current hook lowerers):
 
 ```bash
 bun run build
-bun run install:local   # installs groundwork CLI so hooks can spawn it
-prism refresh ./prism-plugin --overwrite --harness codex-cli
+bun run plugin:package
 ```
 
-Or use the package script smoke path:
+This writes:
+
+- intermediate Prism packages under `packages/harness-plugins/` (gitignored)
+- **shippable** Codex bundle at `packages/codex/` (marketplace root)
+
+## Install (users / local)
 
 ```bash
-bun run plugin:compile
+bun run build && bun run install:local   # groundwork CLI on PATH (hooks spawn it)
+bun run plugin:package                  # if dist/plugins not already built
+
+codex plugin marketplace add /path/to/groundwork
+codex plugin add groundwork@groundwork-local
 ```
 
-Prism patches managed Codex hooks into `config.toml` and registers the MCP server for `gw_*` tools.
+Marketplace catalog (`.agents/plugins/marketplace.json`) points at `packages/codex`.
 
-## Behavioral contract (portable)
+## Layout (`packages/codex`)
 
-| Event | Behavior |
+| path | role |
 |---|---|
-| session start | Inject Groundwork guidance (`additionalContext`) |
-| prompt submit | Record `/policy override` and `/policy skill-loaded` |
-| tool before | Risk block-once for shell + policy pre-eval |
-| permission request | Risk gate for Bash (Codex + OpenCode) |
-| tool after | Non-blocking policy/risk/context feedback |
+| `.codex-plugin/plugin.json` | Codex marketplace manifest |
+| `hooks/hooks.json` | SessionStart, UserPromptSubmit, PreToolUse, PermissionRequest, PostToolUse |
+| `hooks/*.mjs` | Prism-compiled hook wrappers (`${PLUGIN_ROOT}`) |
+| `skills/groundwork/` | Agent skill content |
+| `mcp/` | stdio MCP server for `gw_*` tools (optional activation) |
 
-Codex PreToolUse is shell-only upstream; file-edit pre-policy is best-effort where the harness fires hooks for edit tools.
+## Runtime
 
-## Override binary path
-
-Generated hooks resolve `groundwork` from `PATH`, then `$HOME/.local/bin/groundwork`, then `GROUNDWORK_BIN`.
+Hook wrappers call the **Groundwork CLI** (`groundwork hook …`) so state stays durable under `.groundwork/sessions/`. Install the CLI (`@skastr0/groundwork` / `bun run install:local`) so hooks can resolve `groundwork` on `PATH` (or set `GROUNDWORK_BIN`).
