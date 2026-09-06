@@ -22,6 +22,10 @@
         "vitest": "^4.0.15",
       },
     },
+    "packages/codex": {
+      "name": "@skastr0/groundwork-codex",
+      "version": "0.3.0",
+    },
     "packages/core": {
       "name": "@skastr0/groundwork-core",
       "version": "0.2.1",
@@ -146,6 +150,8 @@
     "@rolldown/binding-win32-x64-msvc": ["@rolldown/binding-win32-x64-msvc@1.0.0-rc.17", "", { "os": "win32", "cpu": "x64" }, "sha512-3hkiolcUAvPB9FLb3UZdfjVVNWherN1f/skkGWJP/fgSQhYUZpSIRr0/I8ZK9TkF3F7kxvJAk0+IcKvPHk9qQg=="],
 
     "@rolldown/pluginutils": ["@rolldown/pluginutils@1.0.0-rc.17", "", {}, "sha512-n8iosDOt6Ig1UhJ2AYqoIhHWh/isz0xpicHTzpKBeotdVsTEcxsSA/i3EVM7gQAj0rU27OLAxCjzlj15IWY7bg=="],
+
+    "@skastr0/groundwork-codex": ["@skastr0/groundwork-codex@workspace:packages/codex"],
 
     "@skastr0/groundwork-core": ["@skastr0/groundwork-core@workspace:packages/core"],
 
