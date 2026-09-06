@@ -12,6 +12,9 @@ dist/
 *.log
 .atlas/
 
+# Amp orb portal metadata
+.amp/portals/*
+
 # Prism package intermediate (intermediate only; ship roots are packages/{claude-code,codex,opencode-plugin,grok}/)
 packages/harness-plugins/
 prism-plugin/dist/
